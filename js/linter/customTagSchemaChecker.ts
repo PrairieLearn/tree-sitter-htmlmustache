@@ -538,6 +538,74 @@ function formatType(type: unknown): string {
   return Array.isArray(type) ? type.join(' or ') : String(type);
 }
 
+function pluralCharacters(limit: unknown): string {
+  return `${String(limit)} character${limit === 1 ? '' : 's'}`;
+}
+
+/**
+ * Just the post-"must" phrase for a leaf keyword failure (no prefix, no
+ * period). Used both directly by `messageForError` and by `mergeErrors` to
+ * join `anyOf` branches with "or".
+ */
+function constraintPhrase(error: ErrorObject): string | null {
+  switch (error.keyword) {
+    case 'type':
+      return `be ${formatType(error.params.type)}`;
+    case 'enum': {
+      const allowed = formatValueList(error.params.allowedValues);
+      return `be one of: ${allowed ?? 'the allowed values'}`;
+    }
+    case 'const':
+      return `be ${JSON.stringify(error.params.allowedValue)}`;
+    case 'minimum':
+      return `be >= ${String(error.params.limit)}`;
+    case 'maximum':
+      return `be <= ${String(error.params.limit)}`;
+    case 'exclusiveMinimum':
+      return `be > ${String(error.params.limit)}`;
+    case 'exclusiveMaximum':
+      return `be < ${String(error.params.limit)}`;
+    case 'format':
+      return `match format ${JSON.stringify(error.params.format)}`;
+    case 'pattern':
+      return `match pattern ${JSON.stringify(error.params.pattern)}`;
+    case 'minLength':
+      return `be at least ${pluralCharacters(error.params.limit)} long`;
+    case 'maxLength':
+      return `be at most ${pluralCharacters(error.params.limit)} long`;
+  }
+  return null;
+}
+
+/**
+ * Returns the "Attribute X on <tag>" / "Attribute X on <child> child of
+ * <tag>" framing for an instancePath, or `null` when the path lands somewhere
+ * a stock prefix doesn't make sense (root, `children/N/text`, etc.).
+ */
+function attributePrefix(
+  segments: string[],
+  json: ElementJson,
+): string | null {
+  if (segments[0] === 'attributes') {
+    const attrName = segments[1];
+    if (!attrName) return null;
+    return `Attribute "${attrName}" on <${json.tag}>`;
+  }
+  if (segments[0] === 'children') {
+    const childIndex = Number(segments[1]);
+    const child = Number.isInteger(childIndex)
+      ? json.children[childIndex]
+      : undefined;
+    if (!child) return null;
+    if (segments[2] === 'attributes') {
+      const attrName = segments[3];
+      if (!attrName) return null;
+      return `Attribute "${attrName}" on <${child.tag}> child of <${json.tag}>`;
+    }
+  }
+  return null;
+}
+
 function messageForError(
   error: ErrorObject,
   json: ElementJson,
@@ -568,26 +636,6 @@ function messageForError(
     ) {
       return `Unknown attribute "${error.params.additionalProperty}" on <${tag}>.`;
     }
-
-    const attrName = segments[1];
-    if (attrName) {
-      if (error.keyword === 'enum') {
-        const allowed = formatValueList(error.params.allowedValues);
-        return `Attribute "${attrName}" on <${tag}> must be one of: ${allowed ?? 'the allowed values'}.`;
-      }
-      if (error.keyword === 'const') {
-        return `Attribute "${attrName}" on <${tag}> must be ${JSON.stringify(error.params.allowedValue)}.`;
-      }
-      if (error.keyword === 'type') {
-        return `Attribute "${attrName}" on <${tag}> must be ${formatType(error.params.type)}.`;
-      }
-      if (error.keyword === 'minimum') {
-        return `Attribute "${attrName}" on <${tag}> must be >= ${String(error.params.limit)}.`;
-      }
-      if (error.keyword === 'maximum') {
-        return `Attribute "${attrName}" on <${tag}> must be <= ${String(error.params.limit)}.`;
-      }
-    }
   }
 
   if (segments[0] === 'children') {
@@ -611,27 +659,12 @@ function messageForError(
       ) {
         return `Unknown attribute "${error.params.additionalProperty}" on <${child.tag}> child of <${tag}>.`;
       }
-      const attrName = segments[3];
-      if (attrName) {
-        if (error.keyword === 'enum') {
-          const allowed = formatValueList(error.params.allowedValues);
-          return `Attribute "${attrName}" on <${child.tag}> child of <${tag}> must be one of: ${allowed ?? 'the allowed values'}.`;
-        }
-        if (error.keyword === 'const') {
-          return `Attribute "${attrName}" on <${child.tag}> child of <${tag}> must be ${JSON.stringify(error.params.allowedValue)}.`;
-        }
-        if (error.keyword === 'type') {
-          return `Attribute "${attrName}" on <${child.tag}> child of <${tag}> must be ${formatType(error.params.type)}.`;
-        }
-        if (error.keyword === 'minimum') {
-          return `Attribute "${attrName}" on <${child.tag}> child of <${tag}> must be >= ${String(error.params.limit)}.`;
-        }
-        if (error.keyword === 'maximum') {
-          return `Attribute "${attrName}" on <${child.tag}> child of <${tag}> must be <= ${String(error.params.limit)}.`;
-        }
-      }
     }
   }
+
+  const prefix = attributePrefix(segments, json);
+  const phrase = constraintPhrase(error);
+  if (prefix && phrase) return `${prefix} must ${phrase}.`;
 
   return error.message ?? 'does not satisfy custom tag schema';
 }
