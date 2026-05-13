@@ -100,6 +100,7 @@
     "prettier": "^3.8.1",
     "tree-sitter": "^0.25.0",
     "tree-sitter-cli": "^0.26.5",
+    "tsx": "^4.20.2",
     "typescript": "^5.9.3",
     "typescript-eslint": "^8.56.0",
     "vitest": "^4.0.18"
@@ -115,7 +116,7 @@
     "install": "node-gyp-build || exit 0",
     "build": "tree-sitter build --wasm",
     "build:js": "node esbuild.config.mjs && tsc -p js/tsconfig.json",
-    "prepack": "tree-sitter build --wasm && pnpm run generate:ast-types && pnpm run build:js",
+    "prepack": "tree-sitter build --wasm && npm run generate:ast-types && npm run build:js",
     "check": "node dist/cli/main.js check",
     "lint": "eslint .",
     "format": "prettier --write .",
