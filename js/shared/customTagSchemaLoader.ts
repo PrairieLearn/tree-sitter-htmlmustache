@@ -1,6 +1,8 @@
 import Ajv2020 from 'ajv/dist/2020.js';
 import ajvErrors from 'ajv-errors';
 import type { ValidateFunction } from 'ajv';
+import { htmlElementAttributes } from 'html-element-attributes';
+import { ariaAttributes } from 'aria-attributes';
 import type { CustomTagConfig } from './customCodeTags.js';
 
 export interface ConfigLoadError {
@@ -25,20 +27,22 @@ export interface SchemaLoadOptions {
 
 const DRAFT_2020_12 = 'https://json-schema.org/draft/2020-12/schema';
 
-const GLOBAL_ATTRIBUTE_PROPERTIES: Record<string, unknown> = {
-  class: { type: 'string' },
-  id: { type: 'string' },
-  style: { type: 'string' },
-  lang: { type: 'string' },
-  dir: { type: 'string' },
-  tabindex: {},
-  title: { type: 'string' },
-  role: { type: 'string' },
-};
+// HTML global attributes per WHATWG (via html-element-attributes['*']) plus
+// ARIA's `role` and aria-* attributes (via aria-attributes). The packages
+// track the spec so the list stays current without a hand-curated set here.
+//
+// The empty `{}` schema means "any value" — fine for `htmlGlobalAttributes:
+// true`, where the goal is to *permit* these attributes, not to type-check
+// them. Schema authors who want stricter typing on, say, `tabindex` can
+// redeclare it explicitly; their declaration wins via spread order below.
+const GLOBAL_ATTRIBUTE_PROPERTIES: Record<string, unknown> = Object.fromEntries(
+  [...htmlElementAttributes['*'], ...ariaAttributes].map((name) => [name, {}]),
+);
 
+// `data-*` is open-ended (any suffix is valid) so it stays a pattern rather
+// than an explicit enumeration.
 const GLOBAL_ATTRIBUTE_PATTERNS: Record<string, unknown> = {
   '^data-': {},
-  '^aria-': {},
 };
 
 function isObject(value: unknown): value is Record<string, unknown> {
