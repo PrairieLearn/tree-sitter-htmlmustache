@@ -420,6 +420,143 @@ describe('per-element envelope exposes text and innerHtml', () => {
   });
 });
 
+describe('schema diagnostic merging', () => {
+  const BOOLEAN_STRINGS = new Set([
+    'true',
+    'false',
+    'yes',
+    'no',
+    'on',
+    'off',
+    '1',
+    '0',
+  ]);
+  const isBooleanString = (v: string) => BOOLEAN_STRINGS.has(v.toLowerCase());
+
+  let handle: Linter;
+  beforeAll(async () => {
+    handle = await createLinter({
+      locateWasm: (name) => {
+        if (name === GRAMMAR_WASM_FILENAME) return GRAMMAR_WASM_PATH;
+        return path.resolve(REPO_ROOT, 'node_modules', 'web-tree-sitter', name);
+      },
+      formats: { 'pl-boolean': isBooleanString },
+    });
+  });
+
+  it('collapses anyOf wrapper + branch errors into one "or" diagnostic', async () => {
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: {
+        attributes: {
+          type: 'object',
+          properties: {
+            correct: {
+              anyOf: [
+                { type: 'boolean' },
+                { type: 'string', format: 'pl-boolean' },
+              ],
+            },
+          },
+        },
+      },
+    };
+    const d = handle
+      .lint('<pl-answer correct="trsue"></pl-answer>', {
+        rules: { customTagSchema: 'error' },
+        customTags: [{ name: 'pl-answer', schema }],
+      })
+      .filter((x) => x.ruleName === 'customTagSchema');
+    expect(d).toHaveLength(1);
+    expect(d[0].message).toBe(
+      'Attribute "correct" on <pl-answer> must be boolean or match format "pl-boolean".',
+    );
+  });
+
+  it('lets a schema-level errorMessage override the merged diagnostic', async () => {
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: {
+        attributes: {
+          type: 'object',
+          properties: {
+            correct: {
+              anyOf: [
+                { type: 'boolean' },
+                { type: 'string', format: 'pl-boolean' },
+              ],
+              errorMessage: 'must be true/false (or yes/no, on/off, 1/0)',
+            },
+          },
+        },
+      },
+    };
+    const d = handle
+      .lint('<pl-answer correct="trsue"></pl-answer>', {
+        rules: { customTagSchema: 'error' },
+        customTags: [{ name: 'pl-answer', schema }],
+      })
+      .filter((x) => x.ruleName === 'customTagSchema');
+    expect(d).toHaveLength(1);
+    expect(d[0].message).toBe('must be true/false (or yes/no, on/off, 1/0)');
+  });
+
+  it('drops the if-wrapper and keeps the translated then-branch failure', async () => {
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: {
+        attributes: {
+          type: 'object',
+          properties: {
+            kind: { enum: ['count', 'free'] },
+            max: { type: 'string' },
+          },
+          if: { properties: { kind: { const: 'count' } } },
+          then: { properties: { max: { type: 'integer' } } },
+        },
+      },
+    };
+    const d = handle
+      .lint('<pl-card kind="count" max="abc"></pl-card>', {
+        rules: { customTagSchema: 'error' },
+        customTags: [{ name: 'pl-card', schema }],
+      })
+      .filter((x) => x.ruleName === 'customTagSchema');
+    expect(d).toHaveLength(1);
+    expect(d[0].message).toBe(
+      'Attribute "max" on <pl-card> must be integer.',
+    );
+  });
+
+  it('translates a plain format failure with attribute context', async () => {
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: {
+        attributes: {
+          type: 'object',
+          properties: {
+            answers: { type: 'string', format: 'pl-boolean' },
+          },
+        },
+      },
+    };
+    const d = handle
+      .lint('<pl-card answers="maybe"></pl-card>', {
+        rules: { customTagSchema: 'error' },
+        customTags: [{ name: 'pl-card', schema }],
+      })
+      .filter((x) => x.ruleName === 'customTagSchema');
+    expect(d).toHaveLength(1);
+    expect(d[0].message).toBe(
+      'Attribute "answers" on <pl-card> must match format "pl-boolean".',
+    );
+  });
+});
+
 describe('DEFAULT_CONFIG', () => {
   it('has rule entries for every built-in rule', () => {
     const rules = DEFAULT_CONFIG.rules as Record<string, string>;

@@ -693,6 +693,116 @@ function nodeForError(
   return context.startTag;
 }
 
+function isBranchOf(child: ErrorObject, wrapper: ErrorObject): boolean {
+  return (
+    child.instancePath === wrapper.instancePath &&
+    child.schemaPath.startsWith(`${wrapper.schemaPath}/`)
+  );
+}
+
+interface MergedError {
+  error: ErrorObject;
+  message: string;
+}
+
+/**
+ * Collapses AJV's "every failing branch + the composition wrapper" noise into
+ * one diagnostic per `instancePath`. Branch error messages are joined with
+ * "or" for `anyOf`/`oneOf`; `if`/`allOf` wrappers (which carry no information
+ * beyond their branches) are dropped; `not` translates to a generic phrase;
+ * `errorMessage` from ajv-errors wins over anything else at the same path.
+ */
+function mergeErrors(
+  errors: ErrorObject[],
+  json: ElementJson,
+  customKeywords: Set<string>,
+): MergedError[] {
+  const byPath = new Map<string, ErrorObject[]>();
+  for (const error of errors) {
+    const list = byPath.get(error.instancePath);
+    if (list) list.push(error);
+    else byPath.set(error.instancePath, [error]);
+  }
+
+  const translate = (error: ErrorObject): MergedError => ({
+    error,
+    message: messageForError(error, json, customKeywords),
+  });
+
+  const result: MergedError[] = [];
+  for (const [path, group] of byPath) {
+    const segments = pathSegments(path);
+    const prefix = attributePrefix(segments, json);
+
+    const override = group.find((e) => e.keyword === 'errorMessage');
+    if (override) {
+      result.push({
+        error: override,
+        message: override.message ?? 'does not satisfy custom tag schema',
+      });
+      continue;
+    }
+
+    const altWrapper = group.find(
+      (e) => e.keyword === 'anyOf' || e.keyword === 'oneOf',
+    );
+    if (altWrapper) {
+      const branches = group.filter((e) => isBranchOf(e, altWrapper));
+      const phrases = Array.from(
+        new Set(
+          branches
+            .map((e) => constraintPhrase(e))
+            .filter((p): p is string => p !== null),
+        ),
+      );
+      if (prefix && phrases.length > 0) {
+        result.push({
+          error: altWrapper,
+          message: `${prefix} must ${phrases.join(' or ')}.`,
+        });
+        continue;
+      }
+      // Otherwise emit the wrapper alone — AJV's raw "must match a schema in
+      // anyOf" is exactly the noise this merger was written to suppress.
+      result.push({
+        error: altWrapper,
+        message: `${prefix ?? `<${json.tag}>`} does not match any of the allowed schemas.`,
+      });
+      continue;
+    }
+
+    // `if` is pure bookkeeping ("matched then-schema, then failed") — its
+    // message says nothing the branch errors don't already say.
+    const ifWrapper = group.find((e) => e.keyword === 'if');
+    if (ifWrapper) {
+      for (const e of group) if (e !== ifWrapper) result.push(translate(e));
+      continue;
+    }
+
+    // `not` has no sub-errors by definition; translate generically. Any other
+    // errors at this path (rare) get their own translated diagnostics.
+    const notWrapper = group.find((e) => e.keyword === 'not');
+    if (notWrapper) {
+      result.push({
+        error: notWrapper,
+        message: `${prefix ?? `<${json.tag}>`} must not match the disallowed schema.`,
+      });
+      for (const e of group) if (e !== notWrapper) result.push(translate(e));
+      continue;
+    }
+
+    // `allOf` is redundant — every failing branch already reports itself.
+    const allOfWrapper = group.find((e) => e.keyword === 'allOf');
+    if (allOfWrapper) {
+      for (const e of group) if (e !== allOfWrapper) result.push(translate(e));
+      continue;
+    }
+
+    for (const e of group) result.push(translate(e));
+  }
+  return result;
+}
+
 function validateElement(
   compiled: CompiledTagSchema,
   element: BalanceNode,
@@ -708,13 +818,19 @@ function validateElement(
   );
   // `localizeEn` rewrites *every* error's message — including unknown keywords,
   // which it stomps with `must pass "<keyword>" keyword validation`. Run it
-  // only on built-in errors so consumer-supplied messages survive.
-  const builtIn = errors.filter((e) => !customKeywords.has(e.keyword));
+  // only on built-in errors so consumer-supplied messages survive. Excludes
+  // ajv-errors' `errorMessage` keyword too, whose entire purpose is to carry
+  // a custom string that would otherwise get clobbered.
+  const builtIn = errors.filter(
+    (e) => !customKeywords.has(e.keyword) && e.keyword !== 'errorMessage',
+  );
   localizeEn(builtIn);
-  return errors.map((error) => ({
-    node: nodeForError(error, built.context),
-    message: messageForError(error, built.json, customKeywords),
-  }));
+  return mergeErrors(errors, built.json, customKeywords).map(
+    ({ error, message }) => ({
+      node: nodeForError(error, built.context),
+      message,
+    }),
+  );
 }
 
 export function checkCustomTagSchemas(
