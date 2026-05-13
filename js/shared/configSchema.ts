@@ -139,12 +139,17 @@ export interface HtmlMustacheConfig {
   rules?: RulesConfig;
   customRules?: CustomRule[];
   /**
-   * Path (relative to the config file) to an ESM/CJS module whose default
-   * export is `Record<string, SchemaFormat>`. The CLI and LSP dynamically
-   * import it and register the formats on the schema validator before any
-   * tag schema compiles, so schemas can reference them via `"format": "..."`.
+   * Path (relative to the config file) to an ESM/CJS module that supplies
+   * ajv extensions for the schema validator. The module must expose at least
+   * one of these named exports:
+   *   - `formats: Record<string, SchemaFormat>` — registered via
+   *     `ajv.addFormat`; schemas reference them as `"format": "..."`.
+   *   - `keywords: Record<string, SchemaKeyword>` — registered via
+   *     `ajv.addKeyword`; schemas reference them as `"<name>": value`.
+   * The CLI and LSP dynamically import the module and apply both before any
+   * tag schema compiles.
    */
-  formatsModule?: string;
+  ajvModule?: string;
 }
 
 /**
@@ -332,8 +337,8 @@ export function validateConfig(raw: unknown): HtmlMustacheConfig {
     if (hasRules) config.rules = rules;
   }
 
-  if (typeof obj.formatsModule === 'string' && obj.formatsModule.length > 0) {
-    config.formatsModule = obj.formatsModule;
+  if (typeof obj.ajvModule === 'string' && obj.ajvModule.length > 0) {
+    config.ajvModule = obj.ajvModule;
   }
 
   if (Array.isArray(obj.customRules)) {

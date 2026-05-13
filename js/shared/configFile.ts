@@ -15,6 +15,7 @@ import { loadSchemaRegistry } from './customTagSchemaLoader.js';
 import type {
   ConfigLoadError,
   SchemaFormat,
+  SchemaKeyword,
   SchemaRegistry,
 } from './customTagSchemaLoader.js';
 
@@ -25,10 +26,11 @@ const schemaCache = new Map<
   { schemaRegistry: SchemaRegistry; schemaLoadErrors: ConfigLoadError[] }
 >();
 
-const formatsModuleCache = new Map<string, LoadedFormatsModule>();
+const ajvModuleCache = new Map<string, LoadedAjvModule>();
 
-export interface LoadedFormatsModule {
+export interface LoadedAjvModule {
   formats?: Record<string, SchemaFormat>;
+  keywords?: Record<string, SchemaKeyword>;
   error?: ConfigLoadError;
 }
 
@@ -49,49 +51,66 @@ function validateFormatsExport(
   return out;
 }
 
+function validateKeywordsExport(
+  value: unknown,
+): Record<string, SchemaKeyword> | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const out: Record<string, SchemaKeyword> = {};
+  for (const [name, keyword] of Object.entries(value)) {
+    if (typeof name !== 'string' || name.length === 0) return null;
+    if (!keyword || typeof keyword !== 'object' || Array.isArray(keyword)) {
+      return null;
+    }
+    out[name] = keyword as SchemaKeyword;
+  }
+  return out;
+}
+
 /**
- * Dynamically import the `formatsModule` referenced by a config. Returns the
- * formats record on success, or an error on failure. Cached per absolute path.
+ * Dynamically import the module referenced by `ajvModule`. The module must
+ * expose at least one of two named exports: `formats` (record of format
+ * functions, regexes, or ajv FormatDefinition objects) and/or `keywords`
+ * (record of ajv KeywordDefinition objects minus the `keyword` field).
+ * Cached per absolute path.
  *
- * The module's default export (or its named `formats` export) must be a
- * `Record<string, SchemaFormat>`. Anything else returns an error.
+ * A module that supplies only one of the two is fine — the other simply
+ * isn't registered.
  */
-export async function loadFormatsModule(
+export async function loadAjvModule(
   configDir: string,
   modulePath: string,
-): Promise<LoadedFormatsModule> {
+): Promise<LoadedAjvModule> {
   const absolute = path.resolve(configDir, modulePath);
-  const cached = formatsModuleCache.get(absolute);
+  const cached = ajvModuleCache.get(absolute);
   if (cached) return cached;
-  let result: LoadedFormatsModule;
+  let result: LoadedAjvModule;
   try {
     const mod = (await import(pathToFileURL(absolute).href)) as Record<
       string,
       unknown
     >;
-    const exported =
-      mod && typeof mod === 'object' && 'default' in mod
-        ? mod.default
-        : (mod as unknown);
-    const formats =
-      validateFormatsExport(exported) ?? validateFormatsExport(mod.formats);
-    if (!formats) {
+    const formats = validateFormatsExport(mod.formats);
+    const keywords = validateKeywordsExport(mod.keywords);
+    if (!formats && !keywords) {
       result = {
         error: {
-          message: `formatsModule "${modulePath}" must export a record of format functions, regexes, or ajv FormatDefinition objects.`,
+          message: `ajvModule "${modulePath}" must export at least one of: \`formats\` (record of format functions, regexes, or ajv FormatDefinition objects) or \`keywords\` (record of ajv KeywordDefinition objects without the \`keyword\` field).`,
         },
       };
     } else {
-      result = { formats };
+      result = {
+        ...(formats ? { formats } : {}),
+        ...(keywords ? { keywords } : {}),
+      };
     }
   } catch (error) {
     result = {
       error: {
-        message: `Failed to load formatsModule "${modulePath}": ${error instanceof Error ? error.message : String(error)}`,
+        message: `Failed to load ajvModule "${modulePath}": ${error instanceof Error ? error.message : String(error)}`,
       },
     };
   }
-  formatsModuleCache.set(absolute, result);
+  ajvModuleCache.set(absolute, result);
   return result;
 }
 
@@ -133,9 +152,10 @@ function loadSchemasCached(
   config: HtmlMustacheConfig,
   configDir: string,
   formats: Record<string, SchemaFormat> | undefined,
-  formatsCacheKey: string,
+  keywords: Record<string, SchemaKeyword> | undefined,
+  ajvModuleCacheKey: string,
 ): { schemaRegistry: SchemaRegistry; schemaLoadErrors: ConfigLoadError[] } {
-  const key = `${configDir}\0${formatsCacheKey}\0${JSON.stringify(config.customTags ?? [])}`;
+  const key = `${configDir}\0${ajvModuleCacheKey}\0${JSON.stringify(config.customTags ?? [])}`;
   const cached = schemaCache.get(key);
   if (cached) return cached;
   const { registry: schemaRegistry, loadErrors: schemaLoadErrors } =
@@ -143,6 +163,7 @@ function loadSchemasCached(
       configDir,
       loadFile: readSchemaFile,
       formats,
+      keywords,
     });
   const result = { schemaRegistry, schemaLoadErrors };
   schemaCache.set(key, result);
@@ -153,7 +174,7 @@ function loadSchemasCached(
  * Load config file for a file:// URI. Returns the parsed config + its
  * containing directory, or null if not found / not parseable.
  *
- * Async because the config's `formatsModule` (if any) is dynamically imported.
+ * Async because the config's `ajvModule` (if any) is dynamically imported.
  */
 export async function loadConfigFile(
   uri: string,
@@ -171,7 +192,7 @@ export async function loadConfigFile(
  * Load config file for a filesystem path. Returns the parsed config + its
  * containing directory, or null.
  *
- * Async because the config's `formatsModule` (if any) is dynamically imported.
+ * Async because the config's `ajvModule` (if any) is dynamically imported.
  */
 export async function loadConfigFileForPath(
   filePath: string,
@@ -191,18 +212,21 @@ export async function loadConfigFileForPath(
   const configDir = path.dirname(configPath);
   const extraLoadErrors: ConfigLoadError[] = [];
   let formats: Record<string, SchemaFormat> | undefined;
-  let formatsKey = '';
-  if (config.formatsModule) {
-    formatsKey = path.resolve(configDir, config.formatsModule);
-    const loaded = await loadFormatsModule(configDir, config.formatsModule);
+  let keywords: Record<string, SchemaKeyword> | undefined;
+  let ajvModuleKey = '';
+  if (config.ajvModule) {
+    ajvModuleKey = path.resolve(configDir, config.ajvModule);
+    const loaded = await loadAjvModule(configDir, config.ajvModule);
     if (loaded.error) extraLoadErrors.push(loaded.error);
     formats = loaded.formats;
+    keywords = loaded.keywords;
   }
   const { schemaRegistry, schemaLoadErrors } = loadSchemasCached(
     config,
     configDir,
     formats,
-    formatsKey,
+    keywords,
+    ajvModuleKey,
   );
   return {
     ...config,

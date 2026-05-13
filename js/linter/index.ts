@@ -15,7 +15,10 @@ import { toDiagnostic } from './diagnostic.js';
 import type { Diagnostic } from './diagnostic.js';
 import { GRAMMAR_WASM_FILENAME } from '../shared/grammar.js';
 import { loadSchemaRegistry } from '../shared/customTagSchemaLoader.js';
-import type { SchemaFormat } from '../shared/customTagSchemaLoader.js';
+import type {
+  SchemaFormat,
+  SchemaKeyword,
+} from '../shared/customTagSchemaLoader.js';
 import { RULE_DEFAULTS } from '../shared/ruleMetadata.js';
 import type {
   HtmlMustacheConfig,
@@ -37,7 +40,13 @@ export type Config = Omit<
   'include' | 'exclude' | 'customRules'
 > & { customRules?: CustomRule[] };
 export type CustomTag = CustomCodeTagConfig;
-export type { RulesConfig, RuleSeverity, Diagnostic, SchemaFormat };
+export type {
+  RulesConfig,
+  RuleSeverity,
+  Diagnostic,
+  SchemaFormat,
+  SchemaKeyword,
+};
 
 export type LocateWasm = string | ((filename: string) => string);
 
@@ -55,6 +64,14 @@ export interface CreateLinterOptions {
    * schemas reference via `{ "format": "<name>" }`.
    */
   formats?: Record<string, SchemaFormat>;
+  /**
+   * ajv keywords registered on the schema validator. Thin pass-through to
+   * `ajv.addKeyword` — the registration key becomes the keyword name. Use
+   * when JSON Schema's built-in vocabulary can't express a domain-specific
+   * rule. Errors that carry a `message` flow through unchanged; errors with
+   * no message get a generic `<tag>: validation <keyword> failed on <path>.`
+   */
+  keywords?: Record<string, SchemaKeyword>;
 }
 
 export interface Linter {
@@ -83,7 +100,7 @@ function resolveGrammarUrl(locateWasm: LocateWasm): string {
  * reloads the grammar WASM.
  */
 export async function createLinter(opts: CreateLinterOptions): Promise<Linter> {
-  const { locateWasm, formats } = opts;
+  const { locateWasm, formats, keywords } = opts;
   const locateFile = toLocateFile(locateWasm);
   // `Parser.init` is idempotent (Emscripten caches the runtime globally), so
   // repeated calls are safe — the first locateFile wins.
@@ -101,7 +118,10 @@ export async function createLinter(opts: CreateLinterOptions): Promise<Linter> {
         const inlineSchemaTags = config?.customTags?.filter(
           (t) => t.schema && typeof t.schema !== 'string',
         );
-        const schemaResult = loadSchemaRegistry(inlineSchemaTags, { formats });
+        const schemaResult = loadSchemaRegistry(inlineSchemaTags, {
+          formats,
+          keywords,
+        });
         const errors = collectErrors(
           tree as unknown as WalkableTree,
           config?.rules,

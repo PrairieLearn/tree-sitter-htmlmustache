@@ -1,11 +1,17 @@
 import Ajv2020 from 'ajv/dist/2020.js';
 import ajvErrors from 'ajv-errors';
-import type { Format, ValidateFunction } from 'ajv';
+import type { Format, KeywordDefinition, ValidateFunction } from 'ajv';
 import { htmlElementAttributes } from 'html-element-attributes';
 import { ariaAttributes } from 'aria-attributes';
 import type { CustomTagConfig } from './customCodeTags.js';
 
 export type SchemaFormat = Format;
+
+/**
+ * Consumer-defined ajv keyword. Same shape as ajv's `KeywordDefinition` minus
+ * the `keyword` field, which the linter derives from the registration key.
+ */
+export type SchemaKeyword = Omit<KeywordDefinition, 'keyword'>;
 
 export interface ConfigLoadError {
   message: string;
@@ -20,6 +26,13 @@ export interface CompiledTagSchema {
 
 export interface SchemaRegistry {
   schemas: Map<string, CompiledTagSchema>;
+  /**
+   * Names of consumer-registered keywords. The diagnostic rewriter uses this
+   * set to detect ajv errors from non-built-in keywords and skip its
+   * HTML-vocabulary translation for them (passing `error.message` through, or
+   * falling back to a generic phrase that mentions the keyword name).
+   */
+  customKeywords: Set<string>;
 }
 
 export interface SchemaLoadOptions {
@@ -31,6 +44,14 @@ export interface SchemaLoadOptions {
    * `pl-boolean` accepting the 20-ish truthy strings PrairieLearn coerces.
    */
   formats?: Record<string, SchemaFormat>;
+  /**
+   * ajv keywords registered on the validator before any tag schema compiles.
+   * Thin pass-through to `ajv.addKeyword` — the registration key becomes the
+   * keyword name. Use when JSON Schema's built-in vocabulary can't express a
+   * domain-specific rule (e.g. cross-child comparisons over the new `text`
+   * projection).
+   */
+  keywords?: Record<string, SchemaKeyword>;
 }
 
 const DRAFT_2020_12 = 'https://json-schema.org/draft/2020-12/schema';
@@ -114,12 +135,19 @@ export function loadSchemaRegistry(
   customTags: CustomTagConfig[] | undefined,
   options: SchemaLoadOptions = {},
 ): { registry: SchemaRegistry; loadErrors: ConfigLoadError[] } {
-  const registry: SchemaRegistry = { schemas: new Map() };
+  const customKeywords = new Set<string>();
+  const registry: SchemaRegistry = { schemas: new Map(), customKeywords };
   const loadErrors: ConfigLoadError[] = [];
   const ajv = createAjv();
   if (options.formats) {
     for (const [name, format] of Object.entries(options.formats)) {
       ajv.addFormat(name, format);
+    }
+  }
+  if (options.keywords) {
+    for (const [name, keyword] of Object.entries(options.keywords)) {
+      ajv.addKeyword({ ...keyword, keyword: name } as KeywordDefinition);
+      customKeywords.add(name);
     }
   }
 

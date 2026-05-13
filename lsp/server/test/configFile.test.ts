@@ -561,12 +561,12 @@ describe('loadConfigFileForPath', () => {
     }
   });
 
-  it('loads a formatsModule referenced from the config', async () => {
+  it('loads an ajvModule referenced from the config', async () => {
     const fmTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lsp-fm-'));
     try {
       fs.writeFileSync(
-        path.join(fmTempDir, 'pl-formats.mjs'),
-        'export default { "pl-boolean": (v) => typeof v === "string" && /^(true|false)$/i.test(v) };',
+        path.join(fmTempDir, 'pl-ajv.mjs'),
+        'export const formats = { "pl-boolean": (v) => typeof v === "string" && /^(true|false)$/i.test(v) };',
       );
       fs.writeFileSync(
         path.join(fmTempDir, 'pl-card.schema.json'),
@@ -585,7 +585,7 @@ describe('loadConfigFileForPath', () => {
       fs.writeFileSync(
         path.join(fmTempDir, '.htmlmustache.jsonc'),
         JSON.stringify({
-          formatsModule: './pl-formats.mjs',
+          ajvModule: './pl-ajv.mjs',
           customTags: [{ name: 'pl-card', schema: './pl-card.schema.json' }],
         }),
       );
@@ -595,10 +595,22 @@ describe('loadConfigFileForPath', () => {
       const compiled = loaded!.schemaRegistry.schemas.get('pl-card')!;
       expect(compiled).toBeDefined();
       expect(
-        compiled.validate({ tag: 'pl-card', attributes: { live: 'True' }, children: [] }),
+        compiled.validate({
+          tag: 'pl-card',
+          attributes: { live: 'True' },
+          text: '',
+          innerHtml: '',
+          children: [],
+        }),
       ).toBe(true);
       expect(
-        compiled.validate({ tag: 'pl-card', attributes: { live: 'maybe' }, children: [] }),
+        compiled.validate({
+          tag: 'pl-card',
+          attributes: { live: 'maybe' },
+          text: '',
+          innerHtml: '',
+          children: [],
+        }),
       ).toBe(false);
     } finally {
       fs.rmSync(fmTempDir, { recursive: true, force: true });

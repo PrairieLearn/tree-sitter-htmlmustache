@@ -365,11 +365,25 @@ Schemas validate this value shape:
 {
   "tag": "pl-multiple-choice",
   "attributes": { "answers-name": "q1", "weight": "2" },
-  "children": [{ "tag": "pl-answer", "attributes": { "correct": "true" } }],
+  "text": "Pick one",
+  "innerHtml": "Pick one <pl-answer correct=\"true\">A</pl-answer>",
+  "children": [
+    {
+      "tag": "pl-answer",
+      "attributes": { "correct": "true" },
+      "text": "A",
+      "innerHtml": "A",
+    },
+  ],
 }
 ```
 
 Attribute values are coerced by JSON Schema (`"2"` can satisfy an integer, boolean attributes become `true`). Attribute values containing mustache are treated as unknown runtime values, so value-dependent schema errors are waived while presence and unknown-attribute checks still run. Mustache sections are flattened when building `children`, so children inside `{{#section}}...{{/section}}` count as reachable; timeline-aware child counts are not modeled yet.
+
+`text` and `innerHtml` make content-shaped rules expressible directly in the schema:
+
+- **`text`** — descendant text content concatenated. HTML tags are stripped (`<b>foo</b>` contributes `"foo"`); mustache interpolations are kept verbatim (`{{name}}` stays in the string). Surrounding whitespace is trimmed; interior whitespace is preserved. Matches `Node.textContent` with one trim concession. Use this for "must be non-empty", "no duplicate inner text across children" (with `uniqueItems`), or pattern matches.
+- **`innerHtml`** — raw source between the open and close tags, byte-for-byte. No trimming, no tag stripping, no mustache rewriting. Empty string for self-closing or void elements. Use this when you actually need the markup (length caps, forbidden substrings).
 
 Set `"htmlGlobalAttributes": true` on an `attributes` sub-schema to permit the WHATWG HTML global attributes (sourced from [`html-element-attributes`](https://github.com/wooorm/html-element-attributes) — `class`, `id`, `style`, `hidden`, `slot`, `inert`, `popover`, `contenteditable`, `spellcheck`, etc.), every `aria-*` attribute and `role` (from [`aria-attributes`](https://github.com/wooorm/aria-attributes)), and the `data-*` pattern, alongside whichever properties the schema explicitly declares:
 
@@ -547,7 +561,7 @@ A schema then references it like any built-in format:
 }
 ```
 
-Formats are functions (or `RegExp`, or ajv [`FormatDefinition`](https://ajv.js.org/options.html#formats) objects), so they can't live directly in `.htmlmustache.jsonc`. For the CLI and the VS Code extension (which both load `.htmlmustache.jsonc`), supply them through a `formatsModule` field pointing at a relative JS/TS file that exports a `Record<string, SchemaFormat>` as its default export:
+Formats are functions (or `RegExp`, or ajv [`FormatDefinition`](https://ajv.js.org/options.html#formats) objects), so they can't live directly in `.htmlmustache.jsonc`. For the CLI and the VS Code extension (which both load `.htmlmustache.jsonc`), supply them through an `ajvModule` field pointing at a relative JS/TS file that exports a `formats` record (and/or a `keywords` record — see [Custom keywords](#custom-keywords)):
 
 ```jsonc
 // .htmlmustache.jsonc
@@ -558,13 +572,13 @@ Formats are functions (or `RegExp`, or ajv [`FormatDefinition`](https://ajv.js.o
       "schema": "elements/pl-multiple-choice/pl-multiple-choice.schema.json",
     },
   ],
-  "formatsModule": "./scripts/htmlmustache-formats.mjs",
+  "ajvModule": "./scripts/htmlmustache-ajv.mjs",
   "rules": { "customTagSchema": "error" },
 }
 ```
 
 ```js
-// scripts/htmlmustache-formats.mjs
+// scripts/htmlmustache-ajv.mjs
 const BOOLEAN_STRINGS = new Set([
   'true',
   't',
@@ -580,15 +594,81 @@ const BOOLEAN_STRINGS = new Set([
   'off',
 ]);
 
-export default {
+export const formats = {
   'pl-boolean': (value) =>
     typeof value === 'string' && BOOLEAN_STRINGS.has(value.toLowerCase()),
 };
 ```
 
-The CLI and the language server dynamically import this file once per process (cached by absolute path) and register the exported formats on the schema validator before any tag schema compiles. Note the trust implication: pointing `formatsModule` at a path means running that code in-process when the CLI lints or the VS Code extension opens a document — treat it like a build script in your repo.
+The CLI and the language server dynamically import this file once per process (cached by absolute path) and register the exports on the schema validator before any tag schema compiles. Note the trust implication: pointing `ajvModule` at a path means running that code in-process when the CLI lints or the VS Code extension opens a document — treat it like a build script in your repo.
 
 If the file can't be loaded, or its export shape is wrong, you'll see a `customTagSchema`-rule diagnostic naming the path in the failure message; tag schemas that reference an unregistered format will then fail at compile time with the standard ajv "unknown format" error.
+
+#### Custom keywords
+
+JSON Schema 2020-12 + ajv's built-in vocabulary covers most rules, but domain-specific ones — "these children must have unique text", "this attribute is one of several truthy synonyms", "the value parsed as an integer must be ≤ count of children matching X" — don't always fit. Register custom keywords programmatically:
+
+```ts
+import {
+  createLinter,
+  type SchemaKeyword,
+} from '@reteps/tree-sitter-htmlmustache/linter';
+
+const uniqueChildText: SchemaKeyword = {
+  type: 'array',
+  errors: true,
+  validate: function uniqueChildText(_schema, data) {
+    if (!Array.isArray(data)) return true;
+    const seen = new Set<string>();
+    for (const child of data) {
+      const text =
+        child && typeof child === 'object' ? (child as { text?: unknown }).text : undefined;
+      if (typeof text !== 'string') continue;
+      if (seen.has(text)) {
+        uniqueChildText.errors = [
+          { keyword: 'unique-child-text', message: `duplicate child text "${text}"` },
+        ];
+        return false;
+      }
+      seen.add(text);
+    }
+    return true;
+  },
+};
+
+const linter = await createLinter({
+  locateWasm,
+  keywords: { 'unique-child-text': uniqueChildText },
+});
+```
+
+A schema then references it like any built-in keyword:
+
+```jsonc
+{
+  "type": "object",
+  "properties": {
+    "children": { "unique-child-text": true },
+  },
+}
+```
+
+For CLI / VS Code usage, expose the same record as a named `keywords` export from your `ajvModule` (either alongside `formats` or on its own):
+
+```js
+// scripts/htmlmustache-ajv.mjs
+export const formats = {
+  /* ... */
+};
+
+export const keywords = {
+  'unique-child-text': {
+    /* ajv KeywordDefinition, sans `keyword` */
+  },
+};
+```
+
+Diagnostics from consumer-defined keywords skip the HTML-vocabulary rewriter. If the validator sets a `message` on its error (the same path ajv-errors uses for `errorMessage` overrides), it flows through unchanged. Otherwise the diagnostic falls back to a generic `<tag>: validation <keyword> failed on <path>.`
 
 ### Custom Rules
 

@@ -15,12 +15,16 @@ import {
 interface ElementJson {
   tag: string;
   attributes: Record<string, unknown>;
+  text: string;
+  innerHtml: string;
   children: ChildJson[];
 }
 
 interface ChildJson {
   tag: string;
   attributes: Record<string, unknown>;
+  text: string;
+  innerHtml: string;
 }
 
 interface ElementContext {
@@ -51,6 +55,58 @@ function findStartTag(node: BalanceNode): BalanceNode | null {
       (c) => c.type === 'html_start_tag' || c.type === 'html_self_closing_tag',
     ) ?? null
   );
+}
+
+function findEndTag(node: BalanceNode): BalanceNode | null {
+  return (
+    node.children.find(
+      (c) => c.type === 'html_end_tag' || c.type === 'html_forced_end_tag',
+    ) ?? null
+  );
+}
+
+function appendDescendantText(node: BalanceNode, out: string[]): void {
+  switch (node.type) {
+    case 'text':
+    case 'html_entity':
+    case 'html_raw_text':
+    case 'mustache_interpolation':
+    case 'mustache_triple':
+      out.push(node.text);
+      return;
+    case 'html_start_tag':
+    case 'html_end_tag':
+    case 'html_self_closing_tag':
+    case 'html_forced_end_tag':
+    case 'html_erroneous_end_tag':
+    case 'html_doctype':
+    case 'mustache_comment':
+    case 'mustache_partial':
+      return;
+  }
+  for (const child of node.children) {
+    appendDescendantText(child, out);
+  }
+}
+
+function buildElementText(element: BalanceNode): string {
+  const parts: string[] = [];
+  for (const child of element.children) {
+    appendDescendantText(child, parts);
+  }
+  return parts.join('').trim();
+}
+
+function buildElementInnerHtml(element: BalanceNode): string {
+  const startTag = findStartTag(element);
+  if (!startTag || startTag.type === 'html_self_closing_tag') return '';
+  const endTag = findEndTag(element);
+  const innerStart = startTag.endIndex - element.startIndex;
+  const innerEnd = endTag
+    ? endTag.startIndex - element.startIndex
+    : element.text.length;
+  if (innerEnd <= innerStart) return '';
+  return element.text.slice(innerStart, innerEnd);
 }
 
 function readAttributes(
@@ -255,7 +311,12 @@ function buildChildJson(
       );
     }
   }
-  return { tag, attributes };
+  return {
+    tag,
+    attributes,
+    text: buildElementText(child),
+    innerHtml: buildElementInnerHtml(child),
+  };
 }
 
 function buildElementJson(
@@ -274,6 +335,8 @@ function buildElementJson(
     json: {
       tag,
       attributes,
+      text: buildElementText(element),
+      innerHtml: buildElementInnerHtml(element),
       children: childNodes
         .map((c, i) =>
           buildChildJson(c.element, compiled, i, mustacheAttributePaths),
@@ -475,7 +538,20 @@ function formatType(type: unknown): string {
   return Array.isArray(type) ? type.join(' or ') : String(type);
 }
 
-function messageForError(error: ErrorObject, json: ElementJson): string {
+function messageForError(
+  error: ErrorObject,
+  json: ElementJson,
+  customKeywords: Set<string>,
+): string {
+  if (customKeywords.has(error.keyword)) {
+    // ajv emits a stock "must pass \"<keyword>\" keyword validation" message
+    // when the consumer's validator doesn't supply its own. Treat that as "no
+    // consumer message" and fall through to the named-keyword phrase.
+    const ajvDefault = `must pass "${error.keyword}" keyword validation`;
+    if (error.message && error.message !== ajvDefault) return error.message;
+    const path = error.instancePath || '/';
+    return `<${json.tag}>: validation ${error.keyword} failed on ${path}.`;
+  }
   const segments = pathSegments(error.instancePath);
   const tag = json.tag;
 
@@ -587,6 +663,7 @@ function nodeForError(
 function validateElement(
   compiled: CompiledTagSchema,
   element: BalanceNode,
+  customKeywords: Set<string>,
 ): FixableError[] {
   const built = buildElementJson(element, compiled);
   if (!built) return [];
@@ -596,10 +673,14 @@ function validateElement(
     (error) =>
       !mentionsMustacheAttribute(error, built.context, compiled.schema),
   );
-  localizeEn(errors);
+  // `localizeEn` rewrites *every* error's message — including unknown keywords,
+  // which it stomps with `must pass "<keyword>" keyword validation`. Run it
+  // only on built-in errors so consumer-supplied messages survive.
+  const builtIn = errors.filter((e) => !customKeywords.has(e.keyword));
+  localizeEn(builtIn);
   return errors.map((error) => ({
     node: nodeForError(error, built.context),
-    message: messageForError(error, built.json),
+    message: messageForError(error, built.json, customKeywords),
   }));
 }
 
@@ -610,12 +691,15 @@ export function checkCustomTagSchemas(
   if (!registry || registry.schemas.size === 0) return [];
   const errors: FixableError[] = [];
   const schemas = registry.schemas;
+  const customKeywords = registry.customKeywords;
 
   function visit(node: BalanceNode): void {
     if (isHtmlElementType(node)) {
       const tag = getTagName(node)?.toLowerCase();
       const compiled = tag ? schemas.get(tag) : undefined;
-      if (compiled) errors.push(...validateElement(compiled, node));
+      if (compiled) {
+        errors.push(...validateElement(compiled, node, customKeywords));
+      }
     }
     for (const child of node.children) visit(child);
   }

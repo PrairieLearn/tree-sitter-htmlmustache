@@ -218,6 +218,208 @@ describe('createLinter formats hook', () => {
   });
 });
 
+describe('createLinter keywords hook', () => {
+  it('exposes a consumer-registered keyword to schemas', async () => {
+    interface ErroringValidator {
+      (schema: unknown, data: unknown): boolean;
+      errors?: Array<{
+        keyword: string;
+        message: string;
+        instancePath?: string;
+      }>;
+    }
+
+    const uniqueChildText: ErroringValidator = function uniqueChildText(
+      _schema,
+      data,
+    ) {
+      if (!Array.isArray(data)) return true;
+      const seen = new Set<string>();
+      for (const child of data) {
+        const text =
+          child && typeof child === 'object'
+            ? (child as { text?: unknown }).text
+            : undefined;
+        if (typeof text !== 'string') continue;
+        if (seen.has(text)) {
+          uniqueChildText.errors = [
+            {
+              keyword: 'unique-child-text',
+              message: `duplicate child text "${text}"`,
+            },
+          ];
+          return false;
+        }
+        seen.add(text);
+      }
+      return true;
+    };
+
+    const handle = await createLinter({
+      locateWasm: (name) => {
+        if (name === GRAMMAR_WASM_FILENAME) return GRAMMAR_WASM_PATH;
+        return path.resolve(REPO_ROOT, 'node_modules', 'web-tree-sitter', name);
+      },
+      keywords: {
+        'unique-child-text': {
+          type: 'array',
+          errors: true,
+          validate: uniqueChildText,
+        },
+      },
+    });
+
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: { children: { 'unique-child-text': true } },
+    };
+
+    const ok = handle.lint('<pl-list><li>a</li><li>b</li></pl-list>', {
+      rules: { customTagSchema: 'error' },
+      customTags: [{ name: 'pl-list', schema }],
+    });
+    expect(ok.filter((d) => d.ruleName === 'customTagSchema')).toEqual([]);
+
+    const bad = handle.lint('<pl-list><li>a</li><li>a</li></pl-list>', {
+      rules: { customTagSchema: 'error' },
+      customTags: [{ name: 'pl-list', schema }],
+    });
+    const diag = bad.find((d) => d.ruleName === 'customTagSchema');
+    expect(diag).toBeDefined();
+    expect(diag!.message).toContain('duplicate child text "a"');
+  });
+
+  it('falls back to a generic phrase when the keyword leaves no message', async () => {
+    const handle = await createLinter({
+      locateWasm: (name) => {
+        if (name === GRAMMAR_WASM_FILENAME) return GRAMMAR_WASM_PATH;
+        return path.resolve(REPO_ROOT, 'node_modules', 'web-tree-sitter', name);
+      },
+      keywords: {
+        'always-fails': {
+          errors: false,
+          validate: () => false,
+        },
+      },
+    });
+
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      'always-fails': true,
+    };
+
+    const d = handle.lint('<x-card></x-card>', {
+      rules: { customTagSchema: 'error' },
+      customTags: [{ name: 'x-card', schema }],
+    });
+    const diag = d.find((x) => x.ruleName === 'customTagSchema');
+    expect(diag).toBeDefined();
+    expect(diag!.message).toBe(
+      '<x-card>: validation always-fails failed on /.',
+    );
+  });
+});
+
+describe('per-element envelope exposes text and innerHtml', () => {
+  it('rejects empty text content via minLength', () => {
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: { text: { type: 'string', minLength: 1 } },
+    };
+    const ok = linter.lint('<pl-note>hi</pl-note>', {
+      rules: { customTagSchema: 'error' },
+      customTags: [{ name: 'pl-note', schema }],
+    });
+    expect(ok.filter((d) => d.ruleName === 'customTagSchema')).toEqual([]);
+
+    const bad = linter.lint('<pl-note>   </pl-note>', {
+      rules: { customTagSchema: 'error' },
+      customTags: [{ name: 'pl-note', schema }],
+    });
+    expect(bad.some((d) => d.ruleName === 'customTagSchema')).toBe(true);
+  });
+
+  it('preserves mustache interpolations verbatim in text', () => {
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: { text: { type: 'string', pattern: '\\{\\{name\\}\\}' } },
+    };
+    const ok = linter.lint('<pl-note>Hello {{name}}!</pl-note>', {
+      rules: { customTagSchema: 'error' },
+      customTags: [{ name: 'pl-note', schema }],
+    });
+    expect(ok.filter((d) => d.ruleName === 'customTagSchema')).toEqual([]);
+  });
+
+  it('strips HTML tags from text but keeps inner content', () => {
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: { text: { const: 'foo' } },
+    };
+    const d = linter.lint('<pl-note><b>foo</b></pl-note>', {
+      rules: { customTagSchema: 'error' },
+      customTags: [{ name: 'pl-note', schema }],
+    });
+    expect(d.filter((x) => x.ruleName === 'customTagSchema')).toEqual([]);
+  });
+
+  it('exposes innerHtml as raw source between open and close tags', () => {
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: { innerHtml: { const: '<b>foo</b>' } },
+    };
+    const ok = linter.lint('<pl-note><b>foo</b></pl-note>', {
+      rules: { customTagSchema: 'error' },
+      customTags: [{ name: 'pl-note', schema }],
+    });
+    expect(ok.filter((d) => d.ruleName === 'customTagSchema')).toEqual([]);
+  });
+
+  it('reports innerHtml as empty for self-closing elements', () => {
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: { innerHtml: { const: '' }, text: { const: '' } },
+    };
+    const ok = linter.lint('<pl-icon />', {
+      rules: { customTagSchema: 'error' },
+      customTags: [{ name: 'pl-icon', schema }],
+    });
+    expect(ok.filter((d) => d.ruleName === 'customTagSchema')).toEqual([]);
+  });
+
+  it('detects duplicate inner text across children via uniqueItems', () => {
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: {
+        children: {
+          type: 'array',
+          uniqueItems: true,
+          items: { type: 'object', properties: { text: { type: 'string' } } },
+        },
+      },
+    };
+    const ok = linter.lint('<pl-list><li>a</li><li>b</li></pl-list>', {
+      rules: { customTagSchema: 'error' },
+      customTags: [{ name: 'pl-list', schema }],
+    });
+    expect(ok.filter((d) => d.ruleName === 'customTagSchema')).toEqual([]);
+
+    const bad = linter.lint('<pl-list><li>a</li><li>a</li></pl-list>', {
+      rules: { customTagSchema: 'error' },
+      customTags: [{ name: 'pl-list', schema }],
+    });
+    expect(bad.some((d) => d.ruleName === 'customTagSchema')).toBe(true);
+  });
+});
+
 describe('DEFAULT_CONFIG', () => {
   it('has rule entries for every built-in rule', () => {
     const rules = DEFAULT_CONFIG.rules as Record<string, string>;

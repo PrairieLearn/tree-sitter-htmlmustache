@@ -5,7 +5,7 @@ import path from 'node:path';
 import chalk from 'chalk';
 import type { Tree } from './wasm';
 import { initializeParser, parseDocument } from './wasm';
-import { findConfigFile, loadFormatsModule } from '../shared/configFile.js';
+import { findConfigFile, loadAjvModule } from '../shared/configFile.js';
 import { parseJsonc, validateConfig } from '../shared/configSchema.js';
 import type {
   HtmlMustacheConfig,
@@ -204,9 +204,9 @@ export async function resolveFiles(cliPatterns: string[]): Promise<{
     }
   }
 
-  const formatsResult =
-    config?.formatsModule && configDir
-      ? await loadFormatsModule(configDir, config.formatsModule)
+  const ajvModuleResult =
+    config?.ajvModule && configDir
+      ? await loadAjvModule(configDir, config.ajvModule)
       : undefined;
 
   const schemaResult = config
@@ -216,12 +216,13 @@ export async function resolveFiles(cliPatterns: string[]): Promise<{
           parseJsonc(
             fs.readFileSync(path.resolve(baseDir, schemaPath), 'utf-8'),
           ),
-        formats: formatsResult?.formats,
+        formats: ajvModuleResult?.formats,
+        keywords: ajvModuleResult?.keywords,
       })
     : undefined;
 
   const schemaLoadErrors = [
-    ...(formatsResult?.error ? [formatsResult.error] : []),
+    ...(ajvModuleResult?.error ? [ajvModuleResult.error] : []),
     ...(schemaResult?.loadErrors ?? []),
   ];
 

@@ -667,16 +667,16 @@ describe('resolveFiles', () => {
     expect(configDir).toBe(fs.realpathSync(tempDir));
   });
 
-  it('loads a formatsModule referenced from the config and applies it to schemas', async () => {
+  it('loads an ajvModule referenced from the config and applies its formats to schemas', async () => {
     const configPath = path.join(tempDir, '.htmlmustache.jsonc');
-    const formatsPath = path.join(tempDir, 'pl-formats.mjs');
+    const ajvPath = path.join(tempDir, 'pl-ajv.mjs');
     const schemaPath = path.join(tempDir, 'pl-card.schema.json');
 
     fs.writeFileSync(
-      formatsPath,
+      ajvPath,
       [
         'const BOOLEAN_STRINGS = new Set(["true","t","1","yes","y","on","false","f","0","no","n","off"]);',
-        'export default { "pl-boolean": (v) => typeof v === "string" && BOOLEAN_STRINGS.has(v.toLowerCase()) };',
+        'export const formats = { "pl-boolean": (v) => typeof v === "string" && BOOLEAN_STRINGS.has(v.toLowerCase()) };',
       ].join('\n'),
     );
     fs.writeFileSync(
@@ -699,7 +699,7 @@ describe('resolveFiles', () => {
       configPath,
       JSON.stringify({
         include: ['**/*.mustache'],
-        formatsModule: './pl-formats.mjs',
+        ajvModule: './pl-ajv.mjs',
         customTags: [{ name: 'pl-card', schema: './pl-card.schema.json' }],
       }),
     );
@@ -713,6 +713,8 @@ describe('resolveFiles', () => {
       compiled.validate({
         tag: 'pl-card',
         attributes: { answers: 'Yes' },
+        text: '',
+        innerHtml: '',
         children: [],
       }),
     ).toBe(true);
@@ -720,23 +722,99 @@ describe('resolveFiles', () => {
       compiled.validate({
         tag: 'pl-card',
         attributes: { answers: 'maybe' },
+        text: '',
+        innerHtml: '',
         children: [],
       }),
     ).toBe(false);
   });
 
-  it('reports a schemaLoadError when formatsModule cannot be loaded', async () => {
+  it('loads an ajvModule keyword and registers it on the validator', async () => {
+    const configPath = path.join(tempDir, '.htmlmustache.jsonc');
+    const ajvPath = path.join(tempDir, 'pl-keywords-ajv.mjs');
+    const schemaPath = path.join(tempDir, 'pl-list.schema.json');
+
+    fs.writeFileSync(
+      ajvPath,
+      [
+        'export const keywords = {',
+        '  "unique-child-text": {',
+        '    type: "array",',
+        '    validate: (_schema, data) => {',
+        '      if (!Array.isArray(data)) return true;',
+        '      const seen = new Set();',
+        '      for (const child of data) {',
+        '        const t = child && typeof child === "object" ? child.text : undefined;',
+        '        if (typeof t !== "string") continue;',
+        '        if (seen.has(t)) return false;',
+        '        seen.add(t);',
+        '      }',
+        '      return true;',
+        '    },',
+        '  },',
+        '};',
+      ].join('\n'),
+    );
+    fs.writeFileSync(
+      schemaPath,
+      JSON.stringify({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        type: 'object',
+        properties: { children: { 'unique-child-text': true } },
+      }),
+    );
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        include: ['**/*.mustache'],
+        ajvModule: './pl-keywords-ajv.mjs',
+        customTags: [{ name: 'pl-list', schema: './pl-list.schema.json' }],
+      }),
+    );
+
+    const { schemaRegistry, schemaLoadErrors } = await resolveFiles([]);
+    expect(schemaLoadErrors ?? []).toEqual([]);
+    expect(schemaRegistry?.customKeywords.has('unique-child-text')).toBe(true);
+
+    const compiled = schemaRegistry!.schemas.get('pl-list')!;
+    expect(
+      compiled.validate({
+        tag: 'pl-list',
+        attributes: {},
+        text: '',
+        innerHtml: '',
+        children: [
+          { tag: 'li', attributes: {}, text: 'a', innerHtml: 'a' },
+          { tag: 'li', attributes: {}, text: 'b', innerHtml: 'b' },
+        ],
+      }),
+    ).toBe(true);
+    expect(
+      compiled.validate({
+        tag: 'pl-list',
+        attributes: {},
+        text: '',
+        innerHtml: '',
+        children: [
+          { tag: 'li', attributes: {}, text: 'a', innerHtml: 'a' },
+          { tag: 'li', attributes: {}, text: 'a', innerHtml: 'a' },
+        ],
+      }),
+    ).toBe(false);
+  });
+
+  it('reports a schemaLoadError when ajvModule cannot be loaded', async () => {
     const configPath = path.join(tempDir, '.htmlmustache.jsonc');
     fs.writeFileSync(
       configPath,
       JSON.stringify({
         include: ['**/*.mustache'],
-        formatsModule: './missing-formats.mjs',
+        ajvModule: './missing-ajv.mjs',
       }),
     );
     const { schemaLoadErrors } = await resolveFiles([]);
     expect(schemaLoadErrors?.length ?? 0).toBeGreaterThan(0);
-    expect(schemaLoadErrors![0].message).toContain('missing-formats.mjs');
+    expect(schemaLoadErrors![0].message).toContain('missing-ajv.mjs');
   });
 });
 
