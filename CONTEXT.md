@@ -40,3 +40,7 @@ The linter's canonical treatment of mustache sections when reasoning about templ
 ## Custom tag
 
 A tag declared in `customTags[]` of `.htmlmustache.jsonc`. Until this work, custom tags only carried code-tag highlighting / formatting metadata (`languageAttribute`, `display`, etc.). The `schema` field adds attribute/child validation. The same `customTags` entry may set both, may set neither, or may set just one — `schema` is independent of the code-tag fields.
+
+## Schema diagnostic phrasing
+
+The rule that `customTagSchema` diagnostics surface in HTML/element terms, not in JSON-Schema vocabulary. A template author should never see `instancePath`, `additionalProperty`, `must NOT have unevaluated`, or `must match constant`; they see `Unknown attribute "extra" on <pl-multiple-choice>`, `<pl-card> is missing required attribute "kind"`, `Attribute "size" must be one of: "sm", "md"`. Implemented by `messageForError` in `js/linter/customTagSchemaChecker.ts`, which walks `error.instancePath` to recover the element/attribute/child context and rewrites the common ajv keywords (`required`, `additionalProperties`, `enum`, `const`, `type`, `minimum`, `maximum`) at element and child-of-element scope. Constraints without a rewriter fall through to ajv's localized text — by design: covering every keyword would balloon the rewriter without serving the common case.

@@ -372,6 +372,52 @@ Attribute values are coerced by JSON Schema (`"2"` can satisfy an integer, boole
 
 Set `"htmlGlobalAttributes": true` on an `attributes` schema to allow `class`, `id`, `style`, `lang`, `dir`, `tabindex`, `title`, `role`, `data-*`, and `aria-*` alongside the schema's explicit properties.
 
+#### Diagnostics
+
+Schema diagnostics are phrased in HTML/element terms rather than JSON-Schema vocabulary, so template authors aren't asked to translate `instancePath` and `additionalProperty` back into the markup they wrote. Examples:
+
+| Schema constraint                              | Diagnostic                                                                           |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `attributes.required: ["answers-name"]`        | `<pl-multiple-choice> is missing required attribute "answers-name".`                 |
+| `attributes.additionalProperties: false`       | `Unknown attribute "extra" on <pl-multiple-choice>.`                                 |
+| `attributes.display.enum: ["block", "inline"]` | `Attribute "display" on <pl-multiple-choice> must be one of: "block", "inline".`     |
+| `attributes.size.type: "integer"`              | `Attribute "size" on <pl-multiple-choice> must be integer.`                          |
+| `attributes.weight.minimum: 0`                 | `Attribute "weight" on <pl-multiple-choice> must be >= 0.`                           |
+| `children[].tag.const: "pl-answer"`            | `<pl-multiple-choice> only allows <pl-answer> children; found <p>.`                  |
+| child `attributes.required: ["correct"]`       | `<pl-answer> child of <pl-multiple-choice> is missing required attribute "correct".` |
+
+Constraints without a rewriter (typically `not`, `allOf`, `if`/`then`, custom keywords) fall through to ajv's localized text. Every diagnostic carries `ruleName: "customTagSchema"` and points at the element, the attribute, or the offending child — see [Disabling Lint Rules](#disabling-lint-rules) to silence them per-region.
+
+#### Custom error messages
+
+Override individual diagnostics with JSON Schema's [`errorMessage` keyword](https://ajv.js.org/packages/ajv-errors.html) (enabled via [`ajv-errors`](https://www.npmjs.com/package/ajv-errors)). Authored strings flow through unchanged — the HTML-shaped rewriter only kicks in when the schema doesn't provide one.
+
+```jsonc
+{
+  "type": "object",
+  "required": ["answers-name"],
+  "properties": {
+    "size": { "type": "integer", "minimum": 1 },
+    "display": { "enum": ["block", "inline", "dropdown"] },
+  },
+  "errorMessage": {
+    "required": {
+      // Per-property override for `required` failures
+      "answers-name": "Add `answers-name=\"...\"` so this question can be graded.",
+    },
+    "properties": {
+      // Per-property override for *value-level* failures (type, minimum, enum, ...)
+      "size": "`size` must be a positive whole number — got ${0}.",
+      "display": "`display` must be one of: block, inline, dropdown.",
+    },
+    // Catch-all for the whole object
+    "_": "<pl-multiple-choice> failed its schema.",
+  },
+}
+```
+
+ajv-errors substitutes the original ajv error with one whose message is your string; the rewriter sees `keyword: "errorMessage"`, doesn't recognise it, and passes the string through. Use this when the default phrasing doesn't say enough about your domain (e.g. linking authors to a runbook URL, naming a specific config the attribute drives).
+
 ### Custom Rules
 
 Define project-specific lint rules using CSS-like selectors. Mustache constructs are written literally — `{{foo}}`, `{{{foo}}}`, `{{#section}}`, `{{^inverted}}`, `{{!comment}}`, `{{>partial}}`:
