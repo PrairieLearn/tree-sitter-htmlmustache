@@ -2,7 +2,13 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-import { collectErrors, formatError, formatSummary, resolveFiles, applyFixes } from './check';
+import {
+  collectErrors,
+  formatError,
+  formatSummary,
+  resolveFiles,
+  applyFixes,
+} from './check';
 import { initializeParser, parseDocument } from './wasm';
 import { loadSchemaRegistry } from '../shared/customTagSchemaLoader.js';
 
@@ -47,8 +53,20 @@ const PL_MULTIPLE_CHOICE_SCHEMA = {
       allOf: [
         { not: { required: ['inline', 'display'] } },
         { not: { required: ['fixed-order', 'order'] } },
-        { if: { required: ['size'] }, then: { properties: { display: { const: 'dropdown' } }, required: ['display'] } },
-        { if: { required: ['placeholder'] }, then: { properties: { display: { const: 'dropdown' } }, required: ['display'] } },
+        {
+          if: { required: ['size'] },
+          then: {
+            properties: { display: { const: 'dropdown' } },
+            required: ['display'],
+          },
+        },
+        {
+          if: { required: ['placeholder'] },
+          then: {
+            properties: { display: { const: 'dropdown' } },
+            required: ['display'],
+          },
+        },
       ],
     },
     children: {
@@ -74,10 +92,26 @@ const PL_MULTIPLE_CHOICE_SCHEMA = {
   },
   allOf: [
     {
-      if: { properties: { attributes: { properties: { 'builtin-grading': { type: 'boolean', const: false } }, required: ['builtin-grading'] } } },
+      if: {
+        properties: {
+          attributes: {
+            properties: {
+              'builtin-grading': { type: 'boolean', const: false },
+            },
+            required: ['builtin-grading'],
+          },
+        },
+      },
       then: {
         properties: {
-          attributes: { not: { anyOf: [{ required: ['weight'] }, { required: ['hide-score-badge'] }] } },
+          attributes: {
+            not: {
+              anyOf: [
+                { required: ['weight'] },
+                { required: ['hide-score-badge'] },
+              ],
+            },
+          },
           children: {
             type: 'array',
             items: {
@@ -85,7 +119,12 @@ const PL_MULTIPLE_CHOICE_SCHEMA = {
               properties: {
                 attributes: {
                   type: 'object',
-                  not: { anyOf: [{ required: ['score'] }, { required: ['feedback'] }] },
+                  not: {
+                    anyOf: [
+                      { required: ['score'] },
+                      { required: ['feedback'] },
+                    ],
+                  },
                 },
               },
             },
@@ -107,28 +146,34 @@ describe('collectErrors', () => {
     const tree = parse('<div><//invalid></div>');
     const errors = collectErrors(tree, 'test.mustache');
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors.some(e => e.message === 'Syntax error')).toBe(true);
+    expect(errors.some((e) => e.message === 'Syntax error')).toBe(true);
   });
 
   it('detects mismatched mustache section', () => {
     const tree = parse('{{#foo}}<p>hello</p>{{/bar}}');
     const errors = collectErrors(tree, 'test.mustache');
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors.some(e => e.message === 'Mismatched mustache section: {{/bar}}')).toBe(true);
+    expect(
+      errors.some((e) => e.message === 'Mismatched mustache section: {{/bar}}'),
+    ).toBe(true);
   });
 
   it('detects mismatched inverted section', () => {
     const tree = parse('{{^foo}}<p>hello</p>{{/bar}}');
     const errors = collectErrors(tree, 'test.mustache');
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors.some(e => e.message === 'Mismatched mustache section: {{/bar}}')).toBe(true);
+    expect(
+      errors.some((e) => e.message === 'Mismatched mustache section: {{/bar}}'),
+    ).toBe(true);
   });
 
   it('detects erroneous HTML end tag', () => {
     const tree = parse('<div></span></div>');
     const errors = collectErrors(tree, 'test.mustache');
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors.some(e => e.message === 'Mismatched HTML end tag: </span>')).toBe(true);
+    expect(
+      errors.some((e) => e.message === 'Mismatched HTML end tag: </span>'),
+    ).toBe(true);
   });
 
   it('detects orphan erroneous end tags inside mustache sections', () => {
@@ -147,14 +192,16 @@ describe('collectErrors', () => {
     const tree = parse('<div></span></div>');
     const errors = collectErrors(tree, 'test.mustache');
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors.some(e => e.message === 'Mismatched HTML end tag: </span>')).toBe(true);
+    expect(
+      errors.some((e) => e.message === 'Mismatched HTML end tag: </span>'),
+    ).toBe(true);
   });
 
   it('detects missing nodes', () => {
     const tree = parse('<div');
     const errors = collectErrors(tree, 'test.mustache');
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors.some(e => e.message.startsWith('Missing'))).toBe(true);
+    expect(errors.some((e) => e.message.startsWith('Missing'))).toBe(true);
   });
 
   it('detects multiple errors in one file', () => {
@@ -167,7 +214,7 @@ describe('collectErrors', () => {
     const source = '<div>\n  <p>\n  {{/wrong}}\n</div>';
     const tree = parse(source);
     const errors = collectErrors(tree, 'test.mustache');
-    const sectionError = errors.find(e => e.message.includes('{{/wrong}}'));
+    const sectionError = errors.find((e) => e.message.includes('{{/wrong}}'));
     if (sectionError) {
       expect(sectionError.line).toBe(3);
       expect(sectionError.file).toBe('test.mustache');
@@ -180,7 +227,7 @@ describe('HTML balance checker', () => {
     const tree = parse('{{#s}}<div>{{/s}} {{#s}}</div>{{/s}}');
     const errors = collectErrors(tree, 'test.mustache');
     // The only error should be the consecutive section warning
-    expect(errors.every(e => e.severity === 'warning')).toBe(true);
+    expect(errors.every((e) => e.severity === 'warning')).toBe(true);
   });
 
   it('detects inverted section open/close mismatch with path info', () => {
@@ -188,33 +235,39 @@ describe('HTML balance checker', () => {
     const errors = collectErrors(tree, 'test.mustache');
     expect(errors.length).toBeGreaterThan(0);
     // Errors should include the failing condition
-    expect(errors.some(e => e.message.includes('when s is'))).toBe(true);
+    expect(errors.some((e) => e.message.includes('when s is'))).toBe(true);
   });
 
   it('allows if/else balanced patterns', () => {
-    const tree = parse('{{#s}}<span>{{/s}}{{^s}}<div>{{/s}} {{#s}}</span>{{/s}}{{^s}}</div>{{/s}}');
+    const tree = parse(
+      '{{#s}}<span>{{/s}}{{^s}}<div>{{/s}} {{#s}}</span>{{/s}}{{^s}}</div>{{/s}}',
+    );
     const errors = collectErrors(tree, 'test.mustache');
     expect(errors).toEqual([]);
   });
 
   it('detects if/else swapped close tags with path info', () => {
-    const tree = parse('{{#s}}<span>{{/s}}{{^s}}<div>{{/s}} {{#s}}</div>{{/s}}{{^s}}</span>{{/s}}');
+    const tree = parse(
+      '{{#s}}<span>{{/s}}{{^s}}<div>{{/s}} {{#s}}</div>{{/s}}{{^s}}</span>{{/s}}',
+    );
     const errors = collectErrors(tree, 'test.mustache');
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors.some(e => e.message.includes('when s is'))).toBe(true);
+    expect(errors.some((e) => e.message.includes('when s is'))).toBe(true);
   });
 
   it('detects standalone orphan close in section with path info', () => {
     const tree = parse('{{#s}}</span>{{/s}}');
     const errors = collectErrors(tree, 'test.mustache');
     expect(errors.length).toBeGreaterThan(0);
-    expect(errors.some(e => e.message.includes('when s is truthy'))).toBe(true);
+    expect(errors.some((e) => e.message.includes('when s is truthy'))).toBe(
+      true,
+    );
   });
 
   it('reports no path info for unconditional mismatches', () => {
     const tree = parse('<div></span></div>');
     const errors = collectErrors(tree, 'test.mustache');
-    const mismatch = errors.find(e => e.message.includes('</span>'));
+    const mismatch = errors.find((e) => e.message.includes('</span>'));
     expect(mismatch).toBeDefined();
     expect(mismatch!.message).toBe('Mismatched HTML end tag: </span>');
     expect(mismatch!.message).not.toContain('when');
@@ -242,7 +295,9 @@ describe('HTML balance checker', () => {
     const tree = parse(source);
     const errors = collectErrors(tree, 'test.mustache');
     expect(errors.length).toBeGreaterThan(0);
-    const mismatch = errors.find(e => e.message.includes('Mismatched HTML end tag'));
+    const mismatch = errors.find((e) =>
+      e.message.includes('Mismatched HTML end tag'),
+    );
     expect(mismatch).toBeDefined();
     expect(mismatch!.message).toContain('</span>');
     expect(mismatch!.message).toContain('start is truthy');
@@ -250,9 +305,13 @@ describe('HTML balance checker', () => {
   });
 
   it('detects nested same-section even with balanced inner tags', () => {
-    const tree = parse('{{#items}}<div>{{#items}}<span></span>{{/items}}</div>{{/items}}');
+    const tree = parse(
+      '{{#items}}<div>{{#items}}<span></span>{{/items}}</div>{{/items}}',
+    );
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Nested duplicate section'))).toBe(true);
+    expect(
+      errors.some((e) => e.message.includes('Nested duplicate section')),
+    ).toBe(true);
   });
 
   it('detects if/else open with same-type close (button/span bug)', () => {
@@ -268,10 +327,10 @@ describe('HTML balance checker', () => {
     const tree = parse(source);
     const errors = collectErrors(tree, 'test.mustache');
     // Should detect errors — </span> mismatched on truthy path, <span> unclosed on falsy path
-    const nonWarnings = errors.filter(e => e.severity !== 'warning');
+    const nonWarnings = errors.filter((e) => e.severity !== 'warning');
     expect(nonWarnings.length).toBeGreaterThan(0);
     // Balance checker should include path condition info
-    expect(nonWarnings.some(e => e.message.includes('when s is'))).toBe(true);
+    expect(nonWarnings.some((e) => e.message.includes('when s is'))).toBe(true);
   });
 
   it('detects consecutive sections in button/span pattern', () => {
@@ -279,7 +338,13 @@ describe('HTML balance checker', () => {
     const source = '{{#s}}</button>{{/s}}\n{{#s}}</span>{{/s}}';
     const tree = parse(source);
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Consecutive duplicate section') && e.severity === 'warning')).toBe(true);
+    expect(
+      errors.some(
+        (e) =>
+          e.message.includes('Consecutive duplicate section') &&
+          e.severity === 'warning',
+      ),
+    ).toBe(true);
   });
 });
 
@@ -287,7 +352,9 @@ describe('Unclosed tag detection', () => {
   it('detects unclosed canvas tag', () => {
     const tree = parse('<div><canvas></div>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message === 'Unclosed HTML tag: <canvas>')).toBe(true);
+    expect(
+      errors.some((e) => e.message === 'Unclosed HTML tag: <canvas>'),
+    ).toBe(true);
   });
 
   it('allows properly closed canvas tag', () => {
@@ -317,13 +384,17 @@ describe('Unclosed tag detection', () => {
   it('detects unclosed span inside div', () => {
     const tree = parse('<div><span>text</div>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message === 'Unclosed HTML tag: <span>')).toBe(true);
+    expect(errors.some((e) => e.message === 'Unclosed HTML tag: <span>')).toBe(
+      true,
+    );
   });
 
   it('detects unclosed div at end of document', () => {
     const tree = parse('<div>content');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message === 'Unclosed HTML tag: <div>')).toBe(true);
+    expect(errors.some((e) => e.message === 'Unclosed HTML tag: <div>')).toBe(
+      true,
+    );
   });
 });
 
@@ -332,25 +403,41 @@ describe('Mustache lint checks', () => {
     it('detects nested duplicate section', () => {
       const tree = parse('{{#x}}{{#x}}inner{{/x}}{{/x}}');
       const errors = collectErrors(tree, 'test.mustache');
-      expect(errors.some(e => e.message.includes('Nested duplicate section') && e.message.includes('{{#x}}'))).toBe(true);
+      expect(
+        errors.some(
+          (e) =>
+            e.message.includes('Nested duplicate section') &&
+            e.message.includes('{{#x}}'),
+        ),
+      ).toBe(true);
     });
 
     it('allows non-nested same-name sections (sequential)', () => {
       const tree = parse('{{#x}}first{{/x}}{{#x}}second{{/x}}');
       const errors = collectErrors(tree, 'test.mustache');
-      expect(errors.some(e => e.message.includes('Nested duplicate section'))).toBe(false);
+      expect(
+        errors.some((e) => e.message.includes('Nested duplicate section')),
+      ).toBe(false);
     });
 
     it('detects deeply nested duplicate', () => {
       const tree = parse('{{#a}}{{#b}}{{#a}}deep{{/a}}{{/b}}{{/a}}');
       const errors = collectErrors(tree, 'test.mustache');
-      expect(errors.some(e => e.message.includes('Nested duplicate section') && e.message.includes('{{#a}}'))).toBe(true);
+      expect(
+        errors.some(
+          (e) =>
+            e.message.includes('Nested duplicate section') &&
+            e.message.includes('{{#a}}'),
+        ),
+      ).toBe(true);
     });
 
     it('allows different-name nested sections', () => {
       const tree = parse('{{#a}}{{#b}}inner{{/b}}{{/a}}');
       const errors = collectErrors(tree, 'test.mustache');
-      expect(errors.some(e => e.message.includes('Nested duplicate section'))).toBe(false);
+      expect(
+        errors.some((e) => e.message.includes('Nested duplicate section')),
+      ).toBe(false);
     });
   });
 
@@ -358,25 +445,39 @@ describe('Mustache lint checks', () => {
     it('detects unquoted mustache in attribute', () => {
       const tree = parse('<div class={{foo}}></div>');
       const errors = collectErrors(tree, 'test.mustache');
-      expect(errors.some(e => e.message.includes('Unquoted mustache attribute value'))).toBe(true);
+      expect(
+        errors.some((e) =>
+          e.message.includes('Unquoted mustache attribute value'),
+        ),
+      ).toBe(true);
     });
 
     it('allows quoted mustache in attribute', () => {
       const tree = parse('<div class="{{foo}}"></div>');
       const errors = collectErrors(tree, 'test.mustache');
-      expect(errors.some(e => e.message.includes('Unquoted mustache attribute value'))).toBe(false);
+      expect(
+        errors.some((e) =>
+          e.message.includes('Unquoted mustache attribute value'),
+        ),
+      ).toBe(false);
     });
 
     it('does not flag standalone mustache in tag', () => {
       const tree = parse('<div {{attrs}}></div>');
       const errors = collectErrors(tree, 'test.mustache');
-      expect(errors.some(e => e.message.includes('Unquoted mustache attribute value'))).toBe(false);
+      expect(
+        errors.some((e) =>
+          e.message.includes('Unquoted mustache attribute value'),
+        ),
+      ).toBe(false);
     });
 
     it('detects unquoted mustache in multiple attributes', () => {
       const tree = parse('<div class={{foo}} id={{bar}}></div>');
       const errors = collectErrors(tree, 'test.mustache');
-      const unquotedErrors = errors.filter(e => e.message.includes('Unquoted mustache attribute value'));
+      const unquotedErrors = errors.filter((e) =>
+        e.message.includes('Unquoted mustache attribute value'),
+      );
       expect(unquotedErrors.length).toBe(2);
     });
   });
@@ -458,11 +559,19 @@ describe('resolveFiles', () => {
 
     // Create vendor dir with a file
     fs.mkdirSync(path.join(tempDir, 'vendor'), { recursive: true });
-    fs.writeFileSync(path.join(tempDir, 'vendor', 'd.mustache'), '<div>d</div>');
+    fs.writeFileSync(
+      path.join(tempDir, 'vendor', 'd.mustache'),
+      '<div>d</div>',
+    );
 
     // Create node_modules dir with a file
-    fs.mkdirSync(path.join(tempDir, 'node_modules', 'pkg'), { recursive: true });
-    fs.writeFileSync(path.join(tempDir, 'node_modules', 'pkg', 'e.mustache'), '<div>e</div>');
+    fs.mkdirSync(path.join(tempDir, 'node_modules', 'pkg'), {
+      recursive: true,
+    });
+    fs.writeFileSync(
+      path.join(tempDir, 'node_modules', 'pkg', 'e.mustache'),
+      '<div>e</div>',
+    );
 
     // Create .git dir with a file
     fs.mkdirSync(path.join(tempDir, '.git'), { recursive: true });
@@ -478,7 +587,7 @@ describe('resolveFiles', () => {
 
   it('uses CLI patterns when provided', () => {
     const { files } = resolveFiles(['*.mustache']);
-    expect(files.map(f => path.basename(f))).toEqual(['a.mustache']);
+    expect(files.map((f) => path.basename(f))).toEqual(['a.mustache']);
   });
 
   it('uses config include when no CLI patterns', () => {
@@ -487,20 +596,20 @@ describe('resolveFiles', () => {
       JSON.stringify({ include: ['**/*.mustache'] }),
     );
     const { files } = resolveFiles([]);
-    const basenames = files.map(f => path.basename(f));
+    const basenames = files.map((f) => path.basename(f));
     expect(basenames).toContain('a.mustache');
     expect(basenames).toContain('c.mustache');
   });
 
   it('excludes node_modules by default', () => {
     const { files } = resolveFiles([]);
-    const basenames = files.map(f => path.basename(f));
+    const basenames = files.map((f) => path.basename(f));
     expect(basenames).not.toContain('e.mustache');
   });
 
   it('excludes .git by default', () => {
     const { files } = resolveFiles([]);
-    const basenames = files.map(f => path.basename(f));
+    const basenames = files.map((f) => path.basename(f));
     expect(basenames).not.toContain('f.mustache');
   });
 
@@ -510,7 +619,7 @@ describe('resolveFiles', () => {
       JSON.stringify({ include: ['**/*.mustache'], exclude: ['vendor/**'] }),
     );
     const { files } = resolveFiles([]);
-    const basenames = files.map(f => path.basename(f));
+    const basenames = files.map((f) => path.basename(f));
     expect(basenames).toContain('a.mustache');
     expect(basenames).not.toContain('d.mustache');
   });
@@ -521,7 +630,7 @@ describe('resolveFiles', () => {
       JSON.stringify({ exclude: ['vendor/**'] }),
     );
     const { files } = resolveFiles(['**/*.mustache']);
-    const basenames = files.map(f => path.basename(f));
+    const basenames = files.map((f) => path.basename(f));
     expect(basenames).toContain('a.mustache');
     expect(basenames).not.toContain('d.mustache');
   });
@@ -563,43 +672,65 @@ describe('consecutive same-name sections', () => {
   it('detects consecutive same-type same-name sections', () => {
     const tree = parse('{{#x}}a{{/x}}{{#x}}b{{/x}}');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Consecutive duplicate section') && e.severity === 'warning')).toBe(true);
+    expect(
+      errors.some(
+        (e) =>
+          e.message.includes('Consecutive duplicate section') &&
+          e.severity === 'warning',
+      ),
+    ).toBe(true);
   });
 
   it('detects consecutive inverted sections', () => {
     const tree = parse('{{^x}}a{{/x}}{{^x}}b{{/x}}');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Consecutive duplicate section') && e.message.includes('{{^x}}'))).toBe(true);
+    expect(
+      errors.some(
+        (e) =>
+          e.message.includes('Consecutive duplicate section') &&
+          e.message.includes('{{^x}}'),
+      ),
+    ).toBe(true);
   });
 
   it('does not flag different-type sections', () => {
     const tree = parse('{{#x}}a{{/x}}{{^x}}b{{/x}}');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Consecutive duplicate section'))).toBe(false);
+    expect(
+      errors.some((e) => e.message.includes('Consecutive duplicate section')),
+    ).toBe(false);
   });
 
   it('does not flag different-name sections', () => {
     const tree = parse('{{#x}}a{{/x}}{{#y}}b{{/y}}');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Consecutive duplicate section'))).toBe(false);
+    expect(
+      errors.some((e) => e.message.includes('Consecutive duplicate section')),
+    ).toBe(false);
   });
 
   it('flags with whitespace-only gap', () => {
     const tree = parse('{{#x}}a{{/x}}  \n  {{#x}}b{{/x}}');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Consecutive duplicate section'))).toBe(true);
+    expect(
+      errors.some((e) => e.message.includes('Consecutive duplicate section')),
+    ).toBe(true);
   });
 
   it('does not flag with non-whitespace between sections', () => {
     const tree = parse('{{#x}}a{{/x}}text{{#x}}b{{/x}}');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Consecutive duplicate section'))).toBe(false);
+    expect(
+      errors.some((e) => e.message.includes('Consecutive duplicate section')),
+    ).toBe(false);
   });
 
   it('severity is warning, not error', () => {
     const tree = parse('{{^foo}}a{{/foo}}{{^foo}}b{{/foo}}');
     const errors = collectErrors(tree, 'test.mustache');
-    const consecutive = errors.find(e => e.message.includes('Consecutive duplicate section'));
+    const consecutive = errors.find((e) =>
+      e.message.includes('Consecutive duplicate section'),
+    );
     expect(consecutive).toBeDefined();
     expect(consecutive!.severity).toBe('warning');
   });
@@ -607,7 +738,9 @@ describe('consecutive same-name sections', () => {
   it('provides fix data', () => {
     const tree = parse('{{#x}}a{{/x}}{{#x}}b{{/x}}');
     const errors = collectErrors(tree, 'test.mustache');
-    const consecutive = errors.find(e => e.message.includes('Consecutive duplicate section'));
+    const consecutive = errors.find((e) =>
+      e.message.includes('Consecutive duplicate section'),
+    );
     expect(consecutive).toBeDefined();
     expect(consecutive!.fix).toBeDefined();
     expect(consecutive!.fix!.length).toBe(1);
@@ -619,36 +752,50 @@ describe('self-closing non-void tags', () => {
   it('detects self-closing div', () => {
     const tree = parse('<div/>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message === 'Self-closing non-void element: <div/>')).toBe(true);
+    expect(
+      errors.some((e) => e.message === 'Self-closing non-void element: <div/>'),
+    ).toBe(true);
   });
 
   it('detects self-closing span with attributes', () => {
     const tree = parse('<span class="x" />');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message === 'Self-closing non-void element: <span/>')).toBe(true);
+    expect(
+      errors.some(
+        (e) => e.message === 'Self-closing non-void element: <span/>',
+      ),
+    ).toBe(true);
   });
 
   it('allows self-closing void elements', () => {
     const tree = parse('<br/><hr/><img src="x"/><input type="text"/>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Self-closing non-void'))).toBe(false);
+    expect(
+      errors.some((e) => e.message.includes('Self-closing non-void')),
+    ).toBe(false);
   });
 
   it('allows void elements without self-closing', () => {
     const tree = parse('<br><hr><img src="x"><input type="text">');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Self-closing non-void'))).toBe(false);
+    expect(
+      errors.some((e) => e.message.includes('Self-closing non-void')),
+    ).toBe(false);
   });
 
   it('provides fix that adds explicit close tag', () => {
     const source = '<div/>';
     const tree = parse(source);
     const errors = collectErrors(tree, 'test.mustache');
-    const error = errors.find(e => e.message.includes('Self-closing non-void'));
+    const error = errors.find((e) =>
+      e.message.includes('Self-closing non-void'),
+    );
     expect(error).toBeDefined();
     expect(error!.fix).toBeDefined();
     expect(error!.fix!.length).toBe(1);
-    expect(error!.fixDescription).toBe('Replace self-closing syntax with explicit close tag');
+    expect(error!.fixDescription).toBe(
+      'Replace self-closing syntax with explicit close tag',
+    );
   });
 
   it('fix produces correct output', () => {
@@ -672,55 +819,86 @@ describe('duplicate attributes', () => {
   it('detects plain duplicate attributes', () => {
     const tree = parse('<div a="1" a="2"></div>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message === 'Duplicate attribute "a"')).toBe(true);
+    expect(errors.some((e) => e.message === 'Duplicate attribute "a"')).toBe(
+      true,
+    );
   });
 
   it('detects unconditional + conditional duplicate', () => {
     const tree = parse('<div a="1" {{#foo}}a="2"{{/foo}}></div>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message === 'Duplicate attribute "a" (when foo is truthy)')).toBe(true);
+    expect(
+      errors.some(
+        (e) => e.message === 'Duplicate attribute "a" (when foo is truthy)',
+      ),
+    ).toBe(true);
   });
 
   it('detects duplicate across independent sections', () => {
-    const tree = parse('<div {{#foo}}a="1"{{/foo}} {{#bar}}a="2"{{/bar}}></div>');
+    const tree = parse(
+      '<div {{#foo}}a="1"{{/foo}} {{#bar}}a="2"{{/bar}}></div>',
+    );
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message === 'Duplicate attribute "a" (when foo is truthy, bar is truthy)')).toBe(true);
+    expect(
+      errors.some(
+        (e) =>
+          e.message ===
+          'Duplicate attribute "a" (when foo is truthy, bar is truthy)',
+      ),
+    ).toBe(true);
   });
 
   it('detects boolean attribute duplicate', () => {
     const tree = parse('<input disabled {{#x}}disabled{{/x}}>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message === 'Duplicate attribute "disabled" (when x is truthy)')).toBe(true);
+    expect(
+      errors.some(
+        (e) =>
+          e.message === 'Duplicate attribute "disabled" (when x is truthy)',
+      ),
+    ).toBe(true);
   });
 
   it('detects case-insensitive duplicates', () => {
     const tree = parse('<div Class="a" class="b"></div>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message === 'Duplicate attribute "class"')).toBe(true);
+    expect(
+      errors.some((e) => e.message === 'Duplicate attribute "class"'),
+    ).toBe(true);
   });
 
   it('allows mutually exclusive pair', () => {
     const tree = parse('<div {{#x}}a="1"{{/x}} {{^x}}a="2"{{/x}}></div>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Duplicate attribute'))).toBe(false);
+    expect(errors.some((e) => e.message.includes('Duplicate attribute'))).toBe(
+      false,
+    );
   });
 
   it('allows deeply nested exclusive on same variable', () => {
-    const tree = parse('<div {{#a}}{{#b}}x="1"{{/b}}{{/a}} {{^a}}x="2"{{/a}}></div>');
+    const tree = parse(
+      '<div {{#a}}{{#b}}x="1"{{/b}}{{/a}} {{^a}}x="2"{{/a}}></div>',
+    );
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Duplicate attribute'))).toBe(false);
+    expect(errors.some((e) => e.message.includes('Duplicate attribute'))).toBe(
+      false,
+    );
   });
 
   it('does not flag bare interpolation', () => {
     const tree = parse('<div {{attrs}} class="x"></div>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Duplicate attribute'))).toBe(false);
+    expect(errors.some((e) => e.message.includes('Duplicate attribute'))).toBe(
+      false,
+    );
   });
 
   it('does not flag different attribute names', () => {
     const tree = parse('<div a="1" b="2"></div>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Duplicate attribute'))).toBe(false);
+    expect(errors.some((e) => e.message.includes('Duplicate attribute'))).toBe(
+      false,
+    );
   });
 });
 
@@ -728,31 +906,31 @@ describe('unescaped entities', () => {
   it('detects > in text content', () => {
     const tree = parse('<p>a > b</p>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Unescaped ">"'))).toBe(true);
+    expect(errors.some((e) => e.message.includes('Unescaped ">"'))).toBe(true);
   });
 
   it('detects bare & in text content', () => {
     const tree = parse('<p>foo & bar</p>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Unescaped "&"'))).toBe(true);
+    expect(errors.some((e) => e.message.includes('Unescaped "&"'))).toBe(true);
   });
 
   it('does not flag valid entities', () => {
     const tree = parse('<p>&gt; &amp; &nbsp;</p>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Unescaped'))).toBe(false);
+    expect(errors.some((e) => e.message.includes('Unescaped'))).toBe(false);
   });
 
   it('does not flag > or & in attribute values', () => {
     const tree = parse('<a title="a > b & c">link</a>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Unescaped'))).toBe(false);
+    expect(errors.some((e) => e.message.includes('Unescaped'))).toBe(false);
   });
 
   it('severity is warning', () => {
     const tree = parse('<p>a > b</p>');
     const errors = collectErrors(tree, 'test.mustache');
-    const unescaped = errors.find(e => e.message.includes('Unescaped'));
+    const unescaped = errors.find((e) => e.message.includes('Unescaped'));
     expect(unescaped).toBeDefined();
     expect(unescaped!.severity).toBe('warning');
   });
@@ -821,20 +999,30 @@ describe('prefer mustache comments rule', () => {
   it('does not flag HTML comments by default (no rules)', () => {
     const tree = parse('<!-- a comment -->');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('HTML comment found'))).toBe(false);
+    expect(errors.some((e) => e.message.includes('HTML comment found'))).toBe(
+      false,
+    );
   });
 
   it('flags HTML comments when rule is enabled', () => {
     const tree = parse('<!-- a comment -->');
-    const errors = collectErrors(tree, 'test.mustache', { preferMustacheComments: 'warning' });
-    expect(errors.some(e => e.message.includes('HTML comment found'))).toBe(true);
-    expect(errors.find(e => e.message.includes('HTML comment found'))!.severity).toBe('warning');
+    const errors = collectErrors(tree, 'test.mustache', {
+      preferMustacheComments: 'warning',
+    });
+    expect(errors.some((e) => e.message.includes('HTML comment found'))).toBe(
+      true,
+    );
+    expect(
+      errors.find((e) => e.message.includes('HTML comment found'))!.severity,
+    ).toBe('warning');
   });
 
   it('uses error severity when configured', () => {
     const tree = parse('<!-- a comment -->');
-    const errors = collectErrors(tree, 'test.mustache', { preferMustacheComments: 'error' });
-    const err = errors.find(e => e.message.includes('HTML comment found'));
+    const errors = collectErrors(tree, 'test.mustache', {
+      preferMustacheComments: 'error',
+    });
+    const err = errors.find((e) => e.message.includes('HTML comment found'));
     expect(err).toBeDefined();
     expect(err!.severity).toBe('error');
   });
@@ -842,7 +1030,9 @@ describe('prefer mustache comments rule', () => {
   it('provides fix that converts to mustache comment', () => {
     const source = '<!-- a comment -->';
     const tree = parse(source);
-    const errors = collectErrors(tree, 'test.mustache', { preferMustacheComments: 'warning' });
+    const errors = collectErrors(tree, 'test.mustache', {
+      preferMustacheComments: 'warning',
+    });
     const result = applyFixes(source, errors);
     expect(result).toBe('{{! a comment }}');
   });
@@ -850,7 +1040,9 @@ describe('prefer mustache comments rule', () => {
   it('fix handles multiline HTML comments', () => {
     const source = '<!--\n  multi\n  line\n-->';
     const tree = parse(source);
-    const errors = collectErrors(tree, 'test.mustache', { preferMustacheComments: 'warning' });
+    const errors = collectErrors(tree, 'test.mustache', {
+      preferMustacheComments: 'warning',
+    });
     const result = applyFixes(source, errors);
     expect(result).toBe('{{! multi\n  line }}');
   });
@@ -858,7 +1050,9 @@ describe('prefer mustache comments rule', () => {
   it('fix handles empty HTML comments', () => {
     const source = '<!---->';
     const tree = parse(source);
-    const errors = collectErrors(tree, 'test.mustache', { preferMustacheComments: 'warning' });
+    const errors = collectErrors(tree, 'test.mustache', {
+      preferMustacheComments: 'warning',
+    });
     const result = applyFixes(source, errors);
     expect(result).toBe('{{!  }}');
   });
@@ -866,41 +1060,63 @@ describe('prefer mustache comments rule', () => {
 
 describe('disable directives', () => {
   it('HTML comment disables a specific rule', () => {
-    const tree = parse('<!-- htmlmustache-disable selfClosingNonVoidTags -->\n<div/>');
+    const tree = parse(
+      '<!-- htmlmustache-disable selfClosingNonVoidTags -->\n<div/>',
+    );
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Self-closing non-void'))).toBe(false);
+    expect(
+      errors.some((e) => e.message.includes('Self-closing non-void')),
+    ).toBe(false);
   });
 
   it('mustache comment disables a specific rule', () => {
-    const tree = parse('{{! htmlmustache-disable selfClosingNonVoidTags }}\n<div/>');
+    const tree = parse(
+      '{{! htmlmustache-disable selfClosingNonVoidTags }}\n<div/>',
+    );
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Self-closing non-void'))).toBe(false);
+    expect(
+      errors.some((e) => e.message.includes('Self-closing non-void')),
+    ).toBe(false);
   });
 
   it('multiple rules disabled with multiple comments', () => {
-    const tree = parse('<!-- htmlmustache-disable selfClosingNonVoidTags -->\n{{! htmlmustache-disable unescapedEntities }}\n<div/><p>a > b</p>');
+    const tree = parse(
+      '<!-- htmlmustache-disable selfClosingNonVoidTags -->\n{{! htmlmustache-disable unescapedEntities }}\n<div/><p>a > b</p>',
+    );
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Self-closing non-void'))).toBe(false);
-    expect(errors.some(e => e.message.includes('Unescaped'))).toBe(false);
+    expect(
+      errors.some((e) => e.message.includes('Self-closing non-void')),
+    ).toBe(false);
+    expect(errors.some((e) => e.message.includes('Unescaped'))).toBe(false);
   });
 
   it('only the named rule is disabled, others still reported', () => {
-    const tree = parse('<!-- htmlmustache-disable unescapedEntities -->\n<div/><p>a > b</p>');
+    const tree = parse(
+      '<!-- htmlmustache-disable unescapedEntities -->\n<div/><p>a > b</p>',
+    );
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Self-closing non-void'))).toBe(true);
-    expect(errors.some(e => e.message.includes('Unescaped'))).toBe(false);
+    expect(
+      errors.some((e) => e.message.includes('Self-closing non-void')),
+    ).toBe(true);
+    expect(errors.some((e) => e.message.includes('Unescaped'))).toBe(false);
   });
 
   it('unknown rule names are ignored', () => {
     const tree = parse('<!-- htmlmustache-disable nonExistentRule -->\n<div/>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Self-closing non-void'))).toBe(true);
+    expect(
+      errors.some((e) => e.message.includes('Self-closing non-void')),
+    ).toBe(true);
   });
 
   it('disable comments themselves do not trigger preferMustacheComments', () => {
     const tree = parse('<!-- htmlmustache-disable selfClosingNonVoidTags -->');
-    const errors = collectErrors(tree, 'test.mustache', { preferMustacheComments: 'warning' });
-    expect(errors.some(e => e.message.includes('HTML comment found'))).toBe(false);
+    const errors = collectErrors(tree, 'test.mustache', {
+      preferMustacheComments: 'warning',
+    });
+    expect(errors.some((e) => e.message.includes('HTML comment found'))).toBe(
+      false,
+    );
   });
 });
 
@@ -908,69 +1124,99 @@ describe('unrecognized HTML tags', () => {
   it('allows standard HTML tags', () => {
     const tree = parse('<div><span><input></span></div>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Unrecognized HTML tag'))).toBe(false);
+    expect(
+      errors.some((e) => e.message.includes('Unrecognized HTML tag')),
+    ).toBe(false);
   });
 
   it('flags unrecognized tags', () => {
     const tree = parse('<foo></foo>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message === 'Unrecognized HTML tag: <foo>')).toBe(true);
+    expect(
+      errors.some((e) => e.message === 'Unrecognized HTML tag: <foo>'),
+    ).toBe(true);
   });
 
   it('flags typo tags', () => {
     const tree = parse('<dvi></dvi>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message === 'Unrecognized HTML tag: <dvi>')).toBe(true);
+    expect(
+      errors.some((e) => e.message === 'Unrecognized HTML tag: <dvi>'),
+    ).toBe(true);
   });
 
   it('flags custom elements with hyphens when not in customTags', () => {
     const tree = parse('<my-component></my-component>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message === 'Unrecognized HTML tag: <my-component>')).toBe(true);
+    expect(
+      errors.some((e) => e.message === 'Unrecognized HTML tag: <my-component>'),
+    ).toBe(true);
   });
 
   it('allows custom elements listed in customTagNames', () => {
     const tree = parse('<my-component></my-component>');
-    const errors = collectErrors(tree, 'test.mustache', undefined, ['my-component']);
-    expect(errors.some(e => e.message.includes('Unrecognized HTML tag'))).toBe(false);
+    const errors = collectErrors(tree, 'test.mustache', undefined, [
+      'my-component',
+    ]);
+    expect(
+      errors.some((e) => e.message.includes('Unrecognized HTML tag')),
+    ).toBe(false);
   });
 
   it('allows custom tags from config (case-insensitive)', () => {
     const tree = parse('<codeblock></codeblock>');
-    const errors = collectErrors(tree, 'test.mustache', undefined, ['CodeBlock']);
-    expect(errors.some(e => e.message.includes('Unrecognized HTML tag'))).toBe(false);
+    const errors = collectErrors(tree, 'test.mustache', undefined, [
+      'CodeBlock',
+    ]);
+    expect(
+      errors.some((e) => e.message.includes('Unrecognized HTML tag')),
+    ).toBe(false);
   });
 
   it('does not flag tags inside <svg>', () => {
     const tree = parse('<svg><path d="M0 0"/></svg>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Unrecognized HTML tag'))).toBe(false);
+    expect(
+      errors.some((e) => e.message.includes('Unrecognized HTML tag')),
+    ).toBe(false);
   });
 
   it('does not flag tags inside <math>', () => {
     const tree = parse('<math><mrow><mi>x</mi></mrow></math>');
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Unrecognized HTML tag'))).toBe(false);
+    expect(
+      errors.some((e) => e.message.includes('Unrecognized HTML tag')),
+    ).toBe(false);
   });
 
   it('can be disabled via config', () => {
     const tree = parse('<foo></foo>');
-    const errors = collectErrors(tree, 'test.mustache', { unrecognizedHtmlTags: 'off' });
-    expect(errors.some(e => e.message.includes('Unrecognized HTML tag'))).toBe(false);
+    const errors = collectErrors(tree, 'test.mustache', {
+      unrecognizedHtmlTags: 'off',
+    });
+    expect(
+      errors.some((e) => e.message.includes('Unrecognized HTML tag')),
+    ).toBe(false);
   });
 
   it('can be set to warning', () => {
     const tree = parse('<foo></foo>');
-    const errors = collectErrors(tree, 'test.mustache', { unrecognizedHtmlTags: 'warning' });
-    const err = errors.find(e => e.message.includes('Unrecognized HTML tag'));
+    const errors = collectErrors(tree, 'test.mustache', {
+      unrecognizedHtmlTags: 'warning',
+    });
+    const err = errors.find((e) => e.message.includes('Unrecognized HTML tag'));
     expect(err).toBeDefined();
     expect(err!.severity).toBe('warning');
   });
 
   it('can be disabled via inline comment', () => {
-    const tree = parse('{{! htmlmustache-disable unrecognizedHtmlTags }}\n<foo></foo>');
+    const tree = parse(
+      '{{! htmlmustache-disable unrecognizedHtmlTags }}\n<foo></foo>',
+    );
     const errors = collectErrors(tree, 'test.mustache');
-    expect(errors.some(e => e.message.includes('Unrecognized HTML tag'))).toBe(false);
+    expect(
+      errors.some((e) => e.message.includes('Unrecognized HTML tag')),
+    ).toBe(false);
   });
 });
 
@@ -980,15 +1226,20 @@ describe('custom rules', () => {
     const errors = collectErrors(tree, 'test.mustache', undefined, undefined, [
       { id: 'no-font', selector: 'font', message: 'Deprecated element' },
     ]);
-    expect(errors.some(e => e.message === 'Deprecated element')).toBe(true);
+    expect(errors.some((e) => e.message === 'Deprecated element')).toBe(true);
   });
 
   it('uses custom rule severity', () => {
     const tree = parse('<font></font>');
     const errors = collectErrors(tree, 'test.mustache', undefined, undefined, [
-      { id: 'no-font', selector: 'font', message: 'Deprecated', severity: 'warning' },
+      {
+        id: 'no-font',
+        selector: 'font',
+        message: 'Deprecated',
+        severity: 'warning',
+      },
     ]);
-    const err = errors.find(e => e.message === 'Deprecated');
+    const err = errors.find((e) => e.message === 'Deprecated');
     expect(err).toBeDefined();
     expect(err!.severity).toBe('warning');
   });
@@ -998,7 +1249,7 @@ describe('custom rules', () => {
     const errors = collectErrors(tree, 'test.mustache', undefined, undefined, [
       { id: 'no-font', selector: 'font', message: 'Deprecated' },
     ]);
-    const err = errors.find(e => e.message === 'Deprecated');
+    const err = errors.find((e) => e.message === 'Deprecated');
     expect(err).toBeDefined();
     expect(err!.severity).toBe('error');
   });
@@ -1008,7 +1259,7 @@ describe('custom rules', () => {
     const errors = collectErrors(tree, 'test.mustache', undefined, undefined, [
       { id: 'no-font', selector: 'font', message: 'Deprecated' },
     ]);
-    expect(errors.some(e => e.message === 'Deprecated')).toBe(false);
+    expect(errors.some((e) => e.message === 'Deprecated')).toBe(false);
   });
 
   it('custom rule with attribute selector', () => {
@@ -1016,7 +1267,9 @@ describe('custom rules', () => {
     const errors = collectErrors(tree, 'test.mustache', undefined, undefined, [
       { id: 'no-style', selector: '[style]', message: 'No inline styles' },
     ]);
-    expect(errors.filter(e => e.message === 'No inline styles')).toHaveLength(1);
+    expect(errors.filter((e) => e.message === 'No inline styles')).toHaveLength(
+      1,
+    );
   });
 
   it('custom rule with comma-separated selectors', () => {
@@ -1024,20 +1277,28 @@ describe('custom rules', () => {
     const errors = collectErrors(tree, 'test.mustache', undefined, undefined, [
       { id: 'no-bi', selector: 'b, i', message: 'Use semantic tags' },
     ]);
-    expect(errors.filter(e => e.message === 'Use semantic tags')).toHaveLength(2);
+    expect(
+      errors.filter((e) => e.message === 'Use semantic tags'),
+    ).toHaveLength(2);
   });
 
   it('skips custom rule with severity off', () => {
     const tree = parse('<font></font>');
     const errors = collectErrors(tree, 'test.mustache', undefined, undefined, [
-      { id: 'no-font', selector: 'font', message: 'Deprecated', severity: 'off' },
+      {
+        id: 'no-font',
+        selector: 'font',
+        message: 'Deprecated',
+        severity: 'off',
+      },
     ]);
-    expect(errors.some(e => e.message === 'Deprecated')).toBe(false);
+    expect(errors.some((e) => e.message === 'Deprecated')).toBe(false);
   });
 });
 
 describe('custom tag schema', () => {
-  const plMultipleChoiceRegistry = () => schemaRegistryFor('pl-multiple-choice', PL_MULTIPLE_CHOICE_SCHEMA);
+  const plMultipleChoiceRegistry = () =>
+    schemaRegistryFor('pl-multiple-choice', PL_MULTIPLE_CHOICE_SCHEMA);
 
   it('detects missing required attribute on inline schema', () => {
     const registry = schemaRegistryFor('x-card', {
@@ -1052,9 +1313,22 @@ describe('custom tag schema', () => {
       },
     });
     const tree = parse('<x-card></x-card>');
-    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
+    const errors = collectErrors(
+      tree,
+      'test.mustache',
+      undefined,
+      ['x-card'],
+      undefined,
+      { registry },
+    );
 
-    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message === '<x-card> is missing required attribute "kind".')).toBe(true);
+    expect(
+      errors.some(
+        (e) =>
+          e.ruleName === 'customTagSchema' &&
+          e.message === '<x-card> is missing required attribute "kind".',
+      ),
+    ).toBe(true);
   });
 
   it('reports unknown attribute at the attribute location with ruleName', () => {
@@ -1070,8 +1344,19 @@ describe('custom tag schema', () => {
       },
     });
     const tree = parse('<x-card kind="ok"\n  extra="x"\n></x-card>');
-    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
-    const err = errors.find(e => e.ruleName === 'customTagSchema' && e.message === 'Unknown attribute "extra" on <x-card>.');
+    const errors = collectErrors(
+      tree,
+      'test.mustache',
+      undefined,
+      ['x-card'],
+      undefined,
+      { registry },
+    );
+    const err = errors.find(
+      (e) =>
+        e.ruleName === 'customTagSchema' &&
+        e.message === 'Unknown attribute "extra" on <x-card>.',
+    );
 
     expect(err).toBeDefined();
     expect(err!.line).toBe(2);
@@ -1093,12 +1378,23 @@ describe('custom tag schema', () => {
         },
       },
     });
-    const tree = parse('<x-card variant="{{variant}}" count="{{count}}" mystery="x"></x-card>');
-    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
-    const schemaErrors = errors.filter(e => e.ruleName === 'customTagSchema');
+    const tree = parse(
+      '<x-card variant="{{variant}}" count="{{count}}" mystery="x"></x-card>',
+    );
+    const errors = collectErrors(
+      tree,
+      'test.mustache',
+      undefined,
+      ['x-card'],
+      undefined,
+      { registry },
+    );
+    const schemaErrors = errors.filter((e) => e.ruleName === 'customTagSchema');
 
     expect(schemaErrors).toHaveLength(1);
-    expect(schemaErrors[0].message).toBe('Unknown attribute "mystery" on <x-card>.');
+    expect(schemaErrors[0].message).toBe(
+      'Unknown attribute "mystery" on <x-card>.',
+    );
   });
 
   it('rewrites attribute enum and type schema messages using HTML terms', () => {
@@ -1116,10 +1412,30 @@ describe('custom tag schema', () => {
       },
     });
     const tree = parse('<x-card variant="tertiary" count="many"></x-card>');
-    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
+    const errors = collectErrors(
+      tree,
+      'test.mustache',
+      undefined,
+      ['x-card'],
+      undefined,
+      { registry },
+    );
 
-    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message === 'Attribute "variant" on <x-card> must be one of: "primary", "secondary".')).toBe(true);
-    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message === 'Attribute "count" on <x-card> must be number.')).toBe(true);
+    expect(
+      errors.some(
+        (e) =>
+          e.ruleName === 'customTagSchema' &&
+          e.message ===
+            'Attribute "variant" on <x-card> must be one of: "primary", "secondary".',
+      ),
+    ).toBe(true);
+    expect(
+      errors.some(
+        (e) =>
+          e.ruleName === 'customTagSchema' &&
+          e.message === 'Attribute "count" on <x-card> must be number.',
+      ),
+    ).toBe(true);
   });
 
   it('rewrites attribute numeric bounds using HTML terms', () => {
@@ -1136,9 +1452,22 @@ describe('custom tag schema', () => {
       },
     });
     const tree = parse('<x-card score="2"></x-card>');
-    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
+    const errors = collectErrors(
+      tree,
+      'test.mustache',
+      undefined,
+      ['x-card'],
+      undefined,
+      { registry },
+    );
 
-    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message === 'Attribute "score" on <x-card> must be <= 1.')).toBe(true);
+    expect(
+      errors.some(
+        (e) =>
+          e.ruleName === 'customTagSchema' &&
+          e.message === 'Attribute "score" on <x-card> must be <= 1.',
+      ),
+    ).toBe(true);
   });
 
   it('accepts boolean attributes with boolean schemas', () => {
@@ -1153,9 +1482,16 @@ describe('custom tag schema', () => {
       },
     });
     const tree = parse('<x-card inline></x-card>');
-    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
+    const errors = collectErrors(
+      tree,
+      'test.mustache',
+      undefined,
+      ['x-card'],
+      undefined,
+      { registry },
+    );
 
-    expect(errors.some(e => e.ruleName === 'customTagSchema')).toBe(false);
+    expect(errors.some((e) => e.ruleName === 'customTagSchema')).toBe(false);
   });
 
   it('waives mustache-bearing child attribute values in parent schemas', () => {
@@ -1171,7 +1507,9 @@ describe('custom tag schema', () => {
               tag: { const: 'x-item' },
               attributes: {
                 type: 'object',
-                properties: { score: { type: 'number', minimum: 0, maximum: 1 } },
+                properties: {
+                  score: { type: 'number', minimum: 0, maximum: 1 },
+                },
               },
             },
           },
@@ -1179,9 +1517,16 @@ describe('custom tag schema', () => {
       },
     });
     const tree = parse('<x-list><x-item score="{{score}}"></x-item></x-list>');
-    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-list', 'x-item'], undefined, { registry });
+    const errors = collectErrors(
+      tree,
+      'test.mustache',
+      undefined,
+      ['x-list', 'x-item'],
+      undefined,
+      { registry },
+    );
 
-    expect(errors.some(e => e.ruleName === 'customTagSchema')).toBe(false);
+    expect(errors.some((e) => e.ruleName === 'customTagSchema')).toBe(false);
   });
 
   it('does not waive unrelated cross-attribute schema errors', () => {
@@ -1200,10 +1545,19 @@ describe('custom tag schema', () => {
         },
       },
     });
-    const tree = parse('<x-card foo="{{value}}" inline display="block"></x-card>');
-    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
+    const tree = parse(
+      '<x-card foo="{{value}}" inline display="block"></x-card>',
+    );
+    const errors = collectErrors(
+      tree,
+      'test.mustache',
+      undefined,
+      ['x-card'],
+      undefined,
+      { registry },
+    );
 
-    expect(errors.some(e => e.ruleName === 'customTagSchema')).toBe(true);
+    expect(errors.some((e) => e.ruleName === 'customTagSchema')).toBe(true);
   });
 
   it('waives then-branch errors caused by mustache-bearing conditional operands', () => {
@@ -1217,14 +1571,23 @@ describe('custom tag schema', () => {
             size: { type: 'integer' },
             display: { const: 'dropdown' },
           },
-          allOf: [{ if: { required: ['size'] }, then: { required: ['display'] } }],
+          allOf: [
+            { if: { required: ['size'] }, then: { required: ['display'] } },
+          ],
         },
       },
     });
     const tree = parse('<x-card size="{{n}}"></x-card>');
-    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
+    const errors = collectErrors(
+      tree,
+      'test.mustache',
+      undefined,
+      ['x-card'],
+      undefined,
+      { registry },
+    );
 
-    expect(errors.some(e => e.ruleName === 'customTagSchema')).toBe(false);
+    expect(errors.some((e) => e.ruleName === 'customTagSchema')).toBe(false);
   });
 
   it('does not waive literal sibling child violations due to another child mustache attribute', () => {
@@ -1239,7 +1602,10 @@ describe('custom tag schema', () => {
             properties: {
               attributes: {
                 type: 'object',
-                properties: { score: { type: 'number' }, feedback: { type: 'string' } },
+                properties: {
+                  score: { type: 'number' },
+                  feedback: { type: 'string' },
+                },
                 not: { required: ['score', 'feedback'] },
               },
             },
@@ -1247,10 +1613,19 @@ describe('custom tag schema', () => {
         },
       },
     });
-    const tree = parse('<x-list><x-item score="{{s}}"></x-item><x-item score="1" feedback="bad"></x-item></x-list>');
-    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-list', 'x-item'], undefined, { registry });
+    const tree = parse(
+      '<x-list><x-item score="{{s}}"></x-item><x-item score="1" feedback="bad"></x-item></x-list>',
+    );
+    const errors = collectErrors(
+      tree,
+      'test.mustache',
+      undefined,
+      ['x-list', 'x-item'],
+      undefined,
+      { registry },
+    );
 
-    expect(errors.some(e => e.ruleName === 'customTagSchema')).toBe(true);
+    expect(errors.some((e) => e.ruleName === 'customTagSchema')).toBe(true);
   });
 
   it('includes section-flattened children inside mustache sections', () => {
@@ -1269,11 +1644,20 @@ describe('custom tag schema', () => {
       },
     });
     const tree = parse('<x-list>{{#items}}<x-bad></x-bad>{{/items}}</x-list>');
-    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-list', 'x-bad'], undefined, { registry });
-    const err = errors.find(e => e.ruleName === 'customTagSchema');
+    const errors = collectErrors(
+      tree,
+      'test.mustache',
+      undefined,
+      ['x-list', 'x-bad'],
+      undefined,
+      { registry },
+    );
+    const err = errors.find((e) => e.ruleName === 'customTagSchema');
 
     expect(err).toBeDefined();
-    expect(err!.message).toBe('<x-list> only allows <x-item> children; found <x-bad>.');
+    expect(err!.message).toBe(
+      '<x-list> only allows <x-item> children; found <x-bad>.',
+    );
     expect(err!.nodeText).toBe('<x-bad>');
   });
 
@@ -1289,62 +1673,141 @@ describe('custom tag schema', () => {
         },
       },
     });
-    const tree = parse('{{! htmlmustache-disable customTagSchema }}\n<x-card></x-card>');
-    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
+    const tree = parse(
+      '{{! htmlmustache-disable customTagSchema }}\n<x-card></x-card>',
+    );
+    const errors = collectErrors(
+      tree,
+      'test.mustache',
+      undefined,
+      ['x-card'],
+      undefined,
+      { registry },
+    );
 
-    expect(errors.some(e => e.ruleName === 'customTagSchema')).toBe(false);
+    expect(errors.some((e) => e.ruleName === 'customTagSchema')).toBe(false);
   });
 
   it('validates representative pl-multiple-choice required answers-name', () => {
     const tree = parse('<pl-multiple-choice></pl-multiple-choice>');
-    const errors = collectErrors(tree, 'test.mustache', undefined, ['pl-multiple-choice', 'pl-answer'], undefined, { registry: plMultipleChoiceRegistry() });
+    const errors = collectErrors(
+      tree,
+      'test.mustache',
+      undefined,
+      ['pl-multiple-choice', 'pl-answer'],
+      undefined,
+      { registry: plMultipleChoiceRegistry() },
+    );
 
-    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message === '<pl-multiple-choice> is missing required attribute "answers-name".')).toBe(true);
+    expect(
+      errors.some(
+        (e) =>
+          e.ruleName === 'customTagSchema' &&
+          e.message ===
+            '<pl-multiple-choice> is missing required attribute "answers-name".',
+      ),
+    ).toBe(true);
   });
 
   it('validates representative pl-multiple-choice closed attributes with html globals', () => {
-    const tree = parse('<pl-multiple-choice answers-name="ans" data-test="ok" mystery="x"></pl-multiple-choice>');
-    const errors = collectErrors(tree, 'test.mustache', undefined, ['pl-multiple-choice', 'pl-answer'], undefined, { registry: plMultipleChoiceRegistry() });
-    const schemaErrors = errors.filter(e => e.ruleName === 'customTagSchema');
+    const tree = parse(
+      '<pl-multiple-choice answers-name="ans" data-test="ok" mystery="x"></pl-multiple-choice>',
+    );
+    const errors = collectErrors(
+      tree,
+      'test.mustache',
+      undefined,
+      ['pl-multiple-choice', 'pl-answer'],
+      undefined,
+      { registry: plMultipleChoiceRegistry() },
+    );
+    const schemaErrors = errors.filter((e) => e.ruleName === 'customTagSchema');
 
     expect(schemaErrors).toHaveLength(1);
-    expect(schemaErrors[0].message).toBe('Unknown attribute "mystery" on <pl-multiple-choice>.');
+    expect(schemaErrors[0].message).toBe(
+      'Unknown attribute "mystery" on <pl-multiple-choice>.',
+    );
     expect(schemaErrors[0].nodeText).toContain('mystery');
   });
 
   it('validates representative pl-multiple-choice dropdown-only size', () => {
-    const tree = parse('<pl-multiple-choice answers-name="ans" size="4"></pl-multiple-choice>');
-    const errors = collectErrors(tree, 'test.mustache', undefined, ['pl-multiple-choice', 'pl-answer'], undefined, { registry: plMultipleChoiceRegistry() });
+    const tree = parse(
+      '<pl-multiple-choice answers-name="ans" size="4"></pl-multiple-choice>',
+    );
+    const errors = collectErrors(
+      tree,
+      'test.mustache',
+      undefined,
+      ['pl-multiple-choice', 'pl-answer'],
+      undefined,
+      { registry: plMultipleChoiceRegistry() },
+    );
 
-    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message.includes('display'))).toBe(true);
+    expect(
+      errors.some(
+        (e) =>
+          e.ruleName === 'customTagSchema' && e.message.includes('display'),
+      ),
+    ).toBe(true);
   });
 
   it('validates representative pl-multiple-choice child tag', () => {
-    const tree = parse('<pl-multiple-choice answers-name="ans"><span correct="true" feedback="ok" score="1"></span></pl-multiple-choice>');
-    const errors = collectErrors(tree, 'test.mustache', undefined, ['pl-multiple-choice', 'pl-answer'], undefined, { registry: plMultipleChoiceRegistry() });
+    const tree = parse(
+      '<pl-multiple-choice answers-name="ans"><span correct="true" feedback="ok" score="1"></span></pl-multiple-choice>',
+    );
+    const errors = collectErrors(
+      tree,
+      'test.mustache',
+      undefined,
+      ['pl-multiple-choice', 'pl-answer'],
+      undefined,
+      { registry: plMultipleChoiceRegistry() },
+    );
 
-    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message === '<pl-multiple-choice> only allows <pl-answer> children; found <span>.')).toBe(true);
+    expect(
+      errors.some(
+        (e) =>
+          e.ruleName === 'customTagSchema' &&
+          e.message ===
+            '<pl-multiple-choice> only allows <pl-answer> children; found <span>.',
+      ),
+    ).toBe(true);
   });
 
   it('validates representative pl-multiple-choice builtin-grading false child score', () => {
-    const tree = parse('<pl-multiple-choice answers-name="ans" builtin-grading="false"><pl-answer correct="true" feedback="ok" score="1"></pl-answer></pl-multiple-choice>');
-    const errors = collectErrors(tree, 'test.mustache', undefined, ['pl-multiple-choice', 'pl-answer'], undefined, { registry: plMultipleChoiceRegistry() });
+    const tree = parse(
+      '<pl-multiple-choice answers-name="ans" builtin-grading="false"><pl-answer correct="true" feedback="ok" score="1"></pl-answer></pl-multiple-choice>',
+    );
+    const errors = collectErrors(
+      tree,
+      'test.mustache',
+      undefined,
+      ['pl-multiple-choice', 'pl-answer'],
+      undefined,
+      { registry: plMultipleChoiceRegistry() },
+    );
 
-    expect(errors.some(e => e.ruleName === 'customTagSchema')).toBe(true);
+    expect(errors.some((e) => e.ruleName === 'customTagSchema')).toBe(true);
   });
 });
 
 describe('rules config overrides', () => {
   it('disables a default-on rule when set to off', () => {
     const tree = parse('<p>a > b</p>');
-    const errors = collectErrors(tree, 'test.mustache', { unescapedEntities: 'off' });
-    expect(errors.some(e => e.message.includes('Unescaped'))).toBe(false);
+    const errors = collectErrors(tree, 'test.mustache', {
+      unescapedEntities: 'off',
+    });
+    expect(errors.some((e) => e.message.includes('Unescaped'))).toBe(false);
   });
 
   it('changes severity of a rule', () => {
     const tree = parse('{{#x}}a{{/x}}{{#x}}b{{/x}}');
-    const errors = collectErrors(tree, 'test.mustache', { consecutiveDuplicateSections: 'error' });
-    const consecutive = errors.find(e => e.message.includes('Consecutive duplicate section'));
+    const errors = collectErrors(tree, 'test.mustache', {
+      consecutiveDuplicateSections: 'error',
+    });
+    const consecutive = errors.find((e) =>
+      e.message.includes('Consecutive duplicate section'),
+    );
     expect(consecutive).toBeDefined();
     expect(consecutive!.severity).toBe('error');
   });

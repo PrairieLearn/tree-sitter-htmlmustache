@@ -14,11 +14,14 @@ import type { CustomRule } from '../shared/configSchema.js';
 
 export function ruleMatchesPath(rule: CustomRule, relPath: string): boolean {
   const normalized = relPath.split(path.sep).join('/');
-  if (rule.exclude && rule.exclude.some(p => path.matchesGlob(normalized, p))) {
+  if (
+    rule.exclude &&
+    rule.exclude.some((p) => path.matchesGlob(normalized, p))
+  ) {
     return false;
   }
   if (rule.include && rule.include.length > 0) {
-    return rule.include.some(p => path.matchesGlob(normalized, p));
+    return rule.include.some((p) => path.matchesGlob(normalized, p));
   }
   return true;
 }
@@ -28,5 +31,5 @@ export function filterCustomRulesForPath(
   relPath: string,
 ): CustomRule[] | undefined {
   if (!rules) return rules;
-  return rules.filter(r => ruleMatchesPath(r, relPath));
+  return rules.filter((r) => ruleMatchesPath(r, relPath));
 }

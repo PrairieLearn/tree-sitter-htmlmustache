@@ -20,7 +20,7 @@ The JSON value that a tag schema validates against. Built from each occurrence o
 }
 ```
 
-One level of children only — child elements appear with `tag` + `attributes` but no further descent. Mustache interpolations, sections, partials, comments, raw text, and HTML whitespace/comments are dropped from `children`; the inner elements of `{{#…}}`/`{{^…}}` sections are *included* as if the section weren't there (kind-transparent / max-set semantics).
+One level of children only — child elements appear with `tag` + `attributes` but no further descent. Mustache interpolations, sections, partials, comments, raw text, and HTML whitespace/comments are dropped from `children`; the inner elements of `{{#…}}`/`{{^…}}` sections are _included_ as if the section weren't there (kind-transparent / max-set semantics).
 
 Both the parent tag's schema and each schema'd child's own schema validate independently — by convention authors keep them disjoint (parent describes children only insofar as a rule depends on parent state).
 
@@ -35,7 +35,7 @@ Effect: presence and structural rules (required, additionalProperties:false, chi
 
 ## Max-set semantics
 
-The linter's canonical treatment of mustache sections when reasoning about template structure: walk through `{{#…}}`/`{{^…}}` as if the section were always present. A schema diagnostic fires when a violation appears in *some* possible runtime timeline; a "missing required X" diagnostic fires only when X appears in *no* timeline (the max-set). This is consistent with selector rules' kind-transparent matching. The trade-off: min-count rules can be silently bypassed by wrapping the only matches in a section — accepted as a known limitation, with full timeline enumeration deferred as a follow-up.
+The linter's canonical treatment of mustache sections when reasoning about template structure: walk through `{{#…}}`/`{{^…}}` as if the section were always present. A schema diagnostic fires when a violation appears in _some_ possible runtime timeline; a "missing required X" diagnostic fires only when X appears in _no_ timeline (the max-set). This is consistent with selector rules' kind-transparent matching. The trade-off: min-count rules can be silently bypassed by wrapping the only matches in a section — accepted as a known limitation, with full timeline enumeration deferred as a follow-up.
 
 ## Custom tag
 

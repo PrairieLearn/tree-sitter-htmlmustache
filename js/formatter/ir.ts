@@ -123,10 +123,18 @@ export function indentN(contents: Doc, n: number): Doc {
  * When `shouldBreak` is true, the group will always break.
  * When `id` is set, the group's mode can be referenced by `ifBreak` nodes.
  */
-export function group(contents: Doc, options?: { shouldBreak?: boolean; id?: symbol }): Doc {
+export function group(
+  contents: Doc,
+  options?: { shouldBreak?: boolean; id?: symbol },
+): Doc {
   if (contents === '') return '';
   const shouldBreak = options?.shouldBreak;
-  return { type: 'group', contents, break: shouldBreak || undefined, id: options?.id };
+  return {
+    type: 'group',
+    contents,
+    break: shouldBreak || undefined,
+    id: options?.id,
+  };
 }
 
 /**
@@ -134,8 +142,17 @@ export function group(contents: Doc, options?: { shouldBreak?: boolean; id?: sym
  * whether the enclosing group breaks or stays flat.
  * When `groupId` is set, checks that specific group's mode instead.
  */
-export function ifBreak(breakContents: Doc, flatContents: Doc, options?: { groupId?: symbol }): Doc {
-  return { type: 'ifBreak', breakContents, flatContents, groupId: options?.groupId };
+export function ifBreak(
+  breakContents: Doc,
+  flatContents: Doc,
+  options?: { groupId?: symbol },
+): Doc {
+  return {
+    type: 'ifBreak',
+    breakContents,
+    flatContents,
+    groupId: options?.groupId,
+  };
 }
 
 /**

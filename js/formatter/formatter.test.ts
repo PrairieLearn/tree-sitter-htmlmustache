@@ -38,12 +38,16 @@ describe('format', () => {
   });
 
   it('respects printWidth + indentSize from config', async () => {
-    const out = await formatter.format('<div><p>hi</p></div>', { indentSize: 4 });
+    const out = await formatter.format('<div><p>hi</p></div>', {
+      indentSize: 4,
+    });
     expect(out).toBe('<div>\n    <p>hi</p>\n</div>\n');
   });
 
   it('applies mustacheSpaces from config', async () => {
-    const out = await formatter.format('<p>{{name}}</p>', { mustacheSpaces: true });
+    const out = await formatter.format('<p>{{name}}</p>', {
+      mustacheSpaces: true,
+    });
     expect(out).toBe('<p>{{ name }}</p>\n');
   });
 
@@ -60,7 +64,9 @@ describe('format', () => {
         return `/* PRETTIER-${src.trim()} */\n`;
       },
     };
-    const out = await formatter.format('<script>var a=1;</script>', undefined, { prettier });
+    const out = await formatter.format('<script>var a=1;</script>', undefined, {
+      prettier,
+    });
     expect(out).toContain('/* PRETTIER-var a=1; */');
   });
 
@@ -68,7 +74,10 @@ describe('format', () => {
     const prettier: PrettierLike = {
       format: () => 'FACTORY_OUT\n',
     };
-    const h = await createFormatter({ locateWasm: GRAMMAR_WASM_PATH, prettier });
+    const h = await createFormatter({
+      locateWasm: GRAMMAR_WASM_PATH,
+      prettier,
+    });
     const out = await h.format('<script>var a=1;</script>');
     expect(out).toContain('FACTORY_OUT');
   });

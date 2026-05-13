@@ -52,7 +52,7 @@ function getErroneousEndTagNameLower(node: BalanceNode): string | null {
 }
 
 function hasForcedEndTag(element: BalanceNode): boolean {
-  return element.children.some(c => c.type === 'html_forced_end_tag');
+  return element.children.some((c) => c.type === 'html_forced_end_tag');
 }
 
 function extractFromNodes(nodes: BalanceNode[]): PathItem[] {
@@ -66,7 +66,7 @@ function extractFromNodes(nodes: BalanceNode[]): PathItem[] {
 function extractFromNode(node: BalanceNode): PathItem[] {
   if (node.type === 'html_element') {
     const contentChildren = node.children.filter(
-      c =>
+      (c) =>
         c.type !== 'html_start_tag' &&
         c.type !== 'html_end_tag' &&
         c.type !== 'html_forced_end_tag',
@@ -76,7 +76,7 @@ function extractFromNode(node: BalanceNode): PathItem[] {
       const tagName = getTagNameLower(node);
       const items: PathItem[] = [];
       if (tagName) {
-        const startTag = node.children.find(c => c.type === 'html_start_tag');
+        const startTag = node.children.find((c) => c.type === 'html_start_tag');
         items.push({ type: 'open', tagName, node: startTag ?? node });
       }
       items.push(...extractFromNodes(contentChildren));
@@ -103,7 +103,7 @@ function extractFromNode(node: BalanceNode): PathItem[] {
     const sectionName = getSectionName(node);
     if (sectionName) {
       const contentChildren = node.children.filter(
-        c =>
+        (c) =>
           c.type !== 'mustache_section_begin' &&
           c.type !== 'mustache_section_end' &&
           c.type !== 'mustache_erroneous_section_end',
@@ -124,7 +124,7 @@ function extractFromNode(node: BalanceNode): PathItem[] {
     const sectionName = getSectionName(node);
     if (sectionName) {
       const contentChildren = node.children.filter(
-        c =>
+        (c) =>
           c.type !== 'mustache_inverted_section_begin' &&
           c.type !== 'mustache_inverted_section_end' &&
           c.type !== 'mustache_erroneous_inverted_section_end',
@@ -233,7 +233,10 @@ function collectSectionNames(items: PathItem[]): Set<string> {
   return names;
 }
 
-function flattenPath(items: PathItem[], assignment: Map<string, boolean>): TagEvent[] {
+function flattenPath(
+  items: PathItem[],
+  assignment: Map<string, boolean>,
+): TagEvent[] {
   const events: TagEvent[] = [];
   for (const item of items) {
     if (item.type === 'fork') {
@@ -256,7 +259,10 @@ function formatCondition(assignment: Map<string, boolean>): string {
   return ` (when ${parts.join(', ')})`;
 }
 
-function validateBalance(events: TagEvent[], condition: string): BalanceError[] {
+function validateBalance(
+  events: TagEvent[],
+  condition: string,
+): BalanceError[] {
   const errors: BalanceError[] = [];
   const stack: TagEvent[] = [];
 
@@ -296,20 +302,53 @@ function validateBalance(events: TagEvent[], condition: string): BalanceError[] 
 // --- Unclosed tag detection ---
 
 const VOID_ELEMENTS = new Set([
-  'area', 'base', 'basefont', 'bgsound', 'br', 'col', 'command',
-  'embed', 'frame', 'hr', 'image', 'img', 'input', 'isindex',
-  'keygen', 'link', 'menuitem', 'meta', 'nextid', 'param',
-  'source', 'track', 'wbr',
+  'area',
+  'base',
+  'basefont',
+  'bgsound',
+  'br',
+  'col',
+  'command',
+  'embed',
+  'frame',
+  'hr',
+  'image',
+  'img',
+  'input',
+  'isindex',
+  'keygen',
+  'link',
+  'menuitem',
+  'meta',
+  'nextid',
+  'param',
+  'source',
+  'track',
+  'wbr',
 ]);
 
 const OPTIONAL_END_TAG_ELEMENTS = new Set([
-  'li', 'dt', 'dd', 'p', 'colgroup',
-  'rb', 'rt', 'rp', 'rtc',
-  'optgroup', 'option',
-  'tr', 'td', 'th',
-  'thead', 'tbody', 'tfoot',
+  'li',
+  'dt',
+  'dd',
+  'p',
+  'colgroup',
+  'rb',
+  'rt',
+  'rp',
+  'rtc',
+  'optgroup',
+  'option',
+  'tr',
+  'td',
+  'th',
+  'thead',
+  'tbody',
+  'tfoot',
   'caption',
-  'html', 'head', 'body',
+  'html',
+  'head',
+  'body',
 ]);
 
 export function checkUnclosedTags(rootNode: BalanceNode): BalanceError[] {
@@ -317,13 +356,21 @@ export function checkUnclosedTags(rootNode: BalanceNode): BalanceError[] {
 
   function visit(node: BalanceNode) {
     if (node.type === 'html_element') {
-      const hasEndTag = node.children.some(c => c.type === 'html_end_tag');
-      const hasForcedEnd = node.children.some(c => c.type === 'html_forced_end_tag');
+      const hasEndTag = node.children.some((c) => c.type === 'html_end_tag');
+      const hasForcedEnd = node.children.some(
+        (c) => c.type === 'html_forced_end_tag',
+      );
 
       if (!hasEndTag && !hasForcedEnd) {
         const tagName = getTagNameLower(node);
-        if (tagName && !VOID_ELEMENTS.has(tagName) && !OPTIONAL_END_TAG_ELEMENTS.has(tagName)) {
-          const startTag = node.children.find(c => c.type === 'html_start_tag');
+        if (
+          tagName &&
+          !VOID_ELEMENTS.has(tagName) &&
+          !OPTIONAL_END_TAG_ELEMENTS.has(tagName)
+        ) {
+          const startTag = node.children.find(
+            (c) => c.type === 'html_start_tag',
+          );
           errors.push({
             node: startTag ?? node,
             message: `Unclosed HTML tag: <${tagName}>`,

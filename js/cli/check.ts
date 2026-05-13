@@ -7,14 +7,21 @@ import type { Tree } from './wasm';
 import { initializeParser, parseDocument } from './wasm';
 import { findConfigFile } from '../shared/configFile.js';
 import { parseJsonc, validateConfig } from '../shared/configSchema.js';
-import type { HtmlMustacheConfig, RulesConfig, CustomRule } from '../shared/configSchema.js';
+import type {
+  HtmlMustacheConfig,
+  RulesConfig,
+  CustomRule,
+} from '../shared/configSchema.js';
 import { collectErrors as collectTreeErrors } from '../linter/collectErrors.js';
 import type { WalkableTree } from '../linter/collectErrors.js';
 import { filterCustomRulesForPath } from '../linter/customRuleFilter.js';
 import { toDiagnostic } from '../linter/diagnostic.js';
 import type { Diagnostic } from '../linter/diagnostic.js';
 import { loadSchemaRegistry } from '../shared/customTagSchemaLoader.js';
-import type { ConfigLoadError, SchemaRegistry } from '../shared/customTagSchemaLoader.js';
+import type {
+  ConfigLoadError,
+  SchemaRegistry,
+} from '../shared/customTagSchemaLoader.js';
 
 // ── Types ──
 
@@ -51,7 +58,7 @@ export function collectErrors(
     schemaOptions?.registry,
     schemaOptions?.loadErrors,
   );
-  return errors.map(error => ({
+  return errors.map((error) => ({
     file,
     nodeText: error.node.text,
     ...toDiagnostic(error),
@@ -66,10 +73,16 @@ export function formatError(error: CheckError, source: string): string {
 
   // Location header
   const isWarning = error.severity === 'warning';
-  const severityLabel = isWarning ? chalk.yellow('warning') : chalk.red('error');
+  const severityLabel = isWarning
+    ? chalk.yellow('warning')
+    : chalk.red('error');
   const colorFn = isWarning ? chalk.yellow : chalk.red;
-  const header = chalk.bold(`${error.file}:${error.line}:${error.column}`) +
-    ' ' + severityLabel + ': ' + error.message;
+  const header =
+    chalk.bold(`${error.file}:${error.line}:${error.column}`) +
+    ' ' +
+    severityLabel +
+    ': ' +
+    error.message;
 
   // Context lines: up to 2 before + the error line(s)
   const contextStart = Math.max(0, errorLine - 2);
@@ -104,10 +117,15 @@ export function formatError(error: CheckError, source: string): string {
   }
 
   const underlineLength = Math.max(1, underlineEnd - underlineStart);
-  const underline = ' '.repeat(underlineStart) + '^'.repeat(underlineLength) +
-    ' ' + error.message;
+  const underline =
+    ' '.repeat(underlineStart) +
+    '^'.repeat(underlineLength) +
+    ' ' +
+    error.message;
 
-  outputLines.push(chalk.dim(' '.repeat(gutterWidth) + ' |') + ' ' + colorFn(underline));
+  outputLines.push(
+    chalk.dim(' '.repeat(gutterWidth) + ' |') + ' ' + colorFn(underline),
+  );
 
   return outputLines.join('\n');
 }
@@ -119,7 +137,9 @@ export function formatSummary(
   totalWarnings = 0,
 ): string {
   if (totalErrors === 0 && totalWarnings === 0) {
-    return chalk.green(`No errors found (${totalFiles} ${totalFiles === 1 ? 'file' : 'files'} checked)`);
+    return chalk.green(
+      `No errors found (${totalFiles} ${totalFiles === 1 ? 'file' : 'files'} checked)`,
+    );
   }
   const totalStr = totalFiles === 1 ? 'file' : 'files';
   const parts: string[] = [];
@@ -132,8 +152,10 @@ export function formatSummary(
     parts.push(chalk.yellow(`${totalWarnings} ${warnStr}`));
   }
   const errFileStr = filesWithErrors === 1 ? 'file' : 'files';
-  return `${parts.join(', ')} in ${filesWithErrors} ${errFileStr}` +
-    ` (${totalFiles} ${totalStr} checked)`;
+  return (
+    `${parts.join(', ')} in ${filesWithErrors} ${errFileStr}` +
+    ` (${totalFiles} ${totalStr} checked)`
+  );
 }
 
 // ── Glob expansion ──
@@ -161,7 +183,13 @@ export function expandGlobs(patterns: string[]): string[] {
 
 const DEFAULT_EXCLUDE_SEGMENTS = ['/node_modules/', '/.git/'];
 
-export function resolveFiles(cliPatterns: string[]): { files: string[]; config: HtmlMustacheConfig | null; configDir: string | null; schemaRegistry?: SchemaRegistry; schemaLoadErrors?: ConfigLoadError[] } {
+export function resolveFiles(cliPatterns: string[]): {
+  files: string[];
+  config: HtmlMustacheConfig | null;
+  configDir: string | null;
+  schemaRegistry?: SchemaRegistry;
+  schemaLoadErrors?: ConfigLoadError[];
+} {
   // Load config from cwd
   const configPath = findConfigFile(process.cwd());
   let config: HtmlMustacheConfig | null = null;
@@ -179,7 +207,10 @@ export function resolveFiles(cliPatterns: string[]): { files: string[]; config: 
   const schemaResult = config
     ? loadSchemaRegistry(config.customTags, {
         configDir: configDir ?? undefined,
-        loadFile: (schemaPath, baseDir) => parseJsonc(fs.readFileSync(path.resolve(baseDir, schemaPath), 'utf-8')),
+        loadFile: (schemaPath, baseDir) =>
+          parseJsonc(
+            fs.readFileSync(path.resolve(baseDir, schemaPath), 'utf-8'),
+          ),
       })
     : undefined;
 
@@ -190,14 +221,22 @@ export function resolveFiles(cliPatterns: string[]): { files: string[]; config: 
   } else if (config?.include && config.include.length > 0) {
     patterns = config.include;
   } else {
-    return { files: [], config, configDir, schemaRegistry: schemaResult?.registry, schemaLoadErrors: schemaResult?.loadErrors };
+    return {
+      files: [],
+      config,
+      configDir,
+      schemaRegistry: schemaResult?.registry,
+      schemaLoadErrors: schemaResult?.loadErrors,
+    };
   }
 
   // Expand globs
   let files = expandGlobs(patterns);
 
   // Apply default excludes
-  files = files.filter(f => !DEFAULT_EXCLUDE_SEGMENTS.some(seg => f.includes(seg)));
+  files = files.filter(
+    (f) => !DEFAULT_EXCLUDE_SEGMENTS.some((seg) => f.includes(seg)),
+  );
 
   // Apply config excludes
   if (config?.exclude && config.exclude.length > 0) {
@@ -212,20 +251,34 @@ export function resolveFiles(cliPatterns: string[]): { files: string[]; config: 
         }
       }
     }
-    files = files.filter(f => !excludeSet.has(f));
+    files = files.filter((f) => !excludeSet.has(f));
   }
 
-  return { files, config, configDir, schemaRegistry: schemaResult?.registry, schemaLoadErrors: schemaResult?.loadErrors };
+  return {
+    files,
+    config,
+    configDir,
+    schemaRegistry: schemaResult?.registry,
+    schemaLoadErrors: schemaResult?.loadErrors,
+  };
 }
 
 // ── Fix application ──
 
 export function applyFixes(source: string, errors: CheckError[]): string {
-  const replacements: Array<{ startIndex: number; endIndex: number; newText: string }> = [];
+  const replacements: Array<{
+    startIndex: number;
+    endIndex: number;
+    newText: string;
+  }> = [];
   for (const error of errors) {
     if (!error.fix) continue;
     for (const edit of error.fix) {
-      replacements.push({ startIndex: edit.range[0], endIndex: edit.range[1], newText: edit.newText });
+      replacements.push({
+        startIndex: edit.range[0],
+        endIndex: edit.range[1],
+        newText: edit.newText,
+      });
     }
   }
 
@@ -237,7 +290,8 @@ export function applyFixes(source: string, errors: CheckError[]): string {
   let minIndex = Infinity;
   for (const r of replacements) {
     if (r.endIndex > minIndex) continue; // overlaps with a later (already-applied) replacement
-    result = result.slice(0, r.startIndex) + r.newText + result.slice(r.endIndex);
+    result =
+      result.slice(0, r.startIndex) + r.newText + result.slice(r.endIndex);
     minIndex = r.startIndex;
   }
 
@@ -275,16 +329,21 @@ export async function run(args: string[]): Promise<number> {
   }
 
   const fixMode = args.includes('--fix');
-  const patterns = args.filter(a => a !== '--fix');
+  const patterns = args.filter((a) => a !== '--fix');
 
-  const { files, config, configDir, schemaRegistry, schemaLoadErrors } = resolveFiles(patterns);
+  const { files, config, configDir, schemaRegistry, schemaLoadErrors } =
+    resolveFiles(patterns);
 
   if (files.length === 0) {
-    if (patterns.length === 0 && (!config?.include || config.include.length === 0)) {
+    if (
+      patterns.length === 0 &&
+      (!config?.include || config.include.length === 0)
+    ) {
       console.log(USAGE);
       return 1;
     }
-    const displayPatterns = patterns.length > 0 ? patterns : config?.include ?? [];
+    const displayPatterns =
+      patterns.length > 0 ? patterns : (config?.include ?? []);
     console.error(chalk.yellow('No files matched the given patterns:'));
     for (const p of displayPatterns) {
       console.error(chalk.yellow(`  ${p}`));
@@ -303,20 +362,30 @@ export async function run(args: string[]): Promise<number> {
   const errorOutput: string[] = [];
 
   const rules = config?.rules;
-  const customTagNames = config?.customTags?.map(t => t.name);
+  const customTagNames = config?.customTags?.map((t) => t.name);
   const customRules = config?.customRules;
   const ruleFilterBase = configDir ?? cwd;
 
   for (const file of files) {
     const displayPath = path.relative(cwd, file) || file;
     const ruleFilterPath = path.relative(ruleFilterBase, file) || displayPath;
-    const applicableCustomRules = filterCustomRulesForPath(customRules, ruleFilterPath);
+    const applicableCustomRules = filterCustomRulesForPath(
+      customRules,
+      ruleFilterPath,
+    );
     let source = fs.readFileSync(file, 'utf-8');
 
     if (fixMode) {
       // Apply fixes, then re-parse to report remaining errors
       const tree = parseDocument(source);
-      const errors = collectErrors(tree, displayPath, rules, customTagNames, applicableCustomRules, { registry: schemaRegistry, loadErrors: schemaLoadErrors });
+      const errors = collectErrors(
+        tree,
+        displayPath,
+        rules,
+        customTagNames,
+        applicableCustomRules,
+        { registry: schemaRegistry, loadErrors: schemaLoadErrors },
+      );
       const fixed = applyFixes(source, errors);
       if (fixed !== source) {
         fs.writeFileSync(file, fixed, 'utf-8');
@@ -325,10 +394,17 @@ export async function run(args: string[]): Promise<number> {
     }
 
     const tree = parseDocument(source);
-    const errors = collectErrors(tree, displayPath, rules, customTagNames, applicableCustomRules, { registry: schemaRegistry, loadErrors: schemaLoadErrors });
+    const errors = collectErrors(
+      tree,
+      displayPath,
+      rules,
+      customTagNames,
+      applicableCustomRules,
+      { registry: schemaRegistry, loadErrors: schemaLoadErrors },
+    );
 
-    const fileErrors = errors.filter(e => e.severity !== 'warning');
-    const fileWarnings = errors.filter(e => e.severity === 'warning');
+    const fileErrors = errors.filter((e) => e.severity !== 'warning');
+    const fileWarnings = errors.filter((e) => e.severity === 'warning');
 
     if (errors.length > 0) {
       filesWithErrors++;
@@ -339,9 +415,13 @@ export async function run(args: string[]): Promise<number> {
         errorOutput.push(formatError(error, source));
       }
     }
-    console.log(errors.length > 0
-      ? (fileErrors.length > 0 ? chalk.red(displayPath) : chalk.yellow(displayPath))
-      : chalk.dim(displayPath));
+    console.log(
+      errors.length > 0
+        ? fileErrors.length > 0
+          ? chalk.red(displayPath)
+          : chalk.yellow(displayPath)
+        : chalk.dim(displayPath),
+    );
   }
 
   if (errorOutput.length > 0) {
@@ -352,7 +432,9 @@ export async function run(args: string[]): Promise<number> {
     }
   }
 
-  console.log(formatSummary(totalErrors, filesWithErrors, files.length, totalWarnings));
+  console.log(
+    formatSummary(totalErrors, filesWithErrors, files.length, totalWarnings),
+  );
   // Only errors affect exit code, not warnings
   return totalErrors > 0 ? 1 : 0;
 }

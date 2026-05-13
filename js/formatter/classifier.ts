@@ -7,7 +7,11 @@
 
 import type { Node as SyntaxNode } from 'web-tree-sitter';
 import { getTagName } from './utils.js';
-import { isMustacheSection, isRawContentElement, isHtmlElementType } from '../shared/nodeHelpers.js';
+import {
+  isMustacheSection,
+  isRawContentElement,
+  isHtmlElementType,
+} from '../shared/nodeHelpers.js';
 import type { CustomCodeTagConfig } from '../shared/customCodeTags.js';
 import { isCodeTag } from '../shared/customCodeTags.js';
 import type { CSSDisplay } from '../shared/cssDisplay.js';
@@ -159,7 +163,10 @@ export const PRESERVE_CONTENT_ELEMENTS = new Set([
 /**
  * Get the CSS display value for a node.
  */
-export function getCSSDisplay(node: SyntaxNode, customTags: Map<string, CustomCodeTagConfig> = EMPTY_MAP): CSSDisplay {
+export function getCSSDisplay(
+  node: SyntaxNode,
+  customTags: Map<string, CustomCodeTagConfig> = EMPTY_MAP,
+): CSSDisplay {
   const type = node.type;
 
   if (type === 'html_element') {
@@ -220,7 +227,10 @@ export function isWhitespaceInsensitive(display: CSSDisplay): boolean {
  * Check if a node represents a block-level element that should cause indentation.
  * Delegates to getCSSDisplay for classification.
  */
-export function isBlockLevel(node: SyntaxNode, customTags: Map<string, CustomCodeTagConfig> = EMPTY_MAP): boolean {
+export function isBlockLevel(
+  node: SyntaxNode,
+  customTags: Map<string, CustomCodeTagConfig> = EMPTY_MAP,
+): boolean {
   const type = node.type;
 
   // Mustache sections are block-level only if they contain block-level content
@@ -245,7 +255,10 @@ export function isBlockLevel(node: SyntaxNode, customTags: Map<string, CustomCod
 /**
  * Check if an HTML element is an inline element.
  */
-export function isInlineElement(node: SyntaxNode, customTags: Map<string, CustomCodeTagConfig> = EMPTY_MAP): boolean {
+export function isInlineElement(
+  node: SyntaxNode,
+  customTags: Map<string, CustomCodeTagConfig> = EMPTY_MAP,
+): boolean {
   if (node.type !== 'html_element') {
     return false;
   }
@@ -256,7 +269,10 @@ export function isInlineElement(node: SyntaxNode, customTags: Map<string, Custom
 /**
  * Check if element content should be preserved as-is.
  */
-export function shouldPreserveContent(node: SyntaxNode, customTags: Map<string, CustomCodeTagConfig> = EMPTY_MAP): boolean {
+export function shouldPreserveContent(
+  node: SyntaxNode,
+  customTags: Map<string, CustomCodeTagConfig> = EMPTY_MAP,
+): boolean {
   const type = node.type;
 
   if (isRawContentElement(node)) {
@@ -282,7 +298,10 @@ export function shouldPreserveContent(node: SyntaxNode, customTags: Map<string, 
  * - It contains block-level HTML elements, OR
  * - It contains any HTML elements with implicit end tags (HTML crossing boundaries)
  */
-export function hasBlockContent(sectionNode: SyntaxNode, customTags: Map<string, CustomCodeTagConfig> = EMPTY_MAP): boolean {
+export function hasBlockContent(
+  sectionNode: SyntaxNode,
+  customTags: Map<string, CustomCodeTagConfig> = EMPTY_MAP,
+): boolean {
   const contentNodes = getContentNodes(sectionNode);
 
   // Check for implicit end tags first - this makes the section block-level
@@ -302,7 +321,10 @@ export function hasBlockContent(sectionNode: SyntaxNode, customTags: Map<string,
 /**
  * Check if a node is block-level content (for determining mustache section treatment).
  */
-export function isBlockLevelContent(node: SyntaxNode, customTags: Map<string, CustomCodeTagConfig> = EMPTY_MAP): boolean {
+export function isBlockLevelContent(
+  node: SyntaxNode,
+  customTags: Map<string, CustomCodeTagConfig> = EMPTY_MAP,
+): boolean {
   const type = node.type;
 
   // Any HTML element is considered block-level content for mustache sections
@@ -416,7 +438,7 @@ function isInlineContentNode(node: SyntaxNode): boolean {
 export function isInTextFlow(
   node: SyntaxNode,
   index: number,
-  nodes: SyntaxNode[]
+  nodes: SyntaxNode[],
 ): boolean {
   // Check previous sibling
   if (index > 0) {
@@ -441,10 +463,7 @@ export function isInTextFlow(
  * Check if there's inline content (mustache interpolation, non-empty text, etc.)
  * adjacent to the node at `index`, looking past whitespace-only text nodes.
  */
-function hasAdjacentInlineContent(
-  index: number,
-  nodes: SyntaxNode[]
-): boolean {
+function hasAdjacentInlineContent(index: number, nodes: SyntaxNode[]): boolean {
   // Look backward past whitespace-only text
   for (let i = index - 1; i >= 0; i--) {
     const n = nodes[i];
@@ -470,7 +489,7 @@ export function shouldHtmlElementStayInline(
   node: SyntaxNode,
   index: number,
   nodes: SyntaxNode[],
-  customTags: Map<string, CustomCodeTagConfig> = EMPTY_MAP
+  customTags: Map<string, CustomCodeTagConfig> = EMPTY_MAP,
 ): boolean {
   if (node.type !== 'html_element') {
     return false;
@@ -517,7 +536,7 @@ export function shouldTreatAsBlock(
   node: SyntaxNode,
   index: number,
   nodes: SyntaxNode[],
-  customTags: Map<string, CustomCodeTagConfig> = EMPTY_MAP
+  customTags: Map<string, CustomCodeTagConfig> = EMPTY_MAP,
 ): boolean {
   const isHtmlEl = isHtmlElementType(node);
   const isMustacheSec = isMustacheSection(node);
@@ -525,7 +544,8 @@ export function shouldTreatAsBlock(
   if (node.type === 'html_erroneous_end_tag') return true;
 
   return (
-    (isHtmlEl && !shouldHtmlElementStayInline(node, index, nodes, customTags)) ||
+    (isHtmlEl &&
+      !shouldHtmlElementStayInline(node, index, nodes, customTags)) ||
     (isMustacheSec && !isInTextFlow(node, index, nodes)) ||
     (isBlockLevel(node, customTags) && !isInTextFlow(node, index, nodes))
   );

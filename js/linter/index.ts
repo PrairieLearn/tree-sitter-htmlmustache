@@ -31,9 +31,10 @@ import type { CustomCodeTagConfig } from '../shared/customCodeTags.js';
  * before calling `lint`.
  */
 export type CustomRule = Omit<CustomRuleType, 'include' | 'exclude'>;
-export type Config =
-  Omit<HtmlMustacheConfig, 'include' | 'exclude' | 'customRules'>
-  & { customRules?: CustomRule[] };
+export type Config = Omit<
+  HtmlMustacheConfig,
+  'include' | 'exclude' | 'customRules'
+> & { customRules?: CustomRule[] };
 export type CustomTag = CustomCodeTagConfig;
 export type { RulesConfig, RuleSeverity, Diagnostic };
 
@@ -56,12 +57,18 @@ export interface Linter {
 /** Default severities for every built-in rule. */
 export const DEFAULT_CONFIG: Config = { rules: RULE_DEFAULTS as RulesConfig };
 
-function toLocateFile(locateWasm: LocateWasm): ((name: string) => string) | undefined {
-  return typeof locateWasm === 'function' ? (name) => locateWasm(name) : undefined;
+function toLocateFile(
+  locateWasm: LocateWasm,
+): ((name: string) => string) | undefined {
+  return typeof locateWasm === 'function'
+    ? (name) => locateWasm(name)
+    : undefined;
 }
 
 function resolveGrammarUrl(locateWasm: LocateWasm): string {
-  return typeof locateWasm === 'string' ? locateWasm : locateWasm(GRAMMAR_WASM_FILENAME);
+  return typeof locateWasm === 'string'
+    ? locateWasm
+    : locateWasm(GRAMMAR_WASM_FILENAME);
 }
 
 /**
@@ -84,7 +91,9 @@ export async function createLinter(opts: CreateLinterOptions): Promise<Linter> {
       if (!tree) throw new Error('Failed to parse document');
       try {
         const customTagNames = config?.customTags?.map((t) => t.name);
-        const inlineSchemaTags = config?.customTags?.filter((t) => t.schema && typeof t.schema !== 'string');
+        const inlineSchemaTags = config?.customTags?.filter(
+          (t) => t.schema && typeof t.schema !== 'string',
+        );
         const schemaResult = loadSchemaRegistry(inlineSchemaTags);
         const errors = collectErrors(
           tree as unknown as WalkableTree,

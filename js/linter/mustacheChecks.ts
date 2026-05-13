@@ -15,7 +15,9 @@ export interface FixableError extends BalanceError {
 }
 
 // 1. Nested same-name sections
-export function checkNestedSameNameSections(rootNode: BalanceNode): FixableError[] {
+export function checkNestedSameNameSections(
+  rootNode: BalanceNode,
+): FixableError[] {
   const errors: FixableError[] = [];
 
   function visit(node: BalanceNode, ancestors: Set<string>) {
@@ -24,7 +26,9 @@ export function checkNestedSameNameSections(rootNode: BalanceNode): FixableError
       if (name) {
         if (ancestors.has(name)) {
           const beginNode = node.children.find(
-            c => c.type === 'mustache_section_begin' || c.type === 'mustache_inverted_section_begin',
+            (c) =>
+              c.type === 'mustache_section_begin' ||
+              c.type === 'mustache_inverted_section_begin',
           );
           errors.push({
             node: beginNode ?? node,
@@ -50,21 +54,27 @@ export function checkNestedSameNameSections(rootNode: BalanceNode): FixableError
 }
 
 // 2. Unquoted mustache attribute value
-export function checkUnquotedMustacheAttributes(rootNode: BalanceNode): FixableError[] {
+export function checkUnquotedMustacheAttributes(
+  rootNode: BalanceNode,
+): FixableError[] {
   const errors: FixableError[] = [];
 
   function visit(node: BalanceNode) {
     if (node.type === 'html_attribute') {
-      const mustacheNode = node.children.find(c => c.type === 'mustache_interpolation');
+      const mustacheNode = node.children.find(
+        (c) => c.type === 'mustache_interpolation',
+      );
       if (mustacheNode) {
         errors.push({
           node: mustacheNode,
           message: `Unquoted mustache attribute value: ${mustacheNode.text}`,
-          fix: [{
-            startIndex: mustacheNode.startIndex,
-            endIndex: mustacheNode.endIndex,
-            newText: `"${mustacheNode.text}"`,
-          }],
+          fix: [
+            {
+              startIndex: mustacheNode.startIndex,
+              endIndex: mustacheNode.endIndex,
+              newText: `"${mustacheNode.text}"`,
+            },
+          ],
           fixDescription: 'Wrap mustache value in quotes',
         });
       }
@@ -81,7 +91,10 @@ export function checkUnquotedMustacheAttributes(rootNode: BalanceNode): FixableE
 }
 
 // 3. Consecutive same-name same-type sections
-export function checkConsecutiveSameNameSections(rootNode: BalanceNode, sourceText: string): FixableError[] {
+export function checkConsecutiveSameNameSections(
+  rootNode: BalanceNode,
+  sourceText: string,
+): FixableError[] {
   const errors: FixableError[] = [];
 
   function visit(node: BalanceNode) {
@@ -104,32 +117,38 @@ export function checkConsecutiveSameNameSections(rootNode: BalanceNode, sourceTe
       if (gap.length > 0 && !/^\s*$/.test(gap)) continue;
 
       // Find the end tag of current section and begin tag of next section
-      const endTagType = current.type === 'mustache_section'
-        ? 'mustache_section_end'
-        : 'mustache_inverted_section_end';
-      const beginTagType = next.type === 'mustache_section'
-        ? 'mustache_section_begin'
-        : 'mustache_inverted_section_begin';
+      const endTagType =
+        current.type === 'mustache_section'
+          ? 'mustache_section_end'
+          : 'mustache_inverted_section_end';
+      const beginTagType =
+        next.type === 'mustache_section'
+          ? 'mustache_section_begin'
+          : 'mustache_inverted_section_begin';
 
-      const currentEndTag = current.children.find(c => c.type === endTagType);
-      const nextBeginTag = next.children.find(c => c.type === beginTagType);
+      const currentEndTag = current.children.find((c) => c.type === endTagType);
+      const nextBeginTag = next.children.find((c) => c.type === beginTagType);
 
       if (!currentEndTag || !nextBeginTag) continue;
 
       const sectionTypeStr = current.type === 'mustache_section' ? '#' : '^';
       const nextBeginNode = next.children.find(
-        c => c.type === 'mustache_section_begin' || c.type === 'mustache_inverted_section_begin',
+        (c) =>
+          c.type === 'mustache_section_begin' ||
+          c.type === 'mustache_inverted_section_begin',
       );
 
       errors.push({
         node: nextBeginNode ?? next,
         message: `Consecutive duplicate section: {{${sectionTypeStr}${nextName}}} can be merged with previous {{${sectionTypeStr}${nextName}}}`,
         severity: 'warning',
-        fix: [{
-          startIndex: currentEndTag.startIndex,
-          endIndex: nextBeginTag.endIndex,
-          newText: '',
-        }],
+        fix: [
+          {
+            startIndex: currentEndTag.startIndex,
+            endIndex: nextBeginTag.endIndex,
+            newText: '',
+          },
+        ],
         fixDescription: 'Merge consecutive sections',
       });
     }
@@ -146,28 +165,52 @@ export function checkConsecutiveSameNameSections(rootNode: BalanceNode, sourceTe
 
 // 4. Self-closing non-void tags
 const VOID_ELEMENTS = new Set([
-  'area', 'base', 'basefont', 'bgsound', 'br', 'col', 'command',
-  'embed', 'frame', 'hr', 'image', 'img', 'input', 'isindex',
-  'keygen', 'link', 'menuitem', 'meta', 'nextid', 'param',
-  'source', 'track', 'wbr',
+  'area',
+  'base',
+  'basefont',
+  'bgsound',
+  'br',
+  'col',
+  'command',
+  'embed',
+  'frame',
+  'hr',
+  'image',
+  'img',
+  'input',
+  'isindex',
+  'keygen',
+  'link',
+  'menuitem',
+  'meta',
+  'nextid',
+  'param',
+  'source',
+  'track',
+  'wbr',
 ]);
 
-export function checkSelfClosingNonVoidTags(rootNode: BalanceNode): FixableError[] {
+export function checkSelfClosingNonVoidTags(
+  rootNode: BalanceNode,
+): FixableError[] {
   const errors: FixableError[] = [];
 
   function visit(node: BalanceNode) {
     if (node.type === 'html_self_closing_tag') {
-      const tagNameNode = node.children.find(c => c.type === 'html_tag_name');
+      const tagNameNode = node.children.find((c) => c.type === 'html_tag_name');
       const tagName = tagNameNode?.text.toLowerCase();
       if (tagName && !VOID_ELEMENTS.has(tagName)) {
         errors.push({
           node,
           message: `Self-closing non-void element: <${tagNameNode!.text}/>`,
-          fix: [{
-            startIndex: node.startIndex,
-            endIndex: node.endIndex,
-            newText: node.text.replace(/\s*\/>$/, '>') + `</${tagNameNode!.text}>`,
-          }],
+          fix: [
+            {
+              startIndex: node.startIndex,
+              endIndex: node.endIndex,
+              newText:
+                node.text.replace(/\s*\/>$/, '>') + `</${tagNameNode!.text}>`,
+            },
+          ],
           fixDescription: 'Replace self-closing syntax with explicit close tag',
         });
       }
@@ -223,16 +266,22 @@ function formatConditionClause(a: Condition[], b: Condition[]): string {
   return ` (when ${parts.join(', ')})`;
 }
 
-function collectAttributes(node: BalanceNode, conditions: Condition[], out: AttributeOccurrence[]) {
+function collectAttributes(
+  node: BalanceNode,
+  conditions: Condition[],
+  out: AttributeOccurrence[],
+) {
   for (const child of node.children) {
     if (child.type === 'html_attribute') {
-      const nameNode = child.children.find(c => c.type === 'html_attribute_name');
+      const nameNode = child.children.find(
+        (c) => c.type === 'html_attribute_name',
+      );
       if (nameNode) {
         out.push({ nameNode, conditions: [...conditions] });
       }
     } else if (child.type === 'mustache_attribute') {
       // Descend into the mustache section/inverted section inside
-      const section = child.children.find(c => isMustacheSection(c));
+      const section = child.children.find((c) => isMustacheSection(c));
       if (section) {
         const name = getSectionName(section);
         if (name) {
@@ -257,11 +306,13 @@ export function checkUnescapedEntities(rootNode: BalanceNode): FixableError[] {
           node,
           message: 'Unescaped "&" in text content — use &amp; instead',
           severity: 'warning',
-          fix: [{
-            startIndex: node.startIndex,
-            endIndex: node.endIndex,
-            newText: '&amp;',
-          }],
+          fix: [
+            {
+              startIndex: node.startIndex,
+              endIndex: node.endIndex,
+              newText: '&amp;',
+            },
+          ],
           fixDescription: 'Replace & with &amp;',
         });
         return;
@@ -319,11 +370,13 @@ export function checkHtmlComments(rootNode: BalanceNode): FixableError[] {
         node,
         message: `HTML comment found — use mustache comment {{! ... }} instead`,
         severity: 'warning',
-        fix: [{
-          startIndex: node.startIndex,
-          endIndex: node.endIndex,
-          newText: `{{! ${content} }}`,
-        }],
+        fix: [
+          {
+            startIndex: node.startIndex,
+            endIndex: node.endIndex,
+            newText: `{{! ${content} }}`,
+          },
+        ],
         fixDescription: 'Replace HTML comment with mustache comment',
       });
       return;
@@ -341,55 +394,165 @@ export function checkHtmlComments(rootNode: BalanceNode): FixableError[] {
 // 8. Unrecognized HTML tags
 const KNOWN_HTML_TAGS = new Set([
   // Void elements
-  'area', 'base', 'basefont', 'bgsound', 'br', 'col', 'command',
-  'embed', 'frame', 'hr', 'image', 'img', 'input', 'isindex',
-  'keygen', 'link', 'menuitem', 'meta', 'nextid', 'param',
-  'source', 'track', 'wbr',
+  'area',
+  'base',
+  'basefont',
+  'bgsound',
+  'br',
+  'col',
+  'command',
+  'embed',
+  'frame',
+  'hr',
+  'image',
+  'img',
+  'input',
+  'isindex',
+  'keygen',
+  'link',
+  'menuitem',
+  'meta',
+  'nextid',
+  'param',
+  'source',
+  'track',
+  'wbr',
   // Non-void elements
-  'a', 'abbr', 'address', 'article', 'aside', 'audio',
-  'b', 'bdi', 'bdo', 'blockquote', 'body', 'button',
-  'canvas', 'caption', 'cite', 'code', 'colgroup',
-  'data', 'datalist', 'dd', 'del', 'details', 'dfn', 'dialog', 'div', 'dl', 'dt',
+  'a',
+  'abbr',
+  'address',
+  'article',
+  'aside',
+  'audio',
+  'b',
+  'bdi',
+  'bdo',
+  'blockquote',
+  'body',
+  'button',
+  'canvas',
+  'caption',
+  'cite',
+  'code',
+  'colgroup',
+  'data',
+  'datalist',
+  'dd',
+  'del',
+  'details',
+  'dfn',
+  'dialog',
+  'div',
+  'dl',
+  'dt',
   'em',
-  'fieldset', 'figcaption', 'figure', 'footer', 'form',
-  'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'head', 'header', 'hgroup', 'html',
-  'i', 'iframe', 'ins',
+  'fieldset',
+  'figcaption',
+  'figure',
+  'footer',
+  'form',
+  'h1',
+  'h2',
+  'h3',
+  'h4',
+  'h5',
+  'h6',
+  'head',
+  'header',
+  'hgroup',
+  'html',
+  'i',
+  'iframe',
+  'ins',
   'kbd',
-  'label', 'legend', 'li',
-  'main', 'map', 'mark', 'math', 'menu', 'meter',
-  'nav', 'noscript',
-  'object', 'ol', 'optgroup', 'option', 'output',
-  'p', 'picture', 'pre', 'progress',
+  'label',
+  'legend',
+  'li',
+  'main',
+  'map',
+  'mark',
+  'math',
+  'menu',
+  'meter',
+  'nav',
+  'noscript',
+  'object',
+  'ol',
+  'optgroup',
+  'option',
+  'output',
+  'p',
+  'picture',
+  'pre',
+  'progress',
   'q',
-  'rb', 'rp', 'rt', 'rtc', 'ruby',
-  's', 'samp', 'script', 'search', 'section', 'select', 'slot', 'small', 'span', 'strong', 'style', 'sub', 'summary', 'sup', 'svg',
-  'table', 'tbody', 'td', 'template', 'textarea', 'tfoot', 'th', 'thead', 'time', 'title', 'tr',
-  'u', 'ul',
-  'var', 'video',
+  'rb',
+  'rp',
+  'rt',
+  'rtc',
+  'ruby',
+  's',
+  'samp',
+  'script',
+  'search',
+  'section',
+  'select',
+  'slot',
+  'small',
+  'span',
+  'strong',
+  'style',
+  'sub',
+  'summary',
+  'sup',
+  'svg',
+  'table',
+  'tbody',
+  'td',
+  'template',
+  'textarea',
+  'tfoot',
+  'th',
+  'thead',
+  'time',
+  'title',
+  'tr',
+  'u',
+  'ul',
+  'var',
+  'video',
 ]);
 
-export function checkUnrecognizedHtmlTags(rootNode: BalanceNode, customTagNames?: string[]): FixableError[] {
+export function checkUnrecognizedHtmlTags(
+  rootNode: BalanceNode,
+  customTagNames?: string[],
+): FixableError[] {
   const errors: FixableError[] = [];
-  const customSet = customTagNames ? new Set(customTagNames.map(n => n.toLowerCase())) : undefined;
+  const customSet = customTagNames
+    ? new Set(customTagNames.map((n) => n.toLowerCase()))
+    : undefined;
 
   function visit(node: BalanceNode) {
     if (node.type === 'html_element' || node.type === 'html_self_closing_tag') {
       // Check tag name for svg/math to skip their subtrees
-      const tagNameNode = node.type === 'html_self_closing_tag'
-        ? node.children.find(c => c.type === 'html_tag_name')
-        : node.children.find(c => c.type === 'html_start_tag')?.children.find(c => c.type === 'html_tag_name');
+      const tagNameNode =
+        node.type === 'html_self_closing_tag'
+          ? node.children.find((c) => c.type === 'html_tag_name')
+          : node.children
+              .find((c) => c.type === 'html_start_tag')
+              ?.children.find((c) => c.type === 'html_tag_name');
       const tagName = tagNameNode?.text.toLowerCase();
       if (tagName === 'svg' || tagName === 'math') return;
     }
 
-    if (node.type === 'html_start_tag' || node.type === 'html_self_closing_tag') {
-      const tagNameNode = node.children.find(c => c.type === 'html_tag_name');
+    if (
+      node.type === 'html_start_tag' ||
+      node.type === 'html_self_closing_tag'
+    ) {
+      const tagNameNode = node.children.find((c) => c.type === 'html_tag_name');
       if (tagNameNode) {
         const tagName = tagNameNode.text.toLowerCase();
-        if (
-          !KNOWN_HTML_TAGS.has(tagName) &&
-          !customSet?.has(tagName)
-        ) {
+        if (!KNOWN_HTML_TAGS.has(tagName) && !customSet?.has(tagName)) {
           errors.push({
             node: tagNameNode,
             message: `Unrecognized HTML tag: <${tagNameNode.text}>`,
@@ -408,11 +571,16 @@ export function checkUnrecognizedHtmlTags(rootNode: BalanceNode, customTagNames?
   return errors;
 }
 
-export function checkDuplicateAttributes(rootNode: BalanceNode): FixableError[] {
+export function checkDuplicateAttributes(
+  rootNode: BalanceNode,
+): FixableError[] {
   const errors: FixableError[] = [];
 
   function visit(node: BalanceNode) {
-    if (node.type === 'html_start_tag' || node.type === 'html_self_closing_tag') {
+    if (
+      node.type === 'html_start_tag' ||
+      node.type === 'html_self_closing_tag'
+    ) {
       const occurrences: AttributeOccurrence[] = [];
       collectAttributes(node, [], occurrences);
 
@@ -434,13 +602,18 @@ export function checkDuplicateAttributes(rootNode: BalanceNode): FixableError[] 
         for (let i = 1; i < group.length; i++) {
           let conflictIdx = -1;
           for (let j = 0; j < i; j++) {
-            if (!areMutuallyExclusive(group[i].conditions, group[j].conditions)) {
+            if (
+              !areMutuallyExclusive(group[i].conditions, group[j].conditions)
+            ) {
               conflictIdx = j;
               break;
             }
           }
           if (conflictIdx >= 0) {
-            const clause = formatConditionClause(group[conflictIdx].conditions, group[i].conditions);
+            const clause = formatConditionClause(
+              group[conflictIdx].conditions,
+              group[i].conditions,
+            );
             errors.push({
               node: group[i].nameNode,
               message: `Duplicate attribute "${group[i].nameNode.text}"${clause}`,
@@ -471,14 +644,18 @@ export function checkElementContentTooLong(
   for (const { tag, maxBytes } of elements) {
     const key = tag.toLowerCase();
     const existing = thresholds.get(key);
-    if (existing === undefined || maxBytes < existing) thresholds.set(key, maxBytes);
+    if (existing === undefined || maxBytes < existing) {
+      thresholds.set(key, maxBytes);
+    }
   }
 
   function visit(node: BalanceNode) {
     if (node.type === 'html_element') {
-      const startTag = node.children.find(c => c.type === 'html_start_tag');
-      const endTag = node.children.find(c => c.type === 'html_end_tag');
-      const tagNameNode = startTag?.children.find(c => c.type === 'html_tag_name');
+      const startTag = node.children.find((c) => c.type === 'html_start_tag');
+      const endTag = node.children.find((c) => c.type === 'html_end_tag');
+      const tagNameNode = startTag?.children.find(
+        (c) => c.type === 'html_tag_name',
+      );
       const tagName = tagNameNode?.text.toLowerCase();
       if (tagName && startTag && endTag) {
         const maxBytes = thresholds.get(tagName);

@@ -33,7 +33,14 @@ import {
   getCSSDisplay,
   isWhitespaceInsensitive,
 } from './classifier.js';
-import { normalizeText, getVisibleChildren, normalizeMustacheWhitespace, normalizeMustacheWhitespaceAll, getIgnoreDirective, getTagName } from './utils.js';
+import {
+  normalizeText,
+  getVisibleChildren,
+  normalizeMustacheWhitespace,
+  normalizeMustacheWhitespaceAll,
+  getIgnoreDirective,
+  getTagName,
+} from './utils.js';
 import type { CustomCodeTagConfig } from '../shared/customCodeTags.js';
 import { getAttributeValue } from '../shared/customCodeTags.js';
 import { isRawContentElement } from '../shared/nodeHelpers.js';
@@ -87,7 +94,9 @@ export function dedentContent(rawContent: string): string {
   if (minIndent === Infinity) minIndent = 0;
 
   // Strip common indent
-  return lines.map(l => l.trim() === '' ? '' : l.slice(minIndent)).join('\n');
+  return lines
+    .map((l) => (l.trim() === '' ? '' : l.slice(minIndent)))
+    .join('\n');
 }
 
 /**
@@ -95,7 +104,7 @@ export function dedentContent(rawContent: string): string {
  */
 function resolveIndentMode(
   node: SyntaxNode,
-  config: CustomCodeTagConfig
+  config: CustomCodeTagConfig,
 ): boolean {
   const mode = config.indent ?? 'never';
   if (mode === 'never') return false;
@@ -124,7 +133,10 @@ function mustacheText(raw: string, context: FormatterContext): string {
 /**
  * Format the document root node.
  */
-export function formatDocument(node: SyntaxNode, context: FormatterContext): Doc {
+export function formatDocument(
+  node: SyntaxNode,
+  context: FormatterContext,
+): Doc {
   const children = getVisibleChildren(node);
   const content = formatBlockChildren(children, context);
   return concat([content, hardline]);
@@ -137,7 +149,7 @@ export function formatDocument(node: SyntaxNode, context: FormatterContext): Doc
 export function formatNode(
   node: SyntaxNode,
   context: FormatterContext,
-  forceInline = false
+  forceInline = false,
 ): Doc {
   const type = node.type;
 
@@ -157,7 +169,9 @@ export function formatNode(
     case 'mustache_inverted_section':
       if (forceInline) {
         if (context.mustacheSpaces !== undefined) {
-          return text(normalizeMustacheWhitespaceAll(node.text, context.mustacheSpaces));
+          return text(
+            normalizeMustacheWhitespaceAll(node.text, context.mustacheSpaces),
+          );
         }
         return text(node.text);
       }
@@ -193,7 +207,11 @@ export function formatText(node: SyntaxNode): Doc {
 /**
  * Format an HTML element.
  */
-export function formatHtmlElement(node: SyntaxNode, context: FormatterContext, forceInline = false): Doc {
+export function formatHtmlElement(
+  node: SyntaxNode,
+  context: FormatterContext,
+  forceInline = false,
+): Doc {
   const tags = context.customTags;
   const display = getCSSDisplay(node, tags);
   const isBlock = isWhitespaceInsensitive(display);
@@ -242,21 +260,22 @@ export function formatHtmlElement(node: SyntaxNode, context: FormatterContext, f
     (child) =>
       child.type === 'html_element' ||
       isRawContentElement(child) ||
-      isBlockLevel(child, tags)
+      isBlockLevel(child, tags),
   );
 
   // Handle content
   if (preserveContent) {
     // Check if this custom code tag should be indented
     const tagNameLower = startTag ? getTagNameFromStartTag(startTag) : null;
-    const tagConfig = tagNameLower ? context.customTags?.get(tagNameLower) : undefined;
+    const tagConfig = tagNameLower
+      ? context.customTags?.get(tagNameLower)
+      : undefined;
     const shouldIndent = tagConfig ? resolveIndentMode(node, tagConfig) : false;
 
     if (shouldIndent && startTag && endTag) {
-      const rawContent = context.document.getText().slice(
-        startTag.endIndex,
-        endTag.startIndex
-      );
+      const rawContent = context.document
+        .getText()
+        .slice(startTag.endIndex, endTag.startIndex);
       const dedented = dedentContent(rawContent);
       if (dedented.length > 0) {
         const contentLines = dedented.split('\n');
@@ -280,10 +299,9 @@ export function formatHtmlElement(node: SyntaxNode, context: FormatterContext, f
     } else if (startTag && endTag) {
       // Use raw document text to preserve all whitespace, since tree-sitter
       // text nodes strip boundary whitespace from regular html_element children
-      const rawContent = context.document.getText().slice(
-        startTag.endIndex,
-        endTag.startIndex
-      );
+      const rawContent = context.document
+        .getText()
+        .slice(startTag.endIndex, endTag.startIndex);
       // For block-level elements, replace trailing newline+whitespace with
       // a hardline so the closing tag gets proper indentation from the printer
       const trailingMatch = isBlock ? rawContent.match(/\n[\t ]*$/) : null;
@@ -298,9 +316,15 @@ export function formatHtmlElement(node: SyntaxNode, context: FormatterContext, f
         parts.push(text(child.text));
       }
     }
-  } else if (!isBlock && (!hasHtmlElementChildren || (forceInline && display !== 'inline-block' && !contentNodes.some(
-    (child) => isRawContentElement(child) || isBlockLevel(child, tags)
-  )))) {
+  } else if (
+    !isBlock &&
+    (!hasHtmlElementChildren ||
+      (forceInline &&
+        display !== 'inline-block' &&
+        !contentNodes.some(
+          (child) => isRawContentElement(child) || isBlockLevel(child, tags),
+        )))
+  ) {
     // Standalone element with attributes: use outer group wrapping so content
     // goes on its own line when attributes wrap (matches Prettier's printTag)
     if (!forceInline && startTag && startTagHasAttributes(startTag)) {
@@ -349,7 +373,9 @@ export function formatHtmlElement(node: SyntaxNode, context: FormatterContext, f
           return false;
         }
         const childDisplay = getCSSDisplay(child, tags);
-        return isWhitespaceInsensitive(childDisplay) || isRawContentElement(child);
+        return (
+          isWhitespaceInsensitive(childDisplay) || isRawContentElement(child)
+        );
       });
 
       if (isBlock && !hasBlockChildren) {
@@ -376,10 +402,7 @@ export function formatHtmlElement(node: SyntaxNode, context: FormatterContext, f
 
         // No attributes — existing logic
         const doc = group(
-          concat([
-            indent(concat([softline, formattedContent])),
-            softline,
-          ])
+          concat([indent(concat([softline, formattedContent])), softline]),
         );
         parts.push(doc);
         // If no real end tag, don't add closing softline
@@ -388,11 +411,7 @@ export function formatHtmlElement(node: SyntaxNode, context: FormatterContext, f
           // right up to forced end
           parts.pop();
           parts.push(
-            group(
-              concat([
-                indent(concat([softline, formattedContent])),
-              ])
-            )
+            group(concat([indent(concat([softline, formattedContent]))])),
           );
         }
       } else {
@@ -423,7 +442,7 @@ export function formatHtmlElement(node: SyntaxNode, context: FormatterContext, f
  */
 export function formatScriptStyleElement(
   node: SyntaxNode,
-  context: FormatterContext
+  context: FormatterContext,
 ): Doc {
   const parts: Doc[] = [];
 
@@ -458,8 +477,13 @@ export function formatScriptStyleElement(
         // Check if this is a custom code tag that should be indented
         if (node.type === 'html_raw_element') {
           const startTagNode = node.child(0);
-          const tagNameLower = startTagNode?.type === 'html_start_tag' ? getTagNameFromStartTag(startTagNode) : null;
-          const tagConfig = tagNameLower ? context.customTags?.get(tagNameLower) : undefined;
+          const tagNameLower =
+            startTagNode?.type === 'html_start_tag'
+              ? getTagNameFromStartTag(startTagNode)
+              : null;
+          const tagConfig = tagNameLower
+            ? context.customTags?.get(tagNameLower)
+            : undefined;
           if (tagConfig && resolveIndentMode(node, tagConfig)) {
             const dedented = dedentContent(child.text);
             if (dedented.length > 0) {
@@ -518,7 +542,7 @@ export function formatScriptStyleElement(
  */
 export function formatMustacheSection(
   node: SyntaxNode,
-  context: FormatterContext
+  context: FormatterContext,
 ): Doc {
   const isInverted = node.type === 'mustache_inverted_section';
   const beginType = isInverted
@@ -565,7 +589,9 @@ export function formatMustacheSection(
   // level so the outermost closing tag aligns at indent 0 (matching its opening).
   // Non-erroneous content between erroneous end tags is indented one level deeper
   // than the surrounding erroneous tags (it's a child of that scope).
-  const erroneousCount = contentNodes.filter(n => n.type === 'html_erroneous_end_tag').length;
+  const erroneousCount = contentNodes.filter(
+    (n) => n.type === 'html_erroneous_end_tag',
+  ).length;
   const hasStaircase = !hasImplicit && erroneousCount > 0;
 
   if (hasStaircase) {
@@ -581,9 +607,11 @@ export function formatMustacheSection(
       if (hasDocContent(formatted)) {
         if (groupBlankLine) parts.push('\n');
         const depth = Math.max(0, virtualDepth + 1);
-        parts.push(depth > 0
-          ? indentN(concat([hardline, formatted]), depth)
-          : concat([hardline, formatted]));
+        parts.push(
+          depth > 0
+            ? indentN(concat([hardline, formatted]), depth)
+            : concat([hardline, formatted]),
+        );
       }
       groupNodes.length = 0;
       groupBlankLine = false;
@@ -591,7 +619,9 @@ export function formatMustacheSection(
 
     for (const node of contentNodes) {
       if (lastNodeEnd >= 0 && node.startIndex > lastNodeEnd) {
-        const gap = context.document.getText().slice(lastNodeEnd, node.startIndex);
+        const gap = context.document
+          .getText()
+          .slice(lastNodeEnd, node.startIndex);
         if ((gap.match(/\n/g) || []).length >= 2) {
           pendingBlankLine = true;
         }
@@ -603,9 +633,11 @@ export function formatMustacheSection(
         pendingBlankLine = false;
         const formatted = formatNode(node, context);
         const depth = Math.max(0, virtualDepth);
-        parts.push(depth > 0
-          ? indentN(concat([hardline, formatted]), depth)
-          : concat([hardline, formatted]));
+        parts.push(
+          depth > 0
+            ? indentN(concat([hardline, formatted]), depth)
+            : concat([hardline, formatted]),
+        );
         virtualDepth--;
       } else {
         if (groupNodes.length === 0) {
@@ -619,36 +651,38 @@ export function formatMustacheSection(
     emitGroup();
     parts.push(hardline);
   } else {
-  const formattedContent = formatBlockChildren(contentNodes, context);
-  const hasContent = hasDocContent(formattedContent);
+    const formattedContent = formatBlockChildren(contentNodes, context);
+    const hasContent = hasDocContent(formattedContent);
 
-  if (hasContent) {
-    if (hasImplicit) {
-      // No indent for content with implicit end tags
-      parts.push(hardline);
-      parts.push(formattedContent);
-      parts.push(hardline);
-    } else {
-      // Check if content has CSS-block children (accounting for text flow)
-      const hasBlockChildren = contentNodes.some((child, i) => {
-        if (!shouldTreatAsBlock(child, i, contentNodes, context.customTags)) {
-          return false;
-        }
-        const childDisplay = getCSSDisplay(child, context.customTags);
-        return isWhitespaceInsensitive(childDisplay) || isRawContentElement(child);
-      });
-
-      if (!hasBlockChildren) {
-        // Inline content only: use group so short sections stay flat
-        parts.push(indent(concat([softline, formattedContent])));
-        parts.push(softline);
-      } else {
-        // Block content: always break
-        parts.push(indent(concat([hardline, formattedContent])));
+    if (hasContent) {
+      if (hasImplicit) {
+        // No indent for content with implicit end tags
         parts.push(hardline);
+        parts.push(formattedContent);
+        parts.push(hardline);
+      } else {
+        // Check if content has CSS-block children (accounting for text flow)
+        const hasBlockChildren = contentNodes.some((child, i) => {
+          if (!shouldTreatAsBlock(child, i, contentNodes, context.customTags)) {
+            return false;
+          }
+          const childDisplay = getCSSDisplay(child, context.customTags);
+          return (
+            isWhitespaceInsensitive(childDisplay) || isRawContentElement(child)
+          );
+        });
+
+        if (!hasBlockChildren) {
+          // Inline content only: use group so short sections stay flat
+          parts.push(indent(concat([softline, formattedContent])));
+          parts.push(softline);
+        } else {
+          // Block content: always break
+          parts.push(indent(concat([hardline, formattedContent])));
+          parts.push(hardline);
+        }
       }
     }
-  }
   }
 
   // Closing tag
@@ -685,7 +719,11 @@ function startTagHasAttributes(startTag: SyntaxNode): boolean {
  * the tag exceeds print width.
  * When `bare` is true, returns the tag IR without the outer group wrapper.
  */
-export function formatStartTag(node: SyntaxNode, context?: FormatterContext, bare = false): Doc {
+export function formatStartTag(
+  node: SyntaxNode,
+  context?: FormatterContext,
+  bare = false,
+): Doc {
   let tagNameText = '';
   const attrs: Doc[] = [];
 
@@ -699,12 +737,21 @@ export function formatStartTag(node: SyntaxNode, context?: FormatterContext, bar
       attrs.push(formatAttribute(child, context));
     } else if (child.type === 'mustache_attribute') {
       if (context?.mustacheSpaces !== undefined) {
-        attrs.push(text(normalizeMustacheWhitespaceAll(child.text, context.mustacheSpaces)));
+        attrs.push(
+          text(
+            normalizeMustacheWhitespaceAll(child.text, context.mustacheSpaces),
+          ),
+        );
       } else {
         attrs.push(text(child.text));
       }
-    } else if (child.type === 'mustache_interpolation' || child.type === 'mustache_triple') {
-      attrs.push(text(context ? mustacheText(child.text, context) : child.text));
+    } else if (
+      child.type === 'mustache_interpolation' ||
+      child.type === 'mustache_triple'
+    ) {
+      attrs.push(
+        text(context ? mustacheText(child.text, context) : child.text),
+      );
     }
   }
 
@@ -732,7 +779,10 @@ export function formatStartTag(node: SyntaxNode, context?: FormatterContext, bar
     text('<'),
     text(tagNameText),
     indent(concat([line, concat(attrParts)])),
-    ifBreak(concat([hardline, text(breakClosingBracket)]), text(closingBracket)),
+    ifBreak(
+      concat([hardline, text(breakClosingBracket)]),
+      text(closingBracket),
+    ),
   ]);
   return bare ? inner : group(inner);
 }
@@ -753,7 +803,10 @@ export function formatEndTag(node: SyntaxNode): Doc {
 /**
  * Format an HTML attribute.
  */
-export function formatAttribute(node: SyntaxNode, context?: FormatterContext): Doc {
+export function formatAttribute(
+  node: SyntaxNode,
+  context?: FormatterContext,
+): Doc {
   const parts: Doc[] = [];
 
   for (let i = 0; i < node.childCount; i++) {
@@ -768,13 +821,19 @@ export function formatAttribute(node: SyntaxNode, context?: FormatterContext): D
     } else if (child.type === 'html_quoted_attribute_value') {
       parts.push(text('='));
       if (context?.mustacheSpaces !== undefined) {
-        parts.push(text(normalizeMustacheWhitespaceAll(child.text, context.mustacheSpaces)));
+        parts.push(
+          text(
+            normalizeMustacheWhitespaceAll(child.text, context.mustacheSpaces),
+          ),
+        );
       } else {
         parts.push(text(child.text));
       }
     } else if (child.type === 'mustache_interpolation') {
       parts.push(text('='));
-      parts.push(text(context ? mustacheText(child.text, context) : child.text));
+      parts.push(
+        text(context ? mustacheText(child.text, context) : child.text),
+      );
     }
   }
 
@@ -804,12 +863,17 @@ function textWords(str: string): Doc[] {
  * delimiter, any `line` separator is replaced with a literal space string.
  * Delimiters are matched longest-first to handle e.g. `$$` before `$`.
  */
-export function collapseDelimitedRegions(parts: Doc[], delimiters: NoBreakDelimiter[]): Doc[] {
+export function collapseDelimitedRegions(
+  parts: Doc[],
+  delimiters: NoBreakDelimiter[],
+): Doc[] {
   if (delimiters.length === 0) return parts;
 
   // Sort longest-first by max(start.length, end.length) so $$ is checked before $
   const sorted = [...delimiters].sort(
-    (a, b) => Math.max(b.start.length, b.end.length) - Math.max(a.start.length, a.end.length)
+    (a, b) =>
+      Math.max(b.start.length, b.end.length) -
+      Math.max(a.start.length, a.end.length),
   );
 
   const result = [...parts];
@@ -910,7 +974,7 @@ function inlineContentToFill(parts: Doc[]): Doc {
  */
 export function formatBlockChildren(
   nodes: SyntaxNode[],
-  context: FormatterContext
+  context: FormatterContext,
 ): Doc {
   const lines: { doc: Doc; blankLineBefore: boolean; rawLine?: boolean }[] = [];
   let currentLine: Doc[] = [];
@@ -923,7 +987,9 @@ export function formatBlockChildren(
 
   const noBreakDelims = context.noBreakDelimiters;
   function flushCurrentLine(): Doc {
-    const parts = noBreakDelims ? collapseDelimitedRegions(currentLine, noBreakDelims) : currentLine;
+    const parts = noBreakDelims
+      ? collapseDelimitedRegions(currentLine, noBreakDelims)
+      : currentLine;
     return inlineContentToFill(parts);
   }
 
@@ -932,7 +998,9 @@ export function formatBlockChildren(
 
     // Detect blank lines in gap between nodes (before directive handling)
     if (lastNodeEnd >= 0 && node.startIndex > lastNodeEnd && !inIgnoreRegion) {
-      const gap = context.document.getText().slice(lastNodeEnd, node.startIndex);
+      const gap = context.document
+        .getText()
+        .slice(lastNodeEnd, node.startIndex);
       const newlineCount = (gap.match(/\n/g) || []).length;
       if (newlineCount >= 2) {
         pendingBlankLine = true;
@@ -949,20 +1017,37 @@ export function formatBlockChildren(
       if (currentLine.length > 0) {
         const lineContent = trimDoc(flushCurrentLine());
         if (hasDocContent(lineContent)) {
-          lines.push({ doc: lineContent, blankLineBefore: blankLineBeforeCurrentLine });
+          lines.push({
+            doc: lineContent,
+            blankLineBefore: blankLineBeforeCurrentLine,
+          });
         }
         currentLine = [];
         blankLineBeforeCurrentLine = false;
       }
       // Emit raw text from region start to this comment, trimming boundary newlines
-      const rawText = context.document.getText().slice(ignoreRegionStartIndex, node.startIndex)
-        .replace(/^\n/, '').replace(/\n$/, '');
+      const rawText = context.document
+        .getText()
+        .slice(ignoreRegionStartIndex, node.startIndex)
+        .replace(/^\n/, '')
+        .replace(/\n$/, '');
       if (rawText.length > 0) {
-        lines.push({ doc: text(rawText), blankLineBefore: false, rawLine: true });
+        lines.push({
+          doc: text(rawText),
+          blankLineBefore: false,
+          rawLine: true,
+        });
       }
       // Emit the ignore-end comment itself (rawLine to avoid adding indent after raw text)
-      const commentText = node.type === 'mustache_comment' ? mustacheText(node.text, context) : node.text;
-      lines.push({ doc: text(commentText), blankLineBefore: false, rawLine: true });
+      const commentText =
+        node.type === 'mustache_comment'
+          ? mustacheText(node.text, context)
+          : node.text;
+      lines.push({
+        doc: text(commentText),
+        blankLineBefore: false,
+        rawLine: true,
+      });
       inIgnoreRegion = false;
       ignoreRegionStartIndex = -1;
       lastNodeEnd = node.endIndex;
@@ -980,12 +1065,18 @@ export function formatBlockChildren(
       if (currentLine.length > 0) {
         const lineContent = trimDoc(flushCurrentLine());
         if (hasDocContent(lineContent)) {
-          lines.push({ doc: lineContent, blankLineBefore: blankLineBeforeCurrentLine });
+          lines.push({
+            doc: lineContent,
+            blankLineBefore: blankLineBeforeCurrentLine,
+          });
         }
         currentLine = [];
         blankLineBeforeCurrentLine = false;
       }
-      const commentText = node.type === 'mustache_comment' ? mustacheText(node.text, context) : node.text;
+      const commentText =
+        node.type === 'mustache_comment'
+          ? mustacheText(node.text, context)
+          : node.text;
       lines.push({ doc: text(commentText), blankLineBefore: pendingBlankLine });
       pendingBlankLine = false;
       inIgnoreRegion = true;
@@ -999,12 +1090,18 @@ export function formatBlockChildren(
       if (currentLine.length > 0) {
         const lineContent = trimDoc(flushCurrentLine());
         if (hasDocContent(lineContent)) {
-          lines.push({ doc: lineContent, blankLineBefore: blankLineBeforeCurrentLine });
+          lines.push({
+            doc: lineContent,
+            blankLineBefore: blankLineBeforeCurrentLine,
+          });
         }
         currentLine = [];
         blankLineBeforeCurrentLine = false;
       }
-      const commentText = node.type === 'mustache_comment' ? mustacheText(node.text, context) : node.text;
+      const commentText =
+        node.type === 'mustache_comment'
+          ? mustacheText(node.text, context)
+          : node.text;
       lines.push({ doc: text(commentText), blankLineBefore: pendingBlankLine });
       pendingBlankLine = false;
       ignoreNext = true;
@@ -1028,10 +1125,17 @@ export function formatBlockChildren(
     // Check for whitespace between nodes in original document (inline gap handling)
     if (lastNodeEnd >= 0 && node.startIndex > lastNodeEnd) {
       const prevNode = nodes[i - 1];
-      const prevTreatAsBlock = shouldTreatAsBlock(prevNode, i - 1, nodes, context.customTags);
+      const prevTreatAsBlock = shouldTreatAsBlock(
+        prevNode,
+        i - 1,
+        nodes,
+        context.customTags,
+      );
 
       if (!prevTreatAsBlock && !treatAsBlock) {
-        const gap = context.document.getText().slice(lastNodeEnd, node.startIndex);
+        const gap = context.document
+          .getText()
+          .slice(lastNodeEnd, node.startIndex);
         if (/\s/.test(gap)) {
           currentLine.push(line);
         }
@@ -1043,36 +1147,58 @@ export function formatBlockChildren(
       if (currentLine.length > 0) {
         const lineContent = trimDoc(flushCurrentLine());
         if (hasDocContent(lineContent)) {
-          lines.push({ doc: lineContent, blankLineBefore: blankLineBeforeCurrentLine });
+          lines.push({
+            doc: lineContent,
+            blankLineBefore: blankLineBeforeCurrentLine,
+          });
         }
         currentLine = [];
         blankLineBeforeCurrentLine = false;
       }
       // Add block element
-      lines.push({ doc: formatNode(node, context), blankLineBefore: pendingBlankLine });
+      lines.push({
+        doc: formatNode(node, context),
+        blankLineBefore: pendingBlankLine,
+      });
       pendingBlankLine = false;
-    } else if (node.type === 'html_comment' || node.type === 'mustache_comment') {
+    } else if (
+      node.type === 'html_comment' ||
+      node.type === 'mustache_comment'
+    ) {
       // Comments on their own line if multi-line or on their own line in source
       const isMultiline = node.startPosition.row !== node.endPosition.row;
-      const isOnOwnLine = i > 0 && node.startPosition.row > nodes[i - 1].endPosition.row;
+      const isOnOwnLine =
+        i > 0 && node.startPosition.row > nodes[i - 1].endPosition.row;
       if (isMultiline || isOnOwnLine) {
         if (currentLine.length > 0) {
           const lineContent = trimDoc(flushCurrentLine());
           if (hasDocContent(lineContent)) {
-            lines.push({ doc: lineContent, blankLineBefore: blankLineBeforeCurrentLine });
+            lines.push({
+              doc: lineContent,
+              blankLineBefore: blankLineBeforeCurrentLine,
+            });
           }
           currentLine = [];
           blankLineBeforeCurrentLine = false;
         }
-        const commentText = node.type === 'mustache_comment' ? mustacheText(node.text, context) : node.text;
-        lines.push({ doc: text(commentText), blankLineBefore: pendingBlankLine });
+        const commentText =
+          node.type === 'mustache_comment'
+            ? mustacheText(node.text, context)
+            : node.text;
+        lines.push({
+          doc: text(commentText),
+          blankLineBefore: pendingBlankLine,
+        });
         pendingBlankLine = false;
       } else {
         if (currentLine.length === 0) {
           blankLineBeforeCurrentLine = pendingBlankLine;
           pendingBlankLine = false;
         }
-        const commentText = node.type === 'mustache_comment' ? mustacheText(node.text, context) : node.text;
+        const commentText =
+          node.type === 'mustache_comment'
+            ? mustacheText(node.text, context)
+            : node.text;
         currentLine.push(text(commentText));
       }
     } else {
@@ -1099,7 +1225,10 @@ export function formatBlockChildren(
               if (currentLine.length > 0) {
                 const lineContent = trimDoc(flushCurrentLine());
                 if (hasDocContent(lineContent)) {
-                  lines.push({ doc: lineContent, blankLineBefore: blankLineBeforeCurrentLine });
+                  lines.push({
+                    doc: lineContent,
+                    blankLineBefore: blankLineBeforeCurrentLine,
+                  });
                   blankLineBeforeCurrentLine = false;
                 }
                 currentLine = [];
@@ -1129,7 +1258,10 @@ export function formatBlockChildren(
           if (currentLine.length > 0) {
             const lineContent = trimDoc(flushCurrentLine());
             if (hasDocContent(lineContent)) {
-              lines.push({ doc: lineContent, blankLineBefore: blankLineBeforeCurrentLine });
+              lines.push({
+                doc: lineContent,
+                blankLineBefore: blankLineBeforeCurrentLine,
+              });
               blankLineBeforeCurrentLine = pendingBlankLine;
               pendingBlankLine = false;
             }
@@ -1140,7 +1272,10 @@ export function formatBlockChildren(
           for (let j = 1; j < contentLines.length - 1; j++) {
             const trimmed = contentLines[j].trim();
             if (trimmed) {
-              lines.push({ doc: text(trimmed), blankLineBefore: blankLineBeforeCurrentLine || sawBlankLine });
+              lines.push({
+                doc: text(trimmed),
+                blankLineBefore: blankLineBeforeCurrentLine || sawBlankLine,
+              });
               blankLineBeforeCurrentLine = false;
               sawBlankLine = false;
             } else {
@@ -1182,7 +1317,10 @@ export function formatBlockChildren(
       if (tagName?.toLowerCase() === 'br') {
         const lineContent = trimDoc(flushCurrentLine());
         if (hasDocContent(lineContent)) {
-          lines.push({ doc: lineContent, blankLineBefore: blankLineBeforeCurrentLine });
+          lines.push({
+            doc: lineContent,
+            blankLineBefore: blankLineBeforeCurrentLine,
+          });
           blankLineBeforeCurrentLine = false;
         }
         currentLine = [];
@@ -1195,7 +1333,9 @@ export function formatBlockChildren(
   // Handle unterminated ignore region: emit remaining raw text
   if (inIgnoreRegion && nodes.length > 0) {
     const lastNode = nodes[nodes.length - 1];
-    const rawText = context.document.getText().slice(ignoreRegionStartIndex, lastNode.endIndex)
+    const rawText = context.document
+      .getText()
+      .slice(ignoreRegionStartIndex, lastNode.endIndex)
       .replace(/^\n/, '');
     if (rawText.length > 0) {
       lines.push({ doc: text(rawText), blankLineBefore: false, rawLine: true });
@@ -1206,7 +1346,10 @@ export function formatBlockChildren(
   if (currentLine.length > 0) {
     const lineContent = trimDoc(flushCurrentLine());
     if (hasDocContent(lineContent)) {
-      lines.push({ doc: lineContent, blankLineBefore: blankLineBeforeCurrentLine });
+      lines.push({
+        doc: lineContent,
+        blankLineBefore: blankLineBeforeCurrentLine,
+      });
     }
   }
 

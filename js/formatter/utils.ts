@@ -41,7 +41,7 @@ export function calculateIndentLevel(
   node: SyntaxNode,
   isBlockLevel: (node: SyntaxNode) => boolean,
   hasImplicitEndTags: (nodes: SyntaxNode[]) => boolean,
-  getContentNodes: (node: SyntaxNode) => SyntaxNode[]
+  getContentNodes: (node: SyntaxNode) => SyntaxNode[],
 ): number {
   let level = 0;
   let current = node.parent;
@@ -71,7 +71,10 @@ export function calculateIndentLevel(
  * Handles triple ({{{...}}}), prefixed ({{#, {{/, {{^, {{!, {{>), and plain ({{...}}).
  * For multiline comments, preserves internal newlines, only normalizes space adjacent to delimiters.
  */
-export function normalizeMustacheWhitespace(raw: string, addSpaces: boolean): string {
+export function normalizeMustacheWhitespace(
+  raw: string,
+  addSpaces: boolean,
+): string {
   const space = addSpaces ? ' ' : '';
 
   // Triple mustache: {{{...}}}
@@ -120,7 +123,10 @@ export function normalizeMustacheWhitespace(raw: string, addSpaces: boolean): st
  * Used for force-inlined sections where the full section text (e.g. `{{#plural}}s{{/plural}}`)
  * is emitted as one string.
  */
-export function normalizeMustacheWhitespaceAll(raw: string, addSpaces: boolean): string {
+export function normalizeMustacheWhitespaceAll(
+  raw: string,
+  addSpaces: boolean,
+): string {
   // Match triple mustache first, then double
   return raw.replace(/\{\{\{[\s\S]*?\}\}\}|\{\{[\s\S]*?\}\}/g, (match) => {
     return normalizeMustacheWhitespace(match, addSpaces);
@@ -132,7 +138,7 @@ export function normalizeMustacheWhitespaceAll(raw: string, addSpaces: boolean):
  * Returns the directive type or null if not a directive.
  */
 export function getIgnoreDirective(
-  node: SyntaxNode
+  node: SyntaxNode,
 ): 'ignore' | 'ignore-start' | 'ignore-end' | null {
   if (node.type !== 'html_comment' && node.type !== 'mustache_comment') {
     return null;
@@ -169,7 +175,7 @@ export function getIgnoreDirective(
 export function findContainingNode(
   node: SyntaxNode,
   startOffset: number,
-  endOffset: number
+  endOffset: number,
 ): SyntaxNode | null {
   if (node.startIndex > endOffset || node.endIndex < startOffset) {
     return null;
@@ -178,7 +184,11 @@ export function findContainingNode(
   // Check children first for a more specific match
   for (let i = 0; i < node.childCount; i++) {
     const child = node.child(i);
-    if (child && child.startIndex <= startOffset && child.endIndex >= endOffset) {
+    if (
+      child &&
+      child.startIndex <= startOffset &&
+      child.endIndex >= endOffset
+    ) {
       const deeper = findContainingNode(child, startOffset, endOffset);
       if (deeper) return deeper;
     }

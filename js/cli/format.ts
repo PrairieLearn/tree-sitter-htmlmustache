@@ -5,7 +5,10 @@ import chalk from 'chalk';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
 import { formatDocument } from '../formatter/document.js';
-import type { FormattingOptions, FormatDocumentParams } from '../formatter/document.js';
+import type {
+  FormattingOptions,
+  FormatDocumentParams,
+} from '../formatter/document.js';
 import { formatEmbeddedRegions } from '../formatter/embedded.js';
 import { getEditorConfigOptions } from '../formatter/editorconfig.js';
 import { loadConfigFileForPath } from '../shared/configFile.js';
@@ -103,7 +106,10 @@ function parseFlags(args: string[]): FormatFlags {
  * Resolve all settings for a file with the full priority chain:
  *   defaults < .htmlmustache.jsonc < .editorconfig (indent only) < CLI flags
  */
-function resolveSettings(flags: FormatFlags, filePath?: string): {
+function resolveSettings(
+  flags: FormatFlags,
+  filePath?: string,
+): {
   options: FormattingOptions;
 } & FormatDocumentParams {
   // 1. Defaults
@@ -119,8 +125,12 @@ function resolveSettings(flags: FormatFlags, filePath?: string): {
   if (configFile) {
     if (configFile.indentSize !== undefined) tabSize = configFile.indentSize;
     if (configFile.printWidth !== undefined) printWidth = configFile.printWidth;
-    if (configFile.mustacheSpaces !== undefined) mustacheSpaces = configFile.mustacheSpaces;
-    if (configFile.noBreakDelimiters) noBreakDelimiters = configFile.noBreakDelimiters;
+    if (configFile.mustacheSpaces !== undefined) {
+      mustacheSpaces = configFile.mustacheSpaces;
+    }
+    if (configFile.noBreakDelimiters) {
+      noBreakDelimiters = configFile.noBreakDelimiters;
+    }
     if (configFile.customTags && configFile.customTags.length > 0) {
       customTags = configFile.customTags;
     }
@@ -131,7 +141,9 @@ function resolveSettings(flags: FormatFlags, filePath?: string): {
     const uri = pathToFileURL(filePath).href;
     const ecOptions = getEditorConfigOptions(uri);
     if (ecOptions.tabSize !== undefined) tabSize = ecOptions.tabSize;
-    if (ecOptions.insertSpaces !== undefined) insertSpaces = ecOptions.insertSpaces;
+    if (ecOptions.insertSpaces !== undefined) {
+      insertSpaces = ecOptions.insertSpaces;
+    }
   }
 
   // 4. CLI flags override everything
@@ -165,7 +177,9 @@ async function getPrettier(): Promise<typeof import('prettier') | null> {
  * Override the cached prettier module (for testing). Pass undefined to reset.
  * @internal
  */
-export function _setPrettierForTesting(value: typeof import('prettier') | null | undefined) {
+export function _setPrettierForTesting(
+  value: typeof import('prettier') | null | undefined,
+) {
   prettierModule = value;
 }
 
@@ -175,11 +189,21 @@ export async function formatSource(
   params: FormatDocumentParams = {},
 ): Promise<string> {
   const tree = parseDocument(source);
-  const embeddedFormatted = await formatEmbeddedRegions(tree.rootNode, options, await getPrettier());
-  const document = TextDocument.create('file:///stdin', 'htmlmustache', 1, source);
+  const embeddedFormatted = await formatEmbeddedRegions(
+    tree.rootNode,
+    options,
+    await getPrettier(),
+  );
+  const document = TextDocument.create(
+    'file:///stdin',
+    'htmlmustache',
+    1,
+    source,
+  );
   const edits = formatDocument(tree, document, options, {
     ...params,
-    embeddedFormatted: embeddedFormatted.size > 0 ? embeddedFormatted : undefined,
+    embeddedFormatted:
+      embeddedFormatted.size > 0 ? embeddedFormatted : undefined,
   });
   if (edits.length === 0) return source;
   return edits[0].newText;
@@ -211,11 +235,15 @@ export async function run(args: string[]): Promise<number> {
   const { files, config } = resolveFiles(flags.patterns);
 
   if (files.length === 0) {
-    if (flags.patterns.length === 0 && (!config?.include || config.include.length === 0)) {
+    if (
+      flags.patterns.length === 0 &&
+      (!config?.include || config.include.length === 0)
+    ) {
       console.log(USAGE);
       return 1;
     }
-    const patterns = flags.patterns.length > 0 ? flags.patterns : config?.include ?? [];
+    const patterns =
+      flags.patterns.length > 0 ? flags.patterns : (config?.include ?? []);
     console.error(chalk.yellow('No files matched the given patterns:'));
     for (const pattern of patterns) {
       console.error(chalk.yellow(`  ${pattern}`));
@@ -252,13 +280,19 @@ export async function run(args: string[]): Promise<number> {
 
   if (flags.check && changedCount > 0) {
     console.log(
-      chalk.red(`\n${changedCount} ${changedCount === 1 ? 'file' : 'files'} would be reformatted`)
+      chalk.red(
+        `\n${changedCount} ${changedCount === 1 ? 'file' : 'files'} would be reformatted`,
+      ),
     );
     return 1;
   }
 
   if (flags.check) {
-    console.log(chalk.green(`All ${files.length} ${files.length === 1 ? 'file' : 'files'} already formatted`));
+    console.log(
+      chalk.green(
+        `All ${files.length} ${files.length === 1 ? 'file' : 'files'} already formatted`,
+      ),
+    );
   }
 
   return 0;

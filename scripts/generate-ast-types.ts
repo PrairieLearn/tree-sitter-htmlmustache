@@ -23,7 +23,10 @@ interface NodeTypeEntry {
   type: string;
   named: boolean;
   root?: boolean;
-  fields?: Record<string, { multiple: boolean; required: boolean; types: ChildTypeRef[] }>;
+  fields?: Record<
+    string,
+    { multiple: boolean; required: boolean; types: ChildTypeRef[] }
+  >;
   children?: { multiple: boolean; required: boolean; types: ChildTypeRef[] };
   subtypes?: ChildTypeRef[];
 }
@@ -44,7 +47,9 @@ visible.sort((a, b) => a.type.localeCompare(b.type));
 function pascalCase(s: string): string {
   return s
     .split(/[_-]/)
-    .map((part) => part.length === 0 ? '' : part[0].toUpperCase() + part.slice(1))
+    .map((part) =>
+      part.length === 0 ? '' : part[0].toUpperCase() + part.slice(1),
+    )
     .join('');
 }
 
@@ -56,7 +61,9 @@ function childrenUnion(entry: NodeTypeEntry): string {
   const types = entry.children?.types ?? [];
   const named = types.filter((t) => t.named && !t.type.startsWith('_'));
   if (named.length === 0) return 'never';
-  const unique = Array.from(new Set(named.map((t) => interfaceNameFor(t.type)))).sort();
+  const unique = Array.from(
+    new Set(named.map((t) => interfaceNameFor(t.type))),
+  ).sort();
   return unique.join(' | ');
 }
 
@@ -87,23 +94,31 @@ lines.push('');
 for (const entry of visible) {
   const iface = interfaceNameFor(entry.type);
   const childUnion = childrenUnion(entry);
-  lines.push(`export type ${iface} = BaseNode<'${entry.type}', ${childUnion}>;`);
+  lines.push(
+    `export type ${iface} = BaseNode<'${entry.type}', ${childUnion}>;`,
+  );
 }
 
 // Synthetic ERROR node — not in node-types.json but tree-sitter emits it for
 // unrecoverable parse failures. Allow any visible node as a child to be
 // permissive.
 lines.push('');
-lines.push("/** Inserted by tree-sitter when input could not be parsed. May contain any subtree. */");
+lines.push(
+  '/** Inserted by tree-sitter when input could not be parsed. May contain any subtree. */',
+);
 lines.push(`export type ErrorNode = BaseNode<'ERROR', SyntaxNode>;`);
 lines.push('');
 
-const unionMembers = visible.map((e) => interfaceNameFor(e.type)).concat(['ErrorNode']);
+const unionMembers = visible
+  .map((e) => interfaceNameFor(e.type))
+  .concat(['ErrorNode']);
 lines.push(`export type SyntaxNode =`);
 lines.push(unionMembers.map((m) => `  | ${m}`).join('\n') + ';');
 lines.push('');
 
-lines.push('/** String-literal union of every named node type, including `ERROR`. */');
+lines.push(
+  '/** String-literal union of every named node type, including `ERROR`. */',
+);
 lines.push(`export type NodeType = SyntaxNode['type'];`);
 lines.push('');
 

@@ -60,13 +60,13 @@ The CLI no longer has its own workspace. Files moved from `cli/src/` to
 
 The `./browser` subpath is removed. In its place:
 
-| Subpath        | Purpose                                                      | Runtime deps             |
-| -------------- | ------------------------------------------------------------ | ------------------------ |
-| `.`            | Native tree-sitter binding (unchanged)                       | `node-addon-api`         |
-| `./parser`     | `createParser({ locateWasm })` → typed JSON AST + `walk`     | `web-tree-sitter`        |
-| `./linter`     | `createLinter({ locateWasm })` → `lint(source, config)`      | `web-tree-sitter`, `ajv` |
-| `./formatter`  | `createFormatter({ locateWasm, prettier })` → `format(...)`  | `web-tree-sitter`, peer `prettier` |
-| `./wasm`       | Direct URL to the grammar wasm                                | —                        |
+| Subpath       | Purpose                                                     | Runtime deps                       |
+| ------------- | ----------------------------------------------------------- | ---------------------------------- |
+| `.`           | Native tree-sitter binding (unchanged)                      | `node-addon-api`                   |
+| `./parser`    | `createParser({ locateWasm })` → typed JSON AST + `walk`    | `web-tree-sitter`                  |
+| `./linter`    | `createLinter({ locateWasm })` → `lint(source, config)`     | `web-tree-sitter`, `ajv`           |
+| `./formatter` | `createFormatter({ locateWasm, prettier })` → `format(...)` | `web-tree-sitter`, peer `prettier` |
+| `./wasm`      | Direct URL to the grammar wasm                              | —                                  |
 
 Each entry is a separate esbuild bundle; consumers pay only for the parts
 they import.

@@ -139,12 +139,12 @@ echo '<div><p>hi</p></div>' | htmlmustache format --stdin
 
 The package ships three independent subpath exports. Pick the one you need; each pulls in only its own deps.
 
-| Subpath        | What you get                                                       | Deps                            |
-| -------------- | ------------------------------------------------------------------ | ------------------------------- |
-| `./parser`     | `createParser({ locateWasm })` → typed JSON AST + `walk` helper    | `web-tree-sitter`               |
-| `./linter`     | `createLinter({ locateWasm })` → `lint(source, config) → Diagnostic[]` | `web-tree-sitter`, `ajv`        |
-| `./formatter`  | `createFormatter({ locateWasm, prettier })` → `format(source, config) → string` | `web-tree-sitter`, peer `prettier` |
-| `./wasm`       | Direct URL of `tree-sitter-htmlmustache.wasm`                      | —                               |
+| Subpath       | What you get                                                                    | Deps                               |
+| ------------- | ------------------------------------------------------------------------------- | ---------------------------------- |
+| `./parser`    | `createParser({ locateWasm })` → typed JSON AST + `walk` helper                 | `web-tree-sitter`                  |
+| `./linter`    | `createLinter({ locateWasm })` → `lint(source, config) → Diagnostic[]`          | `web-tree-sitter`, `ajv`           |
+| `./formatter` | `createFormatter({ locateWasm, prettier })` → `format(source, config) → string` | `web-tree-sitter`, peer `prettier` |
+| `./wasm`      | Direct URL of `tree-sitter-htmlmustache.wasm`                                   | —                                  |
 
 ### Parser — typed JSON AST
 
@@ -179,9 +179,14 @@ full autocomplete and exhaustiveness checking.
 ### Linter
 
 ```ts
-import { createLinter, DEFAULT_CONFIG } from '@reteps/tree-sitter-htmlmustache/linter';
+import {
+  createLinter,
+  DEFAULT_CONFIG,
+} from '@reteps/tree-sitter-htmlmustache/linter';
 
-const linter = await createLinter({ locateWasm: '/static/tree-sitter-htmlmustache.wasm' });
+const linter = await createLinter({
+  locateWasm: '/static/tree-sitter-htmlmustache.wasm',
+});
 const diagnostics = linter.lint('<a href={{url}}></a>', DEFAULT_CONFIG);
 // → [{ line, column, severity: 'error', ruleName: 'unquotedMustacheAttributes', message, ... }]
 ```
@@ -198,10 +203,12 @@ import prettier from 'prettier';
 
 const formatter = await createFormatter({
   locateWasm: '/static/tree-sitter-htmlmustache.wasm',
-  prettier,                           // optional — for embedded <script> / <style>
+  prettier, // optional — for embedded <script> / <style>
 });
 
-const formatted = await formatter.format('<div><p>hi</p></div>', { indentSize: 2 });
+const formatted = await formatter.format('<div><p>hi</p></div>', {
+  indentSize: 2,
+});
 ```
 
 ### `locateWasm`
@@ -210,9 +217,10 @@ Both a string (URL of the grammar wasm) and a callback are supported:
 
 ```ts
 locateWasm: (name) => {
-  if (name === 'tree-sitter-htmlmustache.wasm') return '/static/htmlmustache.wasm';
-  return `/static/${name}`;          // web-tree-sitter resolves tree-sitter.wasm itself
-}
+  if (name === 'tree-sitter-htmlmustache.wasm')
+    return '/static/htmlmustache.wasm';
+  return `/static/${name}`; // web-tree-sitter resolves tree-sitter.wasm itself
+};
 ```
 
 In Node, pass absolute file paths. In the browser, pass URLs.

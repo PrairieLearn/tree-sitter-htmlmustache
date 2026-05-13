@@ -19,7 +19,10 @@ import { GRAMMAR_WASM_FILENAME } from '../shared/grammar.js';
 import type { HtmlMustacheConfig } from '../shared/configSchema.js';
 import type { CustomCodeTagConfig } from '../shared/customCodeTags.js';
 
-export type Config = Omit<HtmlMustacheConfig, 'include' | 'exclude' | 'customRules'>;
+export type Config = Omit<
+  HtmlMustacheConfig,
+  'include' | 'exclude' | 'customRules'
+>;
 export type CustomTag = CustomCodeTagConfig;
 export type { PrettierLike, FormattingOptions };
 
@@ -37,24 +40,39 @@ export interface FormatOptions {
 }
 
 export interface Formatter {
-  format(source: string, config?: Config, opts?: FormatOptions): Promise<string>;
+  format(
+    source: string,
+    config?: Config,
+    opts?: FormatOptions,
+  ): Promise<string>;
 }
 
-const DEFAULT_FORMATTING_OPTIONS: FormattingOptions = { tabSize: 2, insertSpaces: true };
+const DEFAULT_FORMATTING_OPTIONS: FormattingOptions = {
+  tabSize: 2,
+  insertSpaces: true,
+};
 
-function toLocateFile(locateWasm: LocateWasm): ((name: string) => string) | undefined {
-  return typeof locateWasm === 'function' ? (name) => locateWasm(name) : undefined;
+function toLocateFile(
+  locateWasm: LocateWasm,
+): ((name: string) => string) | undefined {
+  return typeof locateWasm === 'function'
+    ? (name) => locateWasm(name)
+    : undefined;
 }
 
 function resolveGrammarUrl(locateWasm: LocateWasm): string {
-  return typeof locateWasm === 'string' ? locateWasm : locateWasm(GRAMMAR_WASM_FILENAME);
+  return typeof locateWasm === 'string'
+    ? locateWasm
+    : locateWasm(GRAMMAR_WASM_FILENAME);
 }
 
 /**
  * Create a formatter handle. Consumers should cache the result — each call
  * reloads the grammar WASM.
  */
-export async function createFormatter(opts: CreateFormatterOptions): Promise<Formatter> {
+export async function createFormatter(
+  opts: CreateFormatterOptions,
+): Promise<Formatter> {
   const { locateWasm, prettier: factoryPrettier } = opts;
   const locateFile = toLocateFile(locateWasm);
   await Parser.init(locateFile ? { locateFile } : undefined);
@@ -69,14 +87,24 @@ export async function createFormatter(opts: CreateFormatterOptions): Promise<For
       const tree = parser.parse(source);
       if (!tree) throw new Error('Failed to parse document');
       try {
-        const embeddedFormatted = await formatEmbeddedRegions(tree.rootNode, options, prettier);
-        const document = TextDocument.create('file:///input', 'htmlmustache', 1, source);
+        const embeddedFormatted = await formatEmbeddedRegions(
+          tree.rootNode,
+          options,
+          prettier,
+        );
+        const document = TextDocument.create(
+          'file:///input',
+          'htmlmustache',
+          1,
+          source,
+        );
         const edits = formatDocument(tree, document, options, {
           customTags: config?.customTags,
           printWidth: config?.printWidth,
           mustacheSpaces: config?.mustacheSpaces,
           noBreakDelimiters: config?.noBreakDelimiters,
-          embeddedFormatted: embeddedFormatted.size > 0 ? embeddedFormatted : undefined,
+          embeddedFormatted:
+            embeddedFormatted.size > 0 ? embeddedFormatted : undefined,
         });
         return edits.length === 0 ? source : edits[0].newText;
       } finally {

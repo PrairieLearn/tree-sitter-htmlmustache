@@ -22,7 +22,7 @@ export const MUSTACHE_SECTION_TYPES = new Set([
 
 export const INTERPOLATION_TYPES = new Set([
   'mustache_interpolation', // {{foo}}
-  'mustache_triple',        // {{{foo}}} — unescaped
+  'mustache_triple', // {{{foo}}} — unescaped
 ]);
 
 export const RAW_CONTENT_ELEMENT_TYPES = new Set([
@@ -61,8 +61,13 @@ export function isHtmlElementType(node: MinimalNode): boolean {
  */
 export function getTagName(node: MinimalNode): string | null {
   for (const child of node.children) {
-    if (child.type === 'html_start_tag' || child.type === 'html_self_closing_tag') {
-      const tagNameNode = child.children.find(c => c.type === 'html_tag_name');
+    if (
+      child.type === 'html_start_tag' ||
+      child.type === 'html_self_closing_tag'
+    ) {
+      const tagNameNode = child.children.find(
+        (c) => c.type === 'html_tag_name',
+      );
       if (tagNameNode) return tagNameNode.text;
     }
   }
@@ -76,10 +81,14 @@ export function getTagName(node: MinimalNode): string | null {
  */
 export function getSectionName(node: MinimalNode): string | null {
   const beginNode = node.children.find(
-    c => c.type === 'mustache_section_begin' || c.type === 'mustache_inverted_section_begin',
+    (c) =>
+      c.type === 'mustache_section_begin' ||
+      c.type === 'mustache_inverted_section_begin',
   );
   if (!beginNode) return null;
-  const tagNameNode = beginNode.children.find(c => c.type === 'mustache_tag_name');
+  const tagNameNode = beginNode.children.find(
+    (c) => c.type === 'mustache_tag_name',
+  );
   return tagNameNode?.text ?? null;
 }
 
@@ -87,7 +96,9 @@ export function getSectionName(node: MinimalNode): string | null {
  * Get the tag name from an erroneous end tag node.
  */
 export function getErroneousEndTagName(node: MinimalNode): string | null {
-  const nameNode = node.children.find(c => c.type === 'html_erroneous_end_tag_name');
+  const nameNode = node.children.find(
+    (c) => c.type === 'html_erroneous_end_tag_name',
+  );
   return nameNode?.text?.toLowerCase() ?? null;
 }
 
@@ -99,7 +110,10 @@ export function getErroneousEndTagName(node: MinimalNode): string | null {
  */
 export function getInterpolationPath(node: MinimalNode): string | null {
   for (const child of node.children) {
-    if (child.type === 'mustache_path_expression' || child.type === 'mustache_identifier') {
+    if (
+      child.type === 'mustache_path_expression' ||
+      child.type === 'mustache_identifier'
+    ) {
       return child.text;
     }
     if (child.type === '.') return '.';
@@ -112,7 +126,9 @@ export function getInterpolationPath(node: MinimalNode): string | null {
  * Returns null if no content child is present.
  */
 export function getCommentContent(node: MinimalNode): string | null {
-  const child = node.children.find(c => c.type === 'mustache_comment_content');
+  const child = node.children.find(
+    (c) => c.type === 'mustache_comment_content',
+  );
   return child ? child.text.trim() : null;
 }
 
@@ -121,6 +137,8 @@ export function getCommentContent(node: MinimalNode): string | null {
  * Returns null if no content child is present.
  */
 export function getPartialName(node: MinimalNode): string | null {
-  const child = node.children.find(c => c.type === 'mustache_partial_content');
+  const child = node.children.find(
+    (c) => c.type === 'mustache_partial_content',
+  );
   return child ? child.text.trim() : null;
 }

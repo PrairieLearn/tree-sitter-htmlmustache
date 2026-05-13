@@ -17,11 +17,19 @@ import {
   checkElementContentTooLong,
 } from './mustacheChecks.js';
 import type { TextReplacement } from './mustacheChecks.js';
-import type { RulesConfig, RuleSeverity, CustomRule, ElementContentTooLongOptions } from '../shared/configSchema.js';
+import type {
+  RulesConfig,
+  RuleSeverity,
+  CustomRule,
+  ElementContentTooLongOptions,
+} from '../shared/configSchema.js';
 import { RULE_DEFAULTS, KNOWN_RULE_NAMES } from '../shared/ruleMetadata.js';
 import { parseSelector, matchSelector } from './selectorMatcher.js';
 import type { ParsedSelector } from './selectorMatcher.js';
-import type { SchemaRegistry, ConfigLoadError } from '../shared/customTagSchemaLoader.js';
+import type {
+  SchemaRegistry,
+  ConfigLoadError,
+} from '../shared/customTagSchemaLoader.js';
 import { checkCustomTagSchemas } from './customTagSchemaChecker.js';
 
 // Parsing a selector is non-trivial (runs parsel-js) and lint() is called
@@ -81,8 +89,13 @@ function configDiagnosticNode(rootNode: BalanceNode): BalanceNode {
 }
 
 function errorMessageForNode(nodeType: string, node: BalanceNode): string {
-  if (nodeType === 'mustache_erroneous_section_end' || nodeType === 'mustache_erroneous_inverted_section_end') {
-    const tagNameNode = node.children.find(c => c.type === 'mustache_erroneous_tag_name');
+  if (
+    nodeType === 'mustache_erroneous_section_end' ||
+    nodeType === 'mustache_erroneous_inverted_section_end'
+  ) {
+    const tagNameNode = node.children.find(
+      (c) => c.type === 'mustache_erroneous_tag_name',
+    );
     return `Mismatched mustache section: {{/${tagNameNode?.text || '?'}}}`;
   }
   if (nodeType === 'ERROR') {
@@ -108,8 +121,13 @@ function resolveRuleConfig<K extends keyof RulesConfig>(
   return { severity, entry: entry as RulesConfig[K] };
 }
 
-function parseDisableDirective(node: BalanceNode, customRuleIds?: Set<string>): string | null {
-  if (node.type !== 'html_comment' && node.type !== 'mustache_comment') return null;
+function parseDisableDirective(
+  node: BalanceNode,
+  customRuleIds?: Set<string>,
+): string | null {
+  if (node.type !== 'html_comment' && node.type !== 'mustache_comment') {
+    return null;
+  }
   let inner: string | null = null;
   if (node.type === 'html_comment') {
     const match = node.text.match(/^<!--([\s\S]*)-->$/);
@@ -127,11 +145,17 @@ function parseDisableDirective(node: BalanceNode, customRuleIds?: Set<string>): 
   return null;
 }
 
-function collectDisabledRules(rootNode: BalanceNode, customRuleIds?: Set<string>): Set<string> {
+function collectDisabledRules(
+  rootNode: BalanceNode,
+  customRuleIds?: Set<string>,
+): Set<string> {
   const disabled = new Set<string>();
   function walk(node: BalanceNode) {
     const rule = parseDisableDirective(node, customRuleIds);
-    if (rule) { disabled.add(rule); return; }
+    if (rule) {
+      disabled.add(rule);
+      return;
+    }
     for (const child of node.children) walk(child);
   }
   walk(rootNode);
@@ -168,7 +192,9 @@ export function collectErrors(
     }
 
     if (cursor.gotoFirstChild()) {
-      do { visit(); } while (cursor.gotoNextSibling());
+      do {
+        visit();
+      } while (cursor.gotoNextSibling());
       cursor.gotoParent();
     }
   }
@@ -188,14 +214,19 @@ export function collectErrors(
   }
 
   // Collect inline disable directives and merge into effective rules
-  const customRuleIds = customRules ? new Set(customRules.map(r => r.id)) : undefined;
+  const customRuleIds = customRules
+    ? new Set(customRules.map((r) => r.id))
+    : undefined;
   const disabledRules = collectDisabledRules(tree.rootNode, customRuleIds);
   const effectiveRules = { ...rules };
   for (const rule of disabledRules) {
     (effectiveRules as Record<string, string>)[rule] = 'off';
   }
 
-  const { severity: schemaSeverity } = resolveRuleConfig(effectiveRules, 'customTagSchema');
+  const { severity: schemaSeverity } = resolveRuleConfig(
+    effectiveRules,
+    'customTagSchema',
+  );
   if (schemaSeverity !== 'off') {
     for (const loadError of schemaLoadErrors ?? []) {
       errors.push({
@@ -210,23 +241,58 @@ export function collectErrors(
   // Configurable lint checks
   const sourceText = tree.rootNode.text;
 
-  const ruleChecks: { rule: keyof RulesConfig; errors: (entry: RulesConfig[keyof RulesConfig]) => import('./mustacheChecks.js').FixableError[] }[] = [
-    { rule: 'nestedDuplicateSections', errors: () => checkNestedSameNameSections(tree.rootNode) },
-    { rule: 'unquotedMustacheAttributes', errors: () => checkUnquotedMustacheAttributes(tree.rootNode) },
-    { rule: 'consecutiveDuplicateSections', errors: () => checkConsecutiveSameNameSections(tree.rootNode, sourceText) },
-    { rule: 'selfClosingNonVoidTags', errors: () => checkSelfClosingNonVoidTags(tree.rootNode) },
-    { rule: 'duplicateAttributes', errors: () => checkDuplicateAttributes(tree.rootNode) },
-    { rule: 'unescapedEntities', errors: () => checkUnescapedEntities(tree.rootNode) },
-    { rule: 'preferMustacheComments', errors: () => checkHtmlComments(tree.rootNode) },
-    { rule: 'unrecognizedHtmlTags', errors: () => checkUnrecognizedHtmlTags(tree.rootNode, customTagNames) },
+  const ruleChecks: {
+    rule: keyof RulesConfig;
+    errors: (
+      entry: RulesConfig[keyof RulesConfig],
+    ) => import('./mustacheChecks.js').FixableError[];
+  }[] = [
+    {
+      rule: 'nestedDuplicateSections',
+      errors: () => checkNestedSameNameSections(tree.rootNode),
+    },
+    {
+      rule: 'unquotedMustacheAttributes',
+      errors: () => checkUnquotedMustacheAttributes(tree.rootNode),
+    },
+    {
+      rule: 'consecutiveDuplicateSections',
+      errors: () => checkConsecutiveSameNameSections(tree.rootNode, sourceText),
+    },
+    {
+      rule: 'selfClosingNonVoidTags',
+      errors: () => checkSelfClosingNonVoidTags(tree.rootNode),
+    },
+    {
+      rule: 'duplicateAttributes',
+      errors: () => checkDuplicateAttributes(tree.rootNode),
+    },
+    {
+      rule: 'unescapedEntities',
+      errors: () => checkUnescapedEntities(tree.rootNode),
+    },
+    {
+      rule: 'preferMustacheComments',
+      errors: () => checkHtmlComments(tree.rootNode),
+    },
+    {
+      rule: 'unrecognizedHtmlTags',
+      errors: () => checkUnrecognizedHtmlTags(tree.rootNode, customTagNames),
+    },
     {
       rule: 'elementContentTooLong',
       errors: (entry) => {
-        const elements = (entry && typeof entry === 'object' ? (entry as ElementContentTooLongOptions).elements : undefined) ?? [];
+        const elements =
+          (entry && typeof entry === 'object'
+            ? (entry as ElementContentTooLongOptions).elements
+            : undefined) ?? [];
         return checkElementContentTooLong(tree.rootNode, elements);
       },
     },
-    { rule: 'customTagSchema', errors: () => checkCustomTagSchemas(tree.rootNode, schemaRegistry) },
+    {
+      rule: 'customTagSchema',
+      errors: () => checkCustomTagSchemas(tree.rootNode, schemaRegistry),
+    },
   ];
 
   for (const { rule, errors: getErrors } of ruleChecks) {
@@ -255,13 +321,22 @@ export function collectErrors(
       if (!parsed) continue;
       const matches = matchSelector(tree.rootNode, parsed);
       for (const node of matches) {
-        errors.push({ node, message: rule.message, severity, ruleName: rule.id });
+        errors.push({
+          node,
+          message: rule.message,
+          severity,
+          ruleName: rule.id,
+        });
       }
     }
   }
 
   // Filter out preferMustacheComments warnings on disable-directive comments themselves
-  return errors.filter(e =>
-    !(e.message.includes('HTML comment found') && parseDisableDirective(e.node, customRuleIds) !== null)
+  return errors.filter(
+    (e) =>
+      !(
+        e.message.includes('HTML comment found') &&
+        parseDisableDirective(e.node, customRuleIds) !== null
+      ),
   );
 }

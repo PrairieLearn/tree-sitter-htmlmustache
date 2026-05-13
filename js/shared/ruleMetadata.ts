@@ -10,12 +10,14 @@ export const RULES: RuleDefinition[] = [
   {
     name: 'nestedDuplicateSections',
     defaultSeverity: 'error',
-    description: 'Flags `{{#name}}` nested inside another `{{#name}}` with the same name',
+    description:
+      'Flags `{{#name}}` nested inside another `{{#name}}` with the same name',
   },
   {
     name: 'unquotedMustacheAttributes',
     defaultSeverity: 'error',
-    description: 'Requires quotes around mustache expressions used as attribute values',
+    description:
+      'Requires quotes around mustache expressions used as attribute values',
   },
   {
     name: 'consecutiveDuplicateSections',
@@ -25,7 +27,8 @@ export const RULES: RuleDefinition[] = [
   {
     name: 'selfClosingNonVoidTags',
     defaultSeverity: 'error',
-    description: 'Disallows self-closing syntax on non-void HTML elements (e.g. `<div/>`)',
+    description:
+      'Disallows self-closing syntax on non-void HTML elements (e.g. `<div/>`)',
   },
   {
     name: 'duplicateAttributes',
@@ -45,24 +48,27 @@ export const RULES: RuleDefinition[] = [
   {
     name: 'unrecognizedHtmlTags',
     defaultSeverity: 'error',
-    description: 'Flags HTML tags that are not standard HTML elements or valid custom elements',
+    description:
+      'Flags HTML tags that are not standard HTML elements or valid custom elements',
   },
   {
     name: 'elementContentTooLong',
     defaultSeverity: 'off',
-    description: 'Flags configured elements whose inner content exceeds a byte-length threshold (opt-in; requires `elements: [{ tag, maxBytes }]` option)',
+    description:
+      'Flags configured elements whose inner content exceeds a byte-length threshold (opt-in; requires `elements: [{ tag, maxBytes }]` option)',
   },
   {
     name: 'customTagSchema',
     defaultSeverity: 'error',
-    description: 'Validates configured custom tags against their JSON Schema contracts',
+    description:
+      'Validates configured custom tags against their JSON Schema contracts',
   },
 ];
 
 /** Set of all known rule names (for config validation). */
-export const KNOWN_RULE_NAMES = new Set<string>(RULES.map(r => r.name));
+export const KNOWN_RULE_NAMES = new Set<string>(RULES.map((r) => r.name));
 
 /** Default severity for each rule (for runtime resolution). */
 export const RULE_DEFAULTS: Record<string, RuleSeverity> = Object.fromEntries(
-  RULES.map(r => [r.name, r.defaultSeverity]),
+  RULES.map((r) => [r.name, r.defaultSeverity]),
 );

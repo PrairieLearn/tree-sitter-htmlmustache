@@ -110,7 +110,9 @@ describe('walk', () => {
       visited.push({ type: n.type, depth: parents.length });
     });
     expect(visited[0]).toEqual({ type: 'document', depth: 0 });
-    expect(visited.some((v) => v.type === 'html_element' && v.depth === 1)).toBe(true);
+    expect(
+      visited.some((v) => v.type === 'html_element' && v.depth === 1),
+    ).toBe(true);
   });
 
   it('honors "skip" — does not descend into the skipped node', () => {

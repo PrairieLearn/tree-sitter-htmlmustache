@@ -63,7 +63,7 @@ When `{{/...}}` closes, it may implicitly close HTML tags opened within the sect
 
 ```html
 {{#items}}
-<li>{{name}}{{/items}}
+<li>{{name}}{{/items}}</li>
 ```
 
 ### JS layout (`js/`)
@@ -101,10 +101,11 @@ Switching on `node.type` narrows the node's `children` array to the exact set of
 ### Formatter pipeline
 
 The formatter (`js/formatter/`) is a Prettier-inspired IR pipeline:
+
 1. **Classifier** (`classifier.ts`): maps syntax nodes to CSS-`display`-like categories. Uses `CSSDisplay` from `js/shared/cssDisplay.ts`.
 2. **AST → IR** (`formatters.ts`): walks the tree, building a `Doc` from `ir.ts`.
 3. **IR → string** (`printer.ts`): renders `Doc` to text with indentation.
-Embedded `<script>` / `<style>` / custom code-tag bodies are extracted by `embeddedRegions.ts` and reformatted via an injected `prettier` (peer dep) by `embedded.ts`.
+   Embedded `<script>` / `<style>` / custom code-tag bodies are extracted by `embeddedRegions.ts` and reformatted via an injected `prettier` (peer dep) by `embedded.ts`.
 
 ### LSP
 
@@ -143,12 +144,12 @@ Package manager: `pnpm`. `lsp/` is a separate workspace with its own client + se
 
 ## Public package exports
 
-| Subpath        | Purpose                                                       |
-| -------------- | ------------------------------------------------------------- |
-| `.`            | Native tree-sitter binding (`bindings/node`)                  |
-| `./parser`     | `createParser({ locateWasm })` → typed JSON AST + `walk`      |
-| `./linter`     | `createLinter({ locateWasm })` → `lint(source, config)`       |
-| `./formatter`  | `createFormatter({ locateWasm, prettier })` → `format(...)`   |
-| `./wasm`       | Direct URL to `tree-sitter-htmlmustache.wasm`                 |
+| Subpath       | Purpose                                                     |
+| ------------- | ----------------------------------------------------------- |
+| `.`           | Native tree-sitter binding (`bindings/node`)                |
+| `./parser`    | `createParser({ locateWasm })` → typed JSON AST + `walk`    |
+| `./linter`    | `createLinter({ locateWasm })` → `lint(source, config)`     |
+| `./formatter` | `createFormatter({ locateWasm, prettier })` → `format(...)` |
+| `./wasm`      | Direct URL to `tree-sitter-htmlmustache.wasm`               |
 
 See `docs/adr/0001-restructure-js-entry-points.md` for the rationale behind the split.

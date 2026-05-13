@@ -56,8 +56,13 @@ function expandHtmlGlobalAttributes(node: unknown): void {
     delete node.htmlGlobalAttributes;
     const properties = isObject(node.properties) ? node.properties : {};
     node.properties = { ...GLOBAL_ATTRIBUTE_PROPERTIES, ...properties };
-    const patternProperties = isObject(node.patternProperties) ? node.patternProperties : {};
-    node.patternProperties = { ...GLOBAL_ATTRIBUTE_PATTERNS, ...patternProperties };
+    const patternProperties = isObject(node.patternProperties)
+      ? node.patternProperties
+      : {};
+    node.patternProperties = {
+      ...GLOBAL_ATTRIBUTE_PATTERNS,
+      ...patternProperties,
+    };
   }
 
   for (const value of Object.values(node)) {
@@ -70,15 +75,25 @@ function expandHtmlGlobalAttributes(node: unknown): void {
 }
 
 function createAjv(): Ajv2020 {
-  const ajv = new Ajv2020({ allErrors: true, coerceTypes: true, useDefaults: false, strict: false });
+  const ajv = new Ajv2020({
+    allErrors: true,
+    coerceTypes: true,
+    useDefaults: false,
+    strict: false,
+  });
   ajvErrors(ajv);
   return ajv;
 }
 
-function resolveSchema(tag: CustomTagConfig, options: SchemaLoadOptions): unknown {
+function resolveSchema(
+  tag: CustomTagConfig,
+  options: SchemaLoadOptions,
+): unknown {
   if (typeof tag.schema !== 'string') return tag.schema;
   if (!options.configDir || !options.loadFile) {
-    throw new Error(`Schema path for <${tag.name}> cannot be resolved in this environment`);
+    throw new Error(
+      `Schema path for <${tag.name}> cannot be resolved in this environment`,
+    );
   }
   return options.loadFile(tag.schema, options.configDir);
 }

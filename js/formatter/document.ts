@@ -37,11 +37,18 @@ export interface TextEdit {
 }
 
 import { print } from './printer.js';
-import { formatDocument as formatDocumentToDoc, FormatterContext } from './formatters.js';
+import {
+  formatDocument as formatDocumentToDoc,
+  FormatterContext,
+} from './formatters.js';
 import { createIndentUnit } from './mergeOptions.js';
 import type { NoBreakDelimiter } from '../shared/configSchema.js';
 import { findContainingNode, calculateIndentLevel } from './utils.js';
-import { isBlockLevel, getContentNodes, hasImplicitEndTags } from './classifier.js';
+import {
+  isBlockLevel,
+  getContentNodes,
+  hasImplicitEndTags,
+} from './classifier.js';
 import type { CustomCodeTagConfig } from '../shared/customCodeTags.js';
 
 export interface FormatDocumentParams {
@@ -52,7 +59,9 @@ export interface FormatDocumentParams {
   noBreakDelimiters?: NoBreakDelimiter[];
 }
 
-function buildCustomTagMap(customTags?: CustomCodeTagConfig[]): Map<string, CustomCodeTagConfig> | undefined {
+function buildCustomTagMap(
+  customTags?: CustomCodeTagConfig[],
+): Map<string, CustomCodeTagConfig> | undefined {
   if (!customTags || customTags.length === 0) return undefined;
   const map = new Map<string, CustomCodeTagConfig>();
   for (const config of customTags) {
@@ -67,7 +76,12 @@ export function formatDocument(
   options: FormattingOptions,
   params: FormatDocumentParams = {},
 ): TextEdit[] {
-  const { printWidth = 80, embeddedFormatted, mustacheSpaces, noBreakDelimiters } = params;
+  const {
+    printWidth = 80,
+    embeddedFormatted,
+    mustacheSpaces,
+    noBreakDelimiters,
+  } = params;
   const indentUnit = createIndentUnit(options);
 
   if (tree.rootNode.hasError) return [];
@@ -98,7 +112,13 @@ export function formatDocumentRange(
   options: FormattingOptions,
   params: FormatDocumentParams = {},
 ): TextEdit[] {
-  const { customTags, printWidth = 80, embeddedFormatted, mustacheSpaces, noBreakDelimiters } = params;
+  const {
+    customTags,
+    printWidth = 80,
+    embeddedFormatted,
+    mustacheSpaces,
+    noBreakDelimiters,
+  } = params;
   const indentUnit = createIndentUnit(options);
 
   if (tree.rootNode.hasError) return [];
@@ -108,7 +128,8 @@ export function formatDocumentRange(
   const startOffset = document.offsetAt(range.start);
   const endOffset = document.offsetAt(range.end);
 
-  let targetNode = findContainingNode(tree.rootNode, startOffset, endOffset) ?? tree.rootNode;
+  let targetNode =
+    findContainingNode(tree.rootNode, startOffset, endOffset) ?? tree.rootNode;
 
   // Walk up to the nearest block-level boundary so the output is anchored to a
   // whole element, not mid-inline content.
@@ -124,7 +145,7 @@ export function formatDocumentRange(
     targetNode,
     isBlockLevel,
     hasImplicitEndTags,
-    getContentNodes
+    getContentNodes,
   );
 
   const context: FormatterContext = {
@@ -157,7 +178,7 @@ import { formatNode } from './formatters.js';
 
 function formatNodeForRange(
   node: SyntaxNode,
-  context: FormatterContext
+  context: FormatterContext,
 ): import('./ir.js').Doc {
   return formatNode(node, context);
 }
@@ -165,7 +186,7 @@ function formatNodeForRange(
 function applyBaseIndent(
   formatted: string,
   indentLevel: number,
-  indentUnit: string
+  indentUnit: string,
 ): string {
   if (indentLevel === 0) {
     return formatted;

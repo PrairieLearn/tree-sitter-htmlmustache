@@ -35,7 +35,10 @@ export interface CustomCodeTagContent {
 /**
  * Get the attribute value for a given attribute name from an element's start tag.
  */
-export function getAttributeValue(node: SyntaxNode, attrName: string): string | null {
+export function getAttributeValue(
+  node: SyntaxNode,
+  attrName: string,
+): string | null {
   for (let i = 0; i < node.childCount; i++) {
     const child = node.child(i);
     if (child?.type === 'html_start_tag') {
@@ -46,8 +49,12 @@ export function getAttributeValue(node: SyntaxNode, attrName: string): string | 
           let value = '';
           for (let k = 0; k < attr.childCount; k++) {
             const part = attr.child(k);
-            if (part?.type === 'html_attribute_name') name = part.text.toLowerCase();
-            if (part?.type === 'html_quoted_attribute_value') value = part.text.replace(/^["']|["']$/g, '');
+            if (part?.type === 'html_attribute_name') {
+              name = part.text.toLowerCase();
+            }
+            if (part?.type === 'html_quoted_attribute_value') {
+              value = part.text.replace(/^["']|["']$/g, '');
+            }
             if (part?.type === 'html_attribute_value') value = part.text;
           }
           if (name === attrName.toLowerCase()) {
@@ -63,7 +70,10 @@ export function getAttributeValue(node: SyntaxNode, attrName: string): string | 
 /**
  * Resolve the language ID for a custom code tag element.
  */
-function resolveCustomCodeLanguage(node: SyntaxNode, config: CustomCodeTagConfig): string | null {
+function resolveCustomCodeLanguage(
+  node: SyntaxNode,
+  config: CustomCodeTagConfig,
+): string | null {
   if (config.languageAttribute) {
     const attrValue = getAttributeValue(node, config.languageAttribute);
     if (attrValue) {
@@ -135,7 +145,10 @@ export function findCustomCodeTagContent(
           if (startTag && node.type === 'html_element') {
             const contentStartIndex = startTag.endIndex;
             const contentEndIndex = endTag ? endTag.startIndex : node.endIndex;
-            const contentText = node.tree.rootNode.text.slice(contentStartIndex, contentEndIndex);
+            const contentText = node.tree.rootNode.text.slice(
+              contentStartIndex,
+              contentEndIndex,
+            );
             if (contentText.length > 0) {
               results.push({
                 text: contentText,

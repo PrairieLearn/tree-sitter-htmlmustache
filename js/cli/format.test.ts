@@ -14,7 +14,10 @@ const defaultOptions: FormattingOptions = { tabSize: 2, insertSpaces: true };
 describe('formatSource', () => {
   describe('basic HTML', () => {
     it('formats nested block elements', async () => {
-      const result = await formatSource('<div><p>hello</p></div>', defaultOptions);
+      const result = await formatSource(
+        '<div><p>hello</p></div>',
+        defaultOptions,
+      );
       expect(result).toBe('<div>\n  <p>hello</p>\n</div>\n');
     });
 
@@ -24,7 +27,10 @@ describe('formatSource', () => {
     });
 
     it('formats attributes', async () => {
-      const result = await formatSource('<div class="foo" id="bar">content</div>', defaultOptions);
+      const result = await formatSource(
+        '<div class="foo" id="bar">content</div>',
+        defaultOptions,
+      );
       expect(result).toBe('<div class="foo" id="bar">content</div>\n');
     });
   });
@@ -36,7 +42,7 @@ describe('formatSource', () => {
         defaultOptions,
       );
       expect(result).toBe(
-        '<div>\n  {{#items}}\n    <p>{{name}}</p>\n  {{/items}}\n</div>\n'
+        '<div>\n  {{#items}}\n    <p>{{name}}</p>\n  {{/items}}\n</div>\n',
       );
     });
 
@@ -46,31 +52,32 @@ describe('formatSource', () => {
         defaultOptions,
       );
       expect(result).toBe(
-        '<div>\n  {{^items}}\n    <p>No items</p>\n  {{/items}}\n</div>\n'
+        '<div>\n  {{^items}}\n    <p>No items</p>\n  {{/items}}\n</div>\n',
       );
     });
 
     it('formats mustache variables inline', async () => {
-      const result = await formatSource('<p>Hello {{name}}</p>', defaultOptions);
+      const result = await formatSource(
+        '<p>Hello {{name}}</p>',
+        defaultOptions,
+      );
       expect(result).toBe('<p>Hello {{name}}</p>\n');
     });
   });
 
   describe('options', () => {
     it('respects indent-size', async () => {
-      const result = await formatSource(
-        '<div><p>hello</p></div>',
-        { tabSize: 4, insertSpaces: true },
-      );
+      const result = await formatSource('<div><p>hello</p></div>', {
+        tabSize: 4,
+        insertSpaces: true,
+      });
       expect(result).toBe('<div>\n    <p>hello</p>\n</div>\n');
     });
 
     it('respects mustache-spaces', async () => {
-      const result = await formatSource(
-        '<p>{{name}}</p>',
-        defaultOptions,
-        { mustacheSpaces: true },
-      );
+      const result = await formatSource('<p>{{name}}</p>', defaultOptions, {
+        mustacheSpaces: true,
+      });
       expect(result).toBe('<p>{{ name }}</p>\n');
     });
 
@@ -95,7 +102,8 @@ describe('formatSource', () => {
     });
 
     it('double-format of mustache content is stable', async () => {
-      const input = '<div>\n  {{#items}}\n    <p>{{name}}</p>\n  {{/items}}\n</div>\n';
+      const input =
+        '<div>\n  {{#items}}\n    <p>{{name}}</p>\n  {{/items}}\n</div>\n';
       const first = await formatSource(input, defaultOptions);
       const second = await formatSource(first, defaultOptions);
       expect(second).toBe(first);
@@ -122,7 +130,7 @@ describe('formatSource', () => {
           '  </script>',
           '{{/show}}',
           '',
-        ].join('\n')
+        ].join('\n'),
       );
     });
 
@@ -150,7 +158,7 @@ describe('formatSource', () => {
           '  </style>',
           '{{/show}}',
           '',
-        ].join('\n')
+        ].join('\n'),
       );
     });
   });
@@ -161,40 +169,27 @@ describe('formatSource', () => {
     });
 
     it('formats javascript inside script tags', async () => {
-      const input = [
-        '<script>',
-        'const   x=1;const y =  2;',
-        '</script>',
-      ].join('\n');
+      const input = ['<script>', 'const   x=1;const y =  2;', '</script>'].join(
+        '\n',
+      );
       const result = await formatSource(input, defaultOptions);
       expect(result).toBe(
-        [
-          '<script>',
-          '  const x = 1;',
-          '  const y = 2;',
-          '</script>',
-          '',
-        ].join('\n')
+        ['<script>', '  const x = 1;', '  const y = 2;', '</script>', ''].join(
+          '\n',
+        ),
       );
     });
 
     it('falls back to re-indent when prettier is unavailable', async () => {
       _setPrettierForTesting(null);
 
-      const input = [
-        '<script>',
-        'const   x=1;const y =  2;',
-        '</script>',
-      ].join('\n');
+      const input = ['<script>', 'const   x=1;const y =  2;', '</script>'].join(
+        '\n',
+      );
       const result = await formatSource(input, defaultOptions);
       // Without prettier, content is re-indented but not reformatted
       expect(result).toBe(
-        [
-          '<script>',
-          '  const   x=1;const y =  2;',
-          '</script>',
-          '',
-        ].join('\n')
+        ['<script>', '  const   x=1;const y =  2;', '</script>', ''].join('\n'),
       );
     });
   });
@@ -212,11 +207,9 @@ describe('formatSource', () => {
     it('applies mustacheSpaces from config file via caller', async () => {
       // Caller resolves mustacheSpaces + indentSize from config before calling formatSource.
       const config: HtmlMustacheConfig = { mustacheSpaces: true };
-      const result = await formatSource(
-        '<p>{{name}}</p>',
-        defaultOptions,
-        { mustacheSpaces: config.mustacheSpaces },
-      );
+      const result = await formatSource('<p>{{name}}</p>', defaultOptions, {
+        mustacheSpaces: config.mustacheSpaces,
+      });
       expect(result).toBe('<p>{{ name }}</p>\n');
     });
 

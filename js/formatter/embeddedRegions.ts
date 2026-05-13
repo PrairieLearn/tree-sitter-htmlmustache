@@ -26,11 +26,20 @@ function getEmbeddedLanguageId(node: SyntaxNode): string {
           let value = '';
           for (let k = 0; k < attr.childCount; k++) {
             const part = attr.child(k);
-            if (part?.type === 'html_attribute_name') name = part.text.toLowerCase();
-            if (part?.type === 'html_quoted_attribute_value') value = part.text.replace(/^["']|["']$/g, '').toLowerCase();
-            if (part?.type === 'html_attribute_value') value = part.text.toLowerCase();
+            if (part?.type === 'html_attribute_name') {
+              name = part.text.toLowerCase();
+            }
+            if (part?.type === 'html_quoted_attribute_value') {
+              value = part.text.replace(/^["']|["']$/g, '').toLowerCase();
+            }
+            if (part?.type === 'html_attribute_value') {
+              value = part.text.toLowerCase();
+            }
           }
-          if (name === 'type' && (value === 'text/typescript' || value === 'ts')) {
+          if (
+            name === 'type' &&
+            (value === 'text/typescript' || value === 'ts')
+          ) {
             return 'typescript';
           }
         }
@@ -47,7 +56,10 @@ function getEmbeddedLanguageId(node: SyntaxNode): string {
 export function collectEmbeddedRegions(rootNode: SyntaxNode): EmbeddedRegion[] {
   const regions: EmbeddedRegion[] = [];
   const walk = (node: SyntaxNode) => {
-    if (node.type === 'html_script_element' || node.type === 'html_style_element') {
+    if (
+      node.type === 'html_script_element' ||
+      node.type === 'html_style_element'
+    ) {
       for (let i = 0; i < node.childCount; i++) {
         const child = node.child(i);
         if (child?.type === 'html_raw_text') {

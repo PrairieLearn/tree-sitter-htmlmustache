@@ -5,15 +5,31 @@
  * `js/shared/configFile.ts` and imports from this module.
  */
 
-import type { CustomCodeTagConfig, CustomCodeTagIndentMode } from './customCodeTags.js';
+import type {
+  CustomCodeTagConfig,
+  CustomCodeTagIndentMode,
+} from './customCodeTags.js';
 import type { CSSDisplay } from './cssDisplay.js';
 import { KNOWN_RULE_NAMES } from './ruleMetadata.js';
 
 const VALID_CSS_DISPLAY_VALUES = new Set<string>([
-  'block', 'inline', 'inline-block', 'table-row', 'table-cell', 'table',
-  'table-row-group', 'table-header-group', 'table-footer-group', 'table-column',
-  'table-column-group', 'table-caption', 'list-item', 'ruby', 'ruby-base',
-  'ruby-text', 'none',
+  'block',
+  'inline',
+  'inline-block',
+  'table-row',
+  'table-cell',
+  'table',
+  'table-row-group',
+  'table-header-group',
+  'table-footer-group',
+  'table-column',
+  'table-column-group',
+  'table-caption',
+  'list-item',
+  'ruby',
+  'ruby-base',
+  'ruby-text',
+  'none',
 ]);
 
 export type RuleSeverity = 'error' | 'warning' | 'off';
@@ -23,7 +39,9 @@ export interface ElementContentTooLongOptions {
 }
 
 export type RuleEntry = RuleSeverity | { severity: RuleSeverity };
-export type RuleEntryWithOptions<TOptions> = RuleSeverity | ({ severity: RuleSeverity } & TOptions);
+export type RuleEntryWithOptions<TOptions> =
+  | RuleSeverity
+  | ({ severity: RuleSeverity } & TOptions);
 
 export interface RulesConfig {
   nestedDuplicateSections?: RuleEntry;
@@ -40,20 +58,30 @@ export interface RulesConfig {
 
 const VALID_RULE_SEVERITIES = new Set<string>(['error', 'warning', 'off']);
 
-function parseElementContentTooLongOptions(raw: Record<string, unknown>): ElementContentTooLongOptions | null {
+function parseElementContentTooLongOptions(
+  raw: Record<string, unknown>,
+): ElementContentTooLongOptions | null {
   if (!Array.isArray(raw.elements)) return null;
   const elements: ElementContentTooLongOptions['elements'] = [];
   for (const entry of raw.elements) {
     if (!entry || typeof entry !== 'object' || Array.isArray(entry)) continue;
     const e = entry as Record<string, unknown>;
     if (typeof e.tag !== 'string' || e.tag.length === 0) continue;
-    if (typeof e.maxBytes !== 'number' || !Number.isFinite(e.maxBytes) || e.maxBytes < 0) continue;
+    if (
+      typeof e.maxBytes !== 'number' ||
+      !Number.isFinite(e.maxBytes) ||
+      e.maxBytes < 0
+    ) {
+      continue;
+    }
     elements.push({ tag: e.tag, maxBytes: e.maxBytes });
   }
   return { elements };
 }
 
-const OPTION_PARSERS: Partial<Record<keyof RulesConfig, (raw: Record<string, unknown>) => object | null>> = {
+const OPTION_PARSERS: Partial<
+  Record<keyof RulesConfig, (raw: Record<string, unknown>) => object | null>
+> = {
   elementContentTooLong: parseElementContentTooLongOptions,
 };
 
@@ -66,7 +94,12 @@ function parseRuleEntry(
   }
   if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
   const obj = value as Record<string, unknown>;
-  if (typeof obj.severity !== 'string' || !VALID_RULE_SEVERITIES.has(obj.severity)) return null;
+  if (
+    typeof obj.severity !== 'string' ||
+    !VALID_RULE_SEVERITIES.has(obj.severity)
+  ) {
+    return null;
+  }
   const severity = obj.severity as RuleSeverity;
   const parser = OPTION_PARSERS[key];
   if (!parser) return { severity };
@@ -169,21 +202,38 @@ function parseCustomTagArray(arr: unknown): CustomCodeTagConfig[] {
       const e = entry as Record<string, unknown>;
       if (typeof e.name !== 'string' || e.name.length === 0) continue;
       const tag: CustomCodeTagConfig = { name: e.name };
-      if (typeof e.display === 'string' && VALID_CSS_DISPLAY_VALUES.has(e.display)) {
+      if (
+        typeof e.display === 'string' &&
+        VALID_CSS_DISPLAY_VALUES.has(e.display)
+      ) {
         tag.display = e.display as CSSDisplay;
       }
-      if (typeof e.languageAttribute === 'string') tag.languageAttribute = e.languageAttribute;
-      if (e.languageMap && typeof e.languageMap === 'object' && !Array.isArray(e.languageMap)) {
+      if (typeof e.languageAttribute === 'string') {
+        tag.languageAttribute = e.languageAttribute;
+      }
+      if (
+        e.languageMap &&
+        typeof e.languageMap === 'object' &&
+        !Array.isArray(e.languageMap)
+      ) {
         tag.languageMap = e.languageMap as Record<string, string>;
       }
-      if (typeof e.languageDefault === 'string') tag.languageDefault = e.languageDefault;
+      if (typeof e.languageDefault === 'string') {
+        tag.languageDefault = e.languageDefault;
+      }
       if (typeof e.indent === 'string' && VALID_INDENT_MODES.has(e.indent)) {
         tag.indent = e.indent as CustomCodeTagIndentMode;
       }
-      if (typeof e.indentAttribute === 'string') tag.indentAttribute = e.indentAttribute;
+      if (typeof e.indentAttribute === 'string') {
+        tag.indentAttribute = e.indentAttribute;
+      }
       if (typeof e.schema === 'string') {
         tag.schema = e.schema;
-      } else if (e.schema && typeof e.schema === 'object' && !Array.isArray(e.schema)) {
+      } else if (
+        e.schema &&
+        typeof e.schema === 'object' &&
+        !Array.isArray(e.schema)
+      ) {
         tag.schema = e.schema as Record<string, unknown>;
       }
       tags.push(tag);
@@ -215,24 +265,33 @@ export function validateConfig(raw: unknown): HtmlMustacheConfig {
     const items: NoBreakDelimiter[] = [];
     for (const entry of obj.noBreakDelimiters) {
       if (
-        entry && typeof entry === 'object' && !Array.isArray(entry) &&
+        entry &&
+        typeof entry === 'object' &&
+        !Array.isArray(entry) &&
         typeof (entry as Record<string, unknown>).start === 'string' &&
         (entry as Record<string, unknown>).start !== '' &&
         typeof (entry as Record<string, unknown>).end === 'string' &&
         (entry as Record<string, unknown>).end !== ''
       ) {
-        items.push({ start: (entry as Record<string, unknown>).start as string, end: (entry as Record<string, unknown>).end as string });
+        items.push({
+          start: (entry as Record<string, unknown>).start as string,
+          end: (entry as Record<string, unknown>).end as string,
+        });
       }
     }
     if (items.length > 0) config.noBreakDelimiters = items;
   }
 
   if (Array.isArray(obj.include)) {
-    const items = obj.include.filter((s: unknown) => typeof s === 'string' && s.length > 0);
+    const items = obj.include.filter(
+      (s: unknown) => typeof s === 'string' && s.length > 0,
+    );
     if (items.length > 0) config.include = items as string[];
   }
   if (Array.isArray(obj.exclude)) {
-    const items = obj.exclude.filter((s: unknown) => typeof s === 'string' && s.length > 0);
+    const items = obj.exclude.filter(
+      (s: unknown) => typeof s === 'string' && s.length > 0,
+    );
     if (items.length > 0) config.exclude = items as string[];
   }
 
@@ -274,16 +333,27 @@ export function validateConfig(raw: unknown): HtmlMustacheConfig {
       if (typeof e.id !== 'string' || e.id.length === 0) continue;
       if (typeof e.selector !== 'string' || e.selector.length === 0) continue;
       if (typeof e.message !== 'string' || e.message.length === 0) continue;
-      const rule: CustomRule = { id: e.id, selector: e.selector, message: e.message };
-      if (typeof e.severity === 'string' && VALID_RULE_SEVERITIES.has(e.severity)) {
+      const rule: CustomRule = {
+        id: e.id,
+        selector: e.selector,
+        message: e.message,
+      };
+      if (
+        typeof e.severity === 'string' &&
+        VALID_RULE_SEVERITIES.has(e.severity)
+      ) {
         rule.severity = e.severity as RuleSeverity;
       }
       if (Array.isArray(e.include)) {
-        const items = e.include.filter((s: unknown) => typeof s === 'string' && s.length > 0);
+        const items = e.include.filter(
+          (s: unknown) => typeof s === 'string' && s.length > 0,
+        );
         if (items.length > 0) rule.include = items as string[];
       }
       if (Array.isArray(e.exclude)) {
-        const items = e.exclude.filter((s: unknown) => typeof s === 'string' && s.length > 0);
+        const items = e.exclude.filter(
+          (s: unknown) => typeof s === 'string' && s.length > 0,
+        );
         if (items.length > 0) rule.exclude = items as string[];
       }
       rules.push(rule);

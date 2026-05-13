@@ -19,7 +19,10 @@ export const LANGUAGE_TO_PRETTIER_PARSER: Record<string, string> = {
 // what we actually call. Using `any` for the options bag keeps real prettier
 // (whose `Options.plugins` is more specific) assignable to this shape.
 export interface PrettierLike {
-  format(source: string, options: PrettierFormatOptions): string | Promise<string>;
+  format(
+    source: string,
+    options: PrettierFormatOptions,
+  ): string | Promise<string>;
 }
 
 export interface PrettierFormatOptions {
@@ -54,7 +57,7 @@ export async function formatEmbeddedRegions(
       } catch {
         // Snippet had a syntax error — skip, leave the region as-is.
       }
-    })
+    }),
   );
 
   return result;

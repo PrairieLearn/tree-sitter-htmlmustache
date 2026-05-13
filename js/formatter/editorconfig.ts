@@ -6,13 +6,18 @@
  */
 
 import type { FormattingOptions } from './document.js';
-import { parseSync as parseEditorConfig, Props as EditorConfigProps } from 'editorconfig';
+import {
+  parseSync as parseEditorConfig,
+  Props as EditorConfigProps,
+} from 'editorconfig';
 import { fileURLToPath } from 'url';
 
 /**
  * Get formatting options from .editorconfig file.
  */
-export function getEditorConfigOptions(uri: string): Partial<FormattingOptions> {
+export function getEditorConfigOptions(
+  uri: string,
+): Partial<FormattingOptions> {
   try {
     // Convert file:// URI to file path
     if (!uri.startsWith('file://')) {
@@ -34,7 +39,10 @@ export function getEditorConfigOptions(uri: string): Partial<FormattingOptions> 
     // Map editorconfig indent_size to tabSize
     if (typeof config.indent_size === 'number') {
       result.tabSize = config.indent_size;
-    } else if (config.indent_size === 'tab' && typeof config.tab_width === 'number') {
+    } else if (
+      config.indent_size === 'tab' &&
+      typeof config.tab_width === 'number'
+    ) {
       result.tabSize = config.tab_width;
     }
 

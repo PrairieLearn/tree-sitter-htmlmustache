@@ -95,38 +95,50 @@ describe('lint', () => {
       rules: { unrecognizedHtmlTags: 'error' },
       customTags: [{ name: 'my-widget' }],
     });
-    expect(withCustom.some((x) => x.ruleName === 'unrecognizedHtmlTags')).toBe(false);
+    expect(withCustom.some((x) => x.ruleName === 'unrecognizedHtmlTags')).toBe(
+      false,
+    );
   });
 
   it('matches a custom selector-based rule', () => {
     const d = linter.lint('<script>x</script>', {
-      customRules: [{ id: 'no-script', selector: 'script', message: 'Bare <script> is disallowed' }],
+      customRules: [
+        {
+          id: 'no-script',
+          selector: 'script',
+          message: 'Bare <script> is disallowed',
+        },
+      ],
     });
     expect(d.some((x) => x.ruleName === 'no-script')).toBe(true);
   });
 
   it('rejects per-rule include/exclude at the type level', () => {
     linter.lint('<script>x</script>', {
-      customRules: [{
-        id: 'no-script',
-        selector: 'script',
-        message: 'Bare <script> is disallowed',
-        // @ts-expect-error include is stripped from the linter CustomRule type
-        include: ['questions/**'],
-        // @ts-expect-error exclude is stripped from the linter CustomRule type
-        exclude: ['**/legacy/**'],
-      }],
+      customRules: [
+        {
+          id: 'no-script',
+          selector: 'script',
+          message: 'Bare <script> is disallowed',
+          // @ts-expect-error include is stripped from the linter CustomRule type
+          include: ['questions/**'],
+          // @ts-expect-error exclude is stripped from the linter CustomRule type
+          exclude: ['**/legacy/**'],
+        },
+      ],
     });
   });
 
   it('honors <!-- htmlmustache-disable ruleName --> directives', () => {
-    const src = '<!-- htmlmustache-disable duplicateAttributes -->\n<p id="a" id="b"></p>';
+    const src =
+      '<!-- htmlmustache-disable duplicateAttributes -->\n<p id="a" id="b"></p>';
     const d = linter.lint(src, DEFAULT_CONFIG);
     expect(d.some((x) => x.ruleName === 'duplicateAttributes')).toBe(false);
   });
 
   it('honors {{! htmlmustache-disable ruleName }} directives', () => {
-    const src = '{{! htmlmustache-disable duplicateAttributes }}\n<p id="a" id="b"></p>';
+    const src =
+      '{{! htmlmustache-disable duplicateAttributes }}\n<p id="a" id="b"></p>';
     const d = linter.lint(src, DEFAULT_CONFIG);
     expect(d.some((x) => x.ruleName === 'duplicateAttributes')).toBe(false);
   });

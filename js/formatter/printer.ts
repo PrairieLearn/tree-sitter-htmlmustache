@@ -25,7 +25,11 @@ interface PrintState {
  */
 export function print(doc: Doc, options: PrinterOptions): string {
   const output: string[] = [];
-  const state: PrintState = { indentLevel: 0, mode: 'break', groupModes: new Map() };
+  const state: PrintState = {
+    indentLevel: 0,
+    mode: 'break',
+    groupModes: new Map(),
+  };
 
   printDoc(doc, state, output, options);
 
@@ -80,7 +84,7 @@ function printDoc(
   doc: Doc,
   state: PrintState,
   output: string[],
-  options: PrinterOptions
+  options: PrinterOptions,
 ): void {
   if (typeof doc === 'string') {
     output.push(doc);
@@ -134,7 +138,11 @@ function printDoc(
       } else {
         // Try to fit on one line
         const flatOutput: string[] = [];
-        const flatState: PrintState = { ...state, mode: 'flat', groupModes: new Map(state.groupModes) };
+        const flatState: PrintState = {
+          ...state,
+          mode: 'flat',
+          groupModes: new Map(state.groupModes),
+        };
         printDoc(doc.contents, flatState, flatOutput, options);
 
         const flatContent = flatOutput.join('');
@@ -193,7 +201,7 @@ function printFill(
   parts: Doc[],
   state: PrintState,
   output: string[],
-  options: PrinterOptions
+  options: PrinterOptions,
 ): void {
   if (parts.length === 0) return;
 

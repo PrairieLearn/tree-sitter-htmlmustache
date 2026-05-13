@@ -9,7 +9,11 @@
  * `{{`, `}}`, `<`, `=` are omitted — their position is implied by parents).
  */
 
-import { Parser as TSParser, Language, type Node as TSNode } from 'web-tree-sitter';
+import {
+  Parser as TSParser,
+  Language,
+  type Node as TSNode,
+} from 'web-tree-sitter';
 import { GRAMMAR_WASM_FILENAME } from '../shared/grammar.js';
 import type { SyntaxNode, NodeType, Position } from './nodeTypes.generated.js';
 
@@ -59,7 +63,10 @@ export interface ParseResult {
 /** Return `'skip'` to skip a node's subtree, `'stop'` to halt the entire walk. */
 export type VisitResult = void | 'skip' | 'stop';
 
-export type Visitor = (node: SyntaxNode, parents: readonly SyntaxNode[]) => VisitResult;
+export type Visitor = (
+  node: SyntaxNode,
+  parents: readonly SyntaxNode[],
+) => VisitResult;
 
 export type LocateWasm = string | ((filename: string) => string);
 
@@ -78,12 +85,18 @@ export interface Parser {
   parse(source: string): ParseResult;
 }
 
-function toLocateFile(locateWasm: LocateWasm): ((name: string) => string) | undefined {
-  return typeof locateWasm === 'function' ? (name) => locateWasm(name) : undefined;
+function toLocateFile(
+  locateWasm: LocateWasm,
+): ((name: string) => string) | undefined {
+  return typeof locateWasm === 'function'
+    ? (name) => locateWasm(name)
+    : undefined;
 }
 
 function resolveGrammarUrl(locateWasm: LocateWasm): string {
-  return typeof locateWasm === 'string' ? locateWasm : locateWasm(GRAMMAR_WASM_FILENAME);
+  return typeof locateWasm === 'string'
+    ? locateWasm
+    : locateWasm(GRAMMAR_WASM_FILENAME);
 }
 
 function toJSON(node: TSNode): SyntaxNode {
@@ -93,7 +106,10 @@ function toJSON(node: TSNode): SyntaxNode {
   }
   return {
     type: node.type,
-    startPosition: { row: node.startPosition.row, column: node.startPosition.column },
+    startPosition: {
+      row: node.startPosition.row,
+      column: node.startPosition.column,
+    },
     endPosition: { row: node.endPosition.row, column: node.endPosition.column },
     startIndex: node.startIndex,
     endIndex: node.endIndex,
