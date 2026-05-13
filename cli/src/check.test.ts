@@ -22,6 +22,80 @@ function schemaRegistryFor(name: string, schema: Record<string, unknown>) {
   return registry;
 }
 
+const PL_MULTIPLE_CHOICE_SCHEMA = {
+  $schema: DRAFT_2020_12,
+  type: 'object',
+  properties: {
+    tag: { const: 'pl-multiple-choice' },
+    attributes: {
+      type: 'object',
+      htmlGlobalAttributes: true,
+      properties: {
+        'answers-name': { type: 'string' },
+        'builtin-grading': { type: 'boolean' },
+        display: { enum: ['block', 'inline', 'dropdown'] },
+        'fixed-order': { type: 'boolean' },
+        'hide-score-badge': { type: 'boolean' },
+        inline: { type: 'boolean' },
+        order: { enum: ['random', 'ascend', 'descend', 'fixed'] },
+        placeholder: { type: 'string' },
+        size: { type: 'integer', minimum: 1 },
+        weight: { type: 'number' },
+      },
+      required: ['answers-name'],
+      additionalProperties: false,
+      allOf: [
+        { not: { required: ['inline', 'display'] } },
+        { not: { required: ['fixed-order', 'order'] } },
+        { if: { required: ['size'] }, then: { properties: { display: { const: 'dropdown' } }, required: ['display'] } },
+        { if: { required: ['placeholder'] }, then: { properties: { display: { const: 'dropdown' } }, required: ['display'] } },
+      ],
+    },
+    children: {
+      type: 'array',
+      items: {
+        type: 'object',
+        properties: {
+          tag: { const: 'pl-answer' },
+          attributes: {
+            type: 'object',
+            properties: {
+              correct: { type: 'boolean' },
+              feedback: { type: 'string' },
+              score: { type: 'number' },
+            },
+            required: ['correct', 'feedback', 'score'],
+            additionalProperties: false,
+          },
+        },
+        required: ['tag', 'attributes'],
+      },
+    },
+  },
+  allOf: [
+    {
+      if: { properties: { attributes: { properties: { 'builtin-grading': { type: 'boolean', const: false } }, required: ['builtin-grading'] } } },
+      then: {
+        properties: {
+          attributes: { not: { anyOf: [{ required: ['weight'] }, { required: ['hide-score-badge'] }] } },
+          children: {
+            type: 'array',
+            items: {
+              type: 'object',
+              properties: {
+                attributes: {
+                  type: 'object',
+                  not: { anyOf: [{ required: ['score'] }, { required: ['feedback'] }] },
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  ],
+} satisfies Record<string, unknown>;
+
 describe('collectErrors', () => {
   it('returns no errors for a clean file', () => {
     const tree = parse('<div><p>Hello {{name}}</p></div>');
@@ -961,6 +1035,8 @@ describe('custom rules', () => {
 });
 
 describe('custom tag schema', () => {
+  const plMultipleChoiceRegistry = () => schemaRegistryFor('pl-multiple-choice', PL_MULTIPLE_CHOICE_SCHEMA);
+
   it('detects missing required attribute on inline schema', () => {
     const registry = schemaRegistryFor('x-card', {
       $schema: DRAFT_2020_12,
@@ -1176,6 +1252,45 @@ describe('custom tag schema', () => {
     const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
 
     expect(errors.some(e => e.ruleName === 'customTagSchema')).toBe(false);
+  });
+
+  it('validates representative pl-multiple-choice required answers-name', () => {
+    const tree = parse('<pl-multiple-choice></pl-multiple-choice>');
+    const errors = collectErrors(tree, 'test.mustache', undefined, ['pl-multiple-choice', 'pl-answer'], undefined, { registry: plMultipleChoiceRegistry() });
+
+    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message.includes('required property'))).toBe(true);
+    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message.includes('answers-name'))).toBe(true);
+  });
+
+  it('validates representative pl-multiple-choice closed attributes with html globals', () => {
+    const tree = parse('<pl-multiple-choice answers-name="ans" data-test="ok" mystery="x"></pl-multiple-choice>');
+    const errors = collectErrors(tree, 'test.mustache', undefined, ['pl-multiple-choice', 'pl-answer'], undefined, { registry: plMultipleChoiceRegistry() });
+    const schemaErrors = errors.filter(e => e.ruleName === 'customTagSchema');
+
+    expect(schemaErrors).toHaveLength(1);
+    expect(schemaErrors[0].message).toContain('additional properties');
+    expect(schemaErrors[0].nodeText).toContain('mystery');
+  });
+
+  it('validates representative pl-multiple-choice dropdown-only size', () => {
+    const tree = parse('<pl-multiple-choice answers-name="ans" size="4"></pl-multiple-choice>');
+    const errors = collectErrors(tree, 'test.mustache', undefined, ['pl-multiple-choice', 'pl-answer'], undefined, { registry: plMultipleChoiceRegistry() });
+
+    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message.includes('display'))).toBe(true);
+  });
+
+  it('validates representative pl-multiple-choice child tag', () => {
+    const tree = parse('<pl-multiple-choice answers-name="ans"><span correct="true" feedback="ok" score="1"></span></pl-multiple-choice>');
+    const errors = collectErrors(tree, 'test.mustache', undefined, ['pl-multiple-choice', 'pl-answer'], undefined, { registry: plMultipleChoiceRegistry() });
+
+    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message.includes('constant'))).toBe(true);
+  });
+
+  it('validates representative pl-multiple-choice builtin-grading false child score', () => {
+    const tree = parse('<pl-multiple-choice answers-name="ans" builtin-grading="false"><pl-answer correct="true" feedback="ok" score="1"></pl-answer></pl-multiple-choice>');
+    const errors = collectErrors(tree, 'test.mustache', undefined, ['pl-multiple-choice', 'pl-answer'], undefined, { registry: plMultipleChoiceRegistry() });
+
+    expect(errors.some(e => e.ruleName === 'customTagSchema')).toBe(true);
   });
 });
 
