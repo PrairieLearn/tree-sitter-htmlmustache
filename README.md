@@ -292,8 +292,9 @@ Create a `.htmlmustache.jsonc` file in your project root to configure formatting
   // Add spaces inside mustache delimiters: {{ foo }} vs {{foo}} (default: false)
   "mustacheSpaces": true,
 
-  // Treat custom tags as raw code blocks (like <script>/<style>)
-  "customCodeTags": [
+  // Treat custom tags as raw code blocks (like <script>/<style>), or bind
+  // a JSON Schema for attribute/child validation — see Tag Schemas below.
+  "customTags": [
     {
       "name": "x-code",
       "languageDefault": "javascript",
@@ -370,7 +371,27 @@ Schemas validate this value shape:
 
 Attribute values are coerced by JSON Schema (`"2"` can satisfy an integer, boolean attributes become `true`). Attribute values containing mustache are treated as unknown runtime values, so value-dependent schema errors are waived while presence and unknown-attribute checks still run. Mustache sections are flattened when building `children`, so children inside `{{#section}}...{{/section}}` count as reachable; timeline-aware child counts are not modeled yet.
 
-Set `"htmlGlobalAttributes": true` on an `attributes` schema to allow `class`, `id`, `style`, `lang`, `dir`, `tabindex`, `title`, `role`, `data-*`, and `aria-*` alongside the schema's explicit properties.
+Set `"htmlGlobalAttributes": true` on an `attributes` sub-schema to permit the WHATWG HTML global attributes (sourced from [`html-element-attributes`](https://github.com/wooorm/html-element-attributes) — `class`, `id`, `style`, `hidden`, `slot`, `inert`, `popover`, `contenteditable`, `spellcheck`, etc.), every `aria-*` attribute and `role` (from [`aria-attributes`](https://github.com/wooorm/aria-attributes)), and the `data-*` pattern, alongside whichever properties the schema explicitly declares:
+
+```jsonc
+{
+  "type": "object",
+  "properties": {
+    "tag": { "const": "pl-card" },
+    "attributes": {
+      "type": "object",
+      "htmlGlobalAttributes": true, // ← here, on the attributes sub-schema
+      "properties": {
+        "kind": { "enum": ["info", "warning"] },
+      },
+      "required": ["kind"],
+      "additionalProperties": false,
+    },
+  },
+}
+```
+
+Schema authors can still tighten any single attribute by redeclaring it under `properties` — the explicit declaration wins. Without this flag, `additionalProperties: false` would reject `<pl-card class="...">` because `class` isn't declared.
 
 #### Diagnostics
 
