@@ -5,7 +5,7 @@ import path from 'node:path';
 import chalk from 'chalk';
 import type { Tree } from './wasm';
 import { initializeParser, parseDocument } from './wasm';
-import { findConfigFile } from '../shared/configFile.js';
+import { findConfigFile, loadFormatsModule } from '../shared/configFile.js';
 import { parseJsonc, validateConfig } from '../shared/configSchema.js';
 import type {
   HtmlMustacheConfig,
@@ -183,13 +183,13 @@ export function expandGlobs(patterns: string[]): string[] {
 
 const DEFAULT_EXCLUDE_SEGMENTS = ['/node_modules/', '/.git/'];
 
-export function resolveFiles(cliPatterns: string[]): {
+export async function resolveFiles(cliPatterns: string[]): Promise<{
   files: string[];
   config: HtmlMustacheConfig | null;
   configDir: string | null;
   schemaRegistry?: SchemaRegistry;
   schemaLoadErrors?: ConfigLoadError[];
-} {
+}> {
   // Load config from cwd
   const configPath = findConfigFile(process.cwd());
   let config: HtmlMustacheConfig | null = null;
@@ -204,6 +204,11 @@ export function resolveFiles(cliPatterns: string[]): {
     }
   }
 
+  const formatsResult =
+    config?.formatsModule && configDir
+      ? await loadFormatsModule(configDir, config.formatsModule)
+      : undefined;
+
   const schemaResult = config
     ? loadSchemaRegistry(config.customTags, {
         configDir: configDir ?? undefined,
@@ -211,8 +216,14 @@ export function resolveFiles(cliPatterns: string[]): {
           parseJsonc(
             fs.readFileSync(path.resolve(baseDir, schemaPath), 'utf-8'),
           ),
+        formats: formatsResult?.formats,
       })
     : undefined;
+
+  const schemaLoadErrors = [
+    ...(formatsResult?.error ? [formatsResult.error] : []),
+    ...(schemaResult?.loadErrors ?? []),
+  ];
 
   // Determine include patterns
   let patterns: string[];
@@ -226,7 +237,7 @@ export function resolveFiles(cliPatterns: string[]): {
       config,
       configDir,
       schemaRegistry: schemaResult?.registry,
-      schemaLoadErrors: schemaResult?.loadErrors,
+      schemaLoadErrors,
     };
   }
 
@@ -259,7 +270,7 @@ export function resolveFiles(cliPatterns: string[]): {
     config,
     configDir,
     schemaRegistry: schemaResult?.registry,
-    schemaLoadErrors: schemaResult?.loadErrors,
+    schemaLoadErrors,
   };
 }
 
@@ -332,7 +343,7 @@ export async function run(args: string[]): Promise<number> {
   const patterns = args.filter((a) => a !== '--fix');
 
   const { files, config, configDir, schemaRegistry, schemaLoadErrors } =
-    resolveFiles(patterns);
+    await resolveFiles(patterns);
 
   if (files.length === 0) {
     if (

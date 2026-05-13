@@ -1,9 +1,11 @@
 import Ajv2020 from 'ajv/dist/2020.js';
 import ajvErrors from 'ajv-errors';
-import type { ValidateFunction } from 'ajv';
+import type { Format, ValidateFunction } from 'ajv';
 import { htmlElementAttributes } from 'html-element-attributes';
 import { ariaAttributes } from 'aria-attributes';
 import type { CustomTagConfig } from './customCodeTags.js';
+
+export type SchemaFormat = Format;
 
 export interface ConfigLoadError {
   message: string;
@@ -23,6 +25,12 @@ export interface SchemaRegistry {
 export interface SchemaLoadOptions {
   configDir?: string;
   loadFile?: (schemaPath: string, configDir: string) => unknown;
+  /**
+   * ajv formats registered on the validator before any tag schema compiles.
+   * Useful for the `format` keyword in user schemas — e.g. a case-insensitive
+   * `pl-boolean` accepting the 20-ish truthy strings PrairieLearn coerces.
+   */
+  formats?: Record<string, SchemaFormat>;
 }
 
 const DRAFT_2020_12 = 'https://json-schema.org/draft/2020-12/schema';
@@ -109,6 +117,11 @@ export function loadSchemaRegistry(
   const registry: SchemaRegistry = { schemas: new Map() };
   const loadErrors: ConfigLoadError[] = [];
   const ajv = createAjv();
+  if (options.formats) {
+    for (const [name, format] of Object.entries(options.formats)) {
+      ajv.addFormat(name, format);
+    }
+  }
 
   for (const tag of customTags ?? []) {
     if (!tag.schema) continue;

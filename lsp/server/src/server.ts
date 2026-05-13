@@ -51,7 +51,7 @@ let rawTextQuery: Query | null = null;
  * Resolve config settings for a document URI.
  * Returns config file values with defaults applied.
  */
-function resolveConfig(uri: string): {
+async function resolveConfig(uri: string): Promise<{
   config: HtmlMustacheConfig | null;
   configDir: string | null;
   customTags: CustomCodeTagConfig[];
@@ -60,8 +60,8 @@ function resolveConfig(uri: string): {
   noBreakDelimiters: NoBreakDelimiter[] | undefined;
   schemaRegistry: SchemaRegistry | undefined;
   schemaLoadErrors: ConfigLoadError[] | undefined;
-} {
-  const loaded = loadConfigFile(uri);
+}> {
+  const loaded = await loadConfigFile(uri);
   const config = loaded?.config ?? null;
   return {
     config,
@@ -202,11 +202,11 @@ connection.onInitialized(() => {
 });
 
 // Parse document on open
-documents.onDidOpen((event) => {
+documents.onDidOpen(async (event) => {
   connection.console.log(`Document opened: ${event.document.uri} (language: ${event.document.languageId})`);
   const tree = parseAndCacheDocument(event.document);
   if (tree) {
-    const { config, configDir, schemaRegistry, schemaLoadErrors } = resolveConfig(event.document.uri);
+    const { config, configDir, schemaRegistry, schemaLoadErrors } = await resolveConfig(event.document.uri);
     const customTagNames = config?.customTags?.map(t => t.name);
     const customRules = applicableCustomRules(event.document.uri, config, configDir);
     connection.sendDiagnostics({ uri: event.document.uri, diagnostics: getDiagnostics(tree, config?.rules, customTagNames, customRules, schemaRegistry, schemaLoadErrors) });
@@ -214,10 +214,10 @@ documents.onDidOpen((event) => {
 });
 
 // Reparse on content change
-documents.onDidChangeContent((change) => {
+documents.onDidChangeContent(async (change) => {
   const tree = parseAndCacheDocument(change.document);
   if (tree) {
-    const { config, configDir, schemaRegistry, schemaLoadErrors } = resolveConfig(change.document.uri);
+    const { config, configDir, schemaRegistry, schemaLoadErrors } = await resolveConfig(change.document.uri);
     const customTagNames = config?.customTags?.map(t => t.name);
     const customRules = applicableCustomRules(change.document.uri, config, configDir);
     connection.sendDiagnostics({ uri: change.document.uri, diagnostics: getDiagnostics(tree, config?.rules, customTagNames, customRules, schemaRegistry, schemaLoadErrors) });
@@ -281,7 +281,7 @@ connection.languages.semanticTokens.on(async (params) => {
   }
 
   // Load config for this document
-  const { customTags } = resolveConfig(document.uri);
+  const { customTags } = await resolveConfig(document.uri);
 
   // Tokenize embedded language content in custom code tags
   let embeddedTokens: TokenInfo[] = [];
@@ -429,7 +429,7 @@ connection.onDocumentFormatting(async (params) => {
     return [];
   }
 
-  const { config, customTags, printWidth, mustacheSpaces, noBreakDelimiters } = resolveConfig(document.uri);
+  const { config, customTags, printWidth, mustacheSpaces, noBreakDelimiters } = await resolveConfig(document.uri);
   const resolvedOptions = mergeOptions(params.options, config, getEditorConfigOptions(document.uri));
   const embeddedFormatted = await formatEmbeddedRegions(tree.rootNode, resolvedOptions);
   return formatDocument(tree, document, resolvedOptions, {
@@ -449,7 +449,7 @@ connection.onDocumentRangeFormatting(async (params) => {
     return [];
   }
 
-  const { config, customTags, printWidth, mustacheSpaces, noBreakDelimiters } = resolveConfig(document.uri);
+  const { config, customTags, printWidth, mustacheSpaces, noBreakDelimiters } = await resolveConfig(document.uri);
   const resolvedOptions = mergeOptions(params.options, config, getEditorConfigOptions(document.uri));
   const embeddedFormatted = await formatEmbeddedRegions(tree.rootNode, resolvedOptions);
   return formatDocumentRange(tree, document, params.range, resolvedOptions, {

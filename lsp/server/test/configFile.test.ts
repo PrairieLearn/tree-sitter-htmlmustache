@@ -516,17 +516,17 @@ describe('loadConfigFile', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it('loads config from file:// URI', () => {
+  it('loads config from file:// URI', async () => {
     const uri = pathToFileURL(path.join(tempDir, 'test.mustache')).href;
-    const loaded = loadConfigFile(uri);
+    const loaded = await loadConfigFile(uri);
     expect(loaded).not.toBeNull();
     expect(loaded!.config.printWidth).toBe(120);
     expect(loaded!.config.mustacheSpaces).toBe(true);
     expect(loaded!.configDir).toBe(tempDir);
   });
 
-  it('returns null for non-file URI', () => {
-    expect(loadConfigFile('untitled:Untitled-1')).toBeNull();
+  it('returns null for non-file URI', async () => {
+    expect(await loadConfigFile('untitled:Untitled-1')).toBeNull();
   });
 });
 
@@ -545,19 +545,63 @@ describe('loadConfigFileForPath', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it('loads config for a file path', () => {
-    const loaded = loadConfigFileForPath(path.join(tempDir, 'test.mustache'));
+  it('loads config for a file path', async () => {
+    const loaded = await loadConfigFileForPath(path.join(tempDir, 'test.mustache'));
     expect(loaded).not.toBeNull();
     expect(loaded!.config.indentSize).toBe(8);
     expect(loaded!.configDir).toBe(tempDir);
   });
 
-  it('returns null when no config exists', () => {
+  it('returns null when no config exists', async () => {
     const isolated = fs.mkdtempSync(path.join(os.tmpdir(), 'no-config-path-'));
     try {
-      expect(loadConfigFileForPath(path.join(isolated, 'test.mustache'))).toBeNull();
+      expect(await loadConfigFileForPath(path.join(isolated, 'test.mustache'))).toBeNull();
     } finally {
       fs.rmSync(isolated, { recursive: true, force: true });
+    }
+  });
+
+  it('loads a formatsModule referenced from the config', async () => {
+    const fmTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lsp-fm-'));
+    try {
+      fs.writeFileSync(
+        path.join(fmTempDir, 'pl-formats.mjs'),
+        'export default { "pl-boolean": (v) => typeof v === "string" && /^(true|false)$/i.test(v) };',
+      );
+      fs.writeFileSync(
+        path.join(fmTempDir, 'pl-card.schema.json'),
+        JSON.stringify({
+          $schema: 'https://json-schema.org/draft/2020-12/schema',
+          type: 'object',
+          properties: {
+            attributes: {
+              type: 'object',
+              properties: { live: { type: 'string', format: 'pl-boolean' } },
+              required: ['live'],
+            },
+          },
+        }),
+      );
+      fs.writeFileSync(
+        path.join(fmTempDir, '.htmlmustache.jsonc'),
+        JSON.stringify({
+          formatsModule: './pl-formats.mjs',
+          customTags: [{ name: 'pl-card', schema: './pl-card.schema.json' }],
+        }),
+      );
+      const loaded = await loadConfigFileForPath(path.join(fmTempDir, 'test.mustache'));
+      expect(loaded).not.toBeNull();
+      expect(loaded!.schemaLoadErrors).toEqual([]);
+      const compiled = loaded!.schemaRegistry.schemas.get('pl-card')!;
+      expect(compiled).toBeDefined();
+      expect(
+        compiled.validate({ tag: 'pl-card', attributes: { live: 'True' }, children: [] }),
+      ).toBe(true);
+      expect(
+        compiled.validate({ tag: 'pl-card', attributes: { live: 'maybe' }, children: [] }),
+      ).toBe(false);
+    } finally {
+      fs.rmSync(fmTempDir, { recursive: true, force: true });
     }
   });
 });

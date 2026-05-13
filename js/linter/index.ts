@@ -15,6 +15,7 @@ import { toDiagnostic } from './diagnostic.js';
 import type { Diagnostic } from './diagnostic.js';
 import { GRAMMAR_WASM_FILENAME } from '../shared/grammar.js';
 import { loadSchemaRegistry } from '../shared/customTagSchemaLoader.js';
+import type { SchemaFormat } from '../shared/customTagSchemaLoader.js';
 import { RULE_DEFAULTS } from '../shared/ruleMetadata.js';
 import type {
   HtmlMustacheConfig,
@@ -36,7 +37,7 @@ export type Config = Omit<
   'include' | 'exclude' | 'customRules'
 > & { customRules?: CustomRule[] };
 export type CustomTag = CustomCodeTagConfig;
-export type { RulesConfig, RuleSeverity, Diagnostic };
+export type { RulesConfig, RuleSeverity, Diagnostic, SchemaFormat };
 
 export type LocateWasm = string | ((filename: string) => string);
 
@@ -48,6 +49,12 @@ export interface CreateLinterOptions {
    * resolve both names explicitly.
    */
   locateWasm: LocateWasm;
+  /**
+   * ajv formats registered on the schema validator. Consumers use this to
+   * add named formats (e.g. a case-insensitive `pl-boolean`) that their tag
+   * schemas reference via `{ "format": "<name>" }`.
+   */
+  formats?: Record<string, SchemaFormat>;
 }
 
 export interface Linter {
@@ -76,7 +83,7 @@ function resolveGrammarUrl(locateWasm: LocateWasm): string {
  * reloads the grammar WASM.
  */
 export async function createLinter(opts: CreateLinterOptions): Promise<Linter> {
-  const { locateWasm } = opts;
+  const { locateWasm, formats } = opts;
   const locateFile = toLocateFile(locateWasm);
   // `Parser.init` is idempotent (Emscripten caches the runtime globally), so
   // repeated calls are safe — the first locateFile wins.
@@ -94,7 +101,7 @@ export async function createLinter(opts: CreateLinterOptions): Promise<Linter> {
         const inlineSchemaTags = config?.customTags?.filter(
           (t) => t.schema && typeof t.schema !== 'string',
         );
-        const schemaResult = loadSchemaRegistry(inlineSchemaTags);
+        const schemaResult = loadSchemaRegistry(inlineSchemaTags, { formats });
         const errors = collectErrors(
           tree as unknown as WalkableTree,
           config?.rules,

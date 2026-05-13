@@ -151,5 +151,3 @@ Package manager: `pnpm`. `lsp/` is a separate workspace with its own client + se
 | `./linter`    | `createLinter({ locateWasm })` → `lint(source, config)`     |
 | `./formatter` | `createFormatter({ locateWasm, prettier })` → `format(...)` |
 | `./wasm`      | Direct URL to `tree-sitter-htmlmustache.wasm`               |
-
-See `docs/adr/0001-restructure-js-entry-points.md` for the rationale behind the split.

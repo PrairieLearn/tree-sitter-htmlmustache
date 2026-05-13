@@ -164,6 +164,60 @@ describe('lint', () => {
   });
 });
 
+describe('createLinter formats hook', () => {
+  const BOOLEAN_STRINGS = new Set([
+    'true',
+    't',
+    '1',
+    'yes',
+    'y',
+    'on',
+    'false',
+    'f',
+    '0',
+    'no',
+    'n',
+    'off',
+  ]);
+  const isBooleanString = (v: string) => BOOLEAN_STRINGS.has(v.toLowerCase());
+
+  it('lets a registered format gate schema diagnostics', async () => {
+    const handle = await createLinter({
+      locateWasm: (name) => {
+        if (name === GRAMMAR_WASM_FILENAME) return GRAMMAR_WASM_PATH;
+        return path.resolve(REPO_ROOT, 'node_modules', 'web-tree-sitter', name);
+      },
+      formats: { 'pl-boolean': isBooleanString },
+    });
+
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: {
+        attributes: {
+          type: 'object',
+          properties: {
+            answers: { type: 'string', format: 'pl-boolean' },
+          },
+          required: ['answers'],
+        },
+      },
+    };
+
+    const ok = handle.lint('<pl-card answers="Yes"></pl-card>', {
+      rules: { customTagSchema: 'error' },
+      customTags: [{ name: 'pl-card', schema }],
+    });
+    expect(ok.filter((d) => d.ruleName === 'customTagSchema')).toEqual([]);
+
+    const bad = handle.lint('<pl-card answers="maybe"></pl-card>', {
+      rules: { customTagSchema: 'error' },
+      customTags: [{ name: 'pl-card', schema }],
+    });
+    expect(bad.some((d) => d.ruleName === 'customTagSchema')).toBe(true);
+  });
+});
+
 describe('DEFAULT_CONFIG', () => {
   it('has rule entries for every built-in rule', () => {
     const rules = DEFAULT_CONFIG.rules as Record<string, string>;

@@ -585,86 +585,158 @@ describe('resolveFiles', () => {
     fs.rmSync(tempDir, { recursive: true, force: true });
   });
 
-  it('uses CLI patterns when provided', () => {
-    const { files } = resolveFiles(['*.mustache']);
+  it('uses CLI patterns when provided', async () => {
+    const { files } = await resolveFiles(['*.mustache']);
     expect(files.map((f) => path.basename(f))).toEqual(['a.mustache']);
   });
 
-  it('uses config include when no CLI patterns', () => {
+  it('uses config include when no CLI patterns', async () => {
     fs.writeFileSync(
       path.join(tempDir, '.htmlmustache.jsonc'),
       JSON.stringify({ include: ['**/*.mustache'] }),
     );
-    const { files } = resolveFiles([]);
+    const { files } = await resolveFiles([]);
     const basenames = files.map((f) => path.basename(f));
     expect(basenames).toContain('a.mustache');
     expect(basenames).toContain('c.mustache');
   });
 
-  it('excludes node_modules by default', () => {
-    const { files } = resolveFiles([]);
+  it('excludes node_modules by default', async () => {
+    const { files } = await resolveFiles([]);
     const basenames = files.map((f) => path.basename(f));
     expect(basenames).not.toContain('e.mustache');
   });
 
-  it('excludes .git by default', () => {
-    const { files } = resolveFiles([]);
+  it('excludes .git by default', async () => {
+    const { files } = await resolveFiles([]);
     const basenames = files.map((f) => path.basename(f));
     expect(basenames).not.toContain('f.mustache');
   });
 
-  it('applies config exclude patterns', () => {
+  it('applies config exclude patterns', async () => {
     fs.writeFileSync(
       path.join(tempDir, '.htmlmustache.jsonc'),
       JSON.stringify({ include: ['**/*.mustache'], exclude: ['vendor/**'] }),
     );
-    const { files } = resolveFiles([]);
+    const { files } = await resolveFiles([]);
     const basenames = files.map((f) => path.basename(f));
     expect(basenames).toContain('a.mustache');
     expect(basenames).not.toContain('d.mustache');
   });
 
-  it('applies exclude even with CLI patterns', () => {
+  it('applies exclude even with CLI patterns', async () => {
     fs.writeFileSync(
       path.join(tempDir, '.htmlmustache.jsonc'),
       JSON.stringify({ exclude: ['vendor/**'] }),
     );
-    const { files } = resolveFiles(['**/*.mustache']);
+    const { files } = await resolveFiles(['**/*.mustache']);
     const basenames = files.map((f) => path.basename(f));
     expect(basenames).toContain('a.mustache');
     expect(basenames).not.toContain('d.mustache');
   });
 
-  it('returns empty files and null config when no patterns and no config', () => {
+  it('returns empty files and null config when no patterns and no config', async () => {
     // Remove config file
     const configPath = path.join(tempDir, '.htmlmustache.jsonc');
     if (fs.existsSync(configPath)) fs.unlinkSync(configPath);
 
-    const { files, config } = resolveFiles([]);
+    const { files, config } = await resolveFiles([]);
     expect(files).toEqual([]);
     expect(config).toBeNull();
   });
 
-  it('returns empty files when config has no include and no CLI patterns', () => {
+  it('returns empty files when config has no include and no CLI patterns', async () => {
     fs.writeFileSync(
       path.join(tempDir, '.htmlmustache.jsonc'),
       JSON.stringify({ printWidth: 100 }),
     );
-    const { files, config } = resolveFiles([]);
+    const { files, config } = await resolveFiles([]);
     expect(files).toEqual([]);
     expect(config).not.toBeNull();
     expect(config!.include).toBeUndefined();
   });
 
-  it('returns configDir pointing at the config file location', () => {
+  it('returns configDir pointing at the config file location', async () => {
     fs.writeFileSync(
       path.join(tempDir, '.htmlmustache.jsonc'),
       JSON.stringify({ include: ['**/*.mustache'] }),
     );
-    const { configDir } = resolveFiles([]);
+    const { configDir } = await resolveFiles([]);
     // On macOS, process.cwd() resolves symlinks (/var -> /private/var),
     // so compare via realpath to stay portable.
     expect(configDir).toBe(fs.realpathSync(tempDir));
+  });
+
+  it('loads a formatsModule referenced from the config and applies it to schemas', async () => {
+    const configPath = path.join(tempDir, '.htmlmustache.jsonc');
+    const formatsPath = path.join(tempDir, 'pl-formats.mjs');
+    const schemaPath = path.join(tempDir, 'pl-card.schema.json');
+
+    fs.writeFileSync(
+      formatsPath,
+      [
+        'const BOOLEAN_STRINGS = new Set(["true","t","1","yes","y","on","false","f","0","no","n","off"]);',
+        'export default { "pl-boolean": (v) => typeof v === "string" && BOOLEAN_STRINGS.has(v.toLowerCase()) };',
+      ].join('\n'),
+    );
+    fs.writeFileSync(
+      schemaPath,
+      JSON.stringify({
+        $schema: 'https://json-schema.org/draft/2020-12/schema',
+        type: 'object',
+        properties: {
+          attributes: {
+            type: 'object',
+            properties: {
+              answers: { type: 'string', format: 'pl-boolean' },
+            },
+            required: ['answers'],
+          },
+        },
+      }),
+    );
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        include: ['**/*.mustache'],
+        formatsModule: './pl-formats.mjs',
+        customTags: [{ name: 'pl-card', schema: './pl-card.schema.json' }],
+      }),
+    );
+
+    const { schemaRegistry, schemaLoadErrors } = await resolveFiles([]);
+    expect(schemaLoadErrors ?? []).toEqual([]);
+    expect(schemaRegistry?.schemas.has('pl-card')).toBe(true);
+
+    const compiled = schemaRegistry!.schemas.get('pl-card')!;
+    expect(
+      compiled.validate({
+        tag: 'pl-card',
+        attributes: { answers: 'Yes' },
+        children: [],
+      }),
+    ).toBe(true);
+    expect(
+      compiled.validate({
+        tag: 'pl-card',
+        attributes: { answers: 'maybe' },
+        children: [],
+      }),
+    ).toBe(false);
+  });
+
+  it('reports a schemaLoadError when formatsModule cannot be loaded', async () => {
+    const configPath = path.join(tempDir, '.htmlmustache.jsonc');
+    fs.writeFileSync(
+      configPath,
+      JSON.stringify({
+        include: ['**/*.mustache'],
+        formatsModule: './missing-formats.mjs',
+      }),
+    );
+    const { schemaLoadErrors } = await resolveFiles([]);
+    expect(schemaLoadErrors?.length ?? 0).toBeGreaterThan(0);
+    expect(schemaLoadErrors![0].message).toContain('missing-formats.mjs');
   });
 });
 

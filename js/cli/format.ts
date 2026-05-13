@@ -106,12 +106,14 @@ function parseFlags(args: string[]): FormatFlags {
  * Resolve all settings for a file with the full priority chain:
  *   defaults < .htmlmustache.jsonc < .editorconfig (indent only) < CLI flags
  */
-function resolveSettings(
+async function resolveSettings(
   flags: FormatFlags,
   filePath?: string,
-): {
-  options: FormattingOptions;
-} & FormatDocumentParams {
+): Promise<
+  {
+    options: FormattingOptions;
+  } & FormatDocumentParams
+> {
   // 1. Defaults
   let tabSize = 2;
   let insertSpaces = true;
@@ -120,7 +122,7 @@ function resolveSettings(
   let customTags: CustomCodeTagConfig[] | undefined;
 
   // 2. Config file overrides defaults
-  const configFile = filePath ? loadConfigFileForPath(filePath) : null;
+  const configFile = filePath ? await loadConfigFileForPath(filePath) : null;
   let noBreakDelimiters: NoBreakDelimiter[] | undefined;
   if (configFile) {
     if (configFile.indentSize !== undefined) tabSize = configFile.indentSize;
@@ -224,7 +226,7 @@ export async function run(args: string[]): Promise<number> {
   // Stdin mode
   if (flags.stdin) {
     await initializeParser();
-    const { options, ...params } = resolveSettings(flags);
+    const { options, ...params } = await resolveSettings(flags);
     const source = fs.readFileSync(0, 'utf-8');
     const formatted = await formatSource(source, options, params);
     process.stdout.write(formatted);
@@ -232,7 +234,7 @@ export async function run(args: string[]): Promise<number> {
   }
 
   // File mode
-  const { files, config } = resolveFiles(flags.patterns);
+  const { files, config } = await resolveFiles(flags.patterns);
 
   if (files.length === 0) {
     if (
@@ -259,7 +261,7 @@ export async function run(args: string[]): Promise<number> {
   for (const file of files) {
     const displayPath = path.relative(cwd, file) || file;
     const source = fs.readFileSync(file, 'utf-8');
-    const { options, ...params } = resolveSettings(flags, file);
+    const { options, ...params } = await resolveSettings(flags, file);
     const formatted = await formatSource(source, options, params);
     const changed = formatted !== source;
 

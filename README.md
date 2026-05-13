@@ -439,6 +439,157 @@ Override individual diagnostics with JSON Schema's [`errorMessage` keyword](http
 
 ajv-errors substitutes the original ajv error with one whose message is your string; the rewriter sees `keyword: "errorMessage"`, doesn't recognise it, and passes the string through. Use this when the default phrasing doesn't say enough about your domain (e.g. linking authors to a runbook URL, naming a specific config the attribute drives).
 
+#### Parent-conditional child constraints
+
+Because the validated value includes direct children's `tag` and `attributes` (see the [Element shape](#tag-schemas) above), JSON Schema 2020-12's `if`/`then`/`else` is enough to express rules that depend on parent state. No extension keywords or cross-schema composition required.
+
+For example: when `<pl-multiple-choice builtin-grading="false">`, its `<pl-answer>` children must not carry `score` or `feedback`:
+
+```jsonc
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "attributes": {
+      "type": "object",
+      "properties": {
+        "builtin-grading": { "type": "string" },
+      },
+    },
+  },
+  "if": {
+    "properties": {
+      "attributes": {
+        "properties": { "builtin-grading": { "const": "false" } },
+        "required": ["builtin-grading"],
+      },
+    },
+  },
+  "then": {
+    "properties": {
+      "children": {
+        "type": "array",
+        "items": {
+          "if": {
+            "properties": { "tag": { "const": "pl-answer" } },
+            "required": ["tag"],
+          },
+          "then": {
+            "properties": {
+              "attributes": {
+                "allOf": [
+                  { "not": { "required": ["score"] } },
+                  { "not": { "required": ["feedback"] } },
+                ],
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+}
+```
+
+The error path is `/children/<i>/attributes/<name>`, which the diagnostic rewriter resolves to a child-anchored message. Combine with `errorMessage` to phrase it in domain terms (`<pl-answer> can't carry "score" when its <pl-multiple-choice> parent has builtin-grading="false"`).
+
+Limits worth knowing:
+
+- The validated value carries **direct children only**. A schema can't reach grandchildren — for that, the grandparent's own schema is the wrong layer, and PrairieLearn-style rules typically split the responsibility across the relevant parent schemas.
+- Parent and child schemas validate **independently**: the parent's `then` clause adds constraints on top of whatever the child's own schema says, it doesn't replace it.
+- `if`/`then` is one of the keywords without an HTML-shaped diagnostic rewriter, so a failure falls through to ajv's localized text unless you supply `errorMessage`.
+
+#### Custom formats
+
+Schemas can use the `format` keyword for value rules that don't fit into `enum`/`pattern`/`type` — for example, the case-insensitive truthy-string set PrairieLearn accepts for boolean attributes (`true`/`t`/`1`/`yes`/`y`/`on` and their negatives, any case). Register the format implementation programmatically when constructing the linter:
+
+```ts
+import {
+  createLinter,
+  type SchemaFormat,
+} from '@reteps/tree-sitter-htmlmustache/linter';
+
+const BOOLEAN_STRINGS = new Set([
+  'true',
+  't',
+  '1',
+  'yes',
+  'y',
+  'on',
+  'false',
+  'f',
+  '0',
+  'no',
+  'n',
+  'off',
+]);
+const plBoolean: SchemaFormat = (value) =>
+  typeof value === 'string' && BOOLEAN_STRINGS.has(value.toLowerCase());
+
+const linter = await createLinter({
+  locateWasm,
+  formats: { 'pl-boolean': plBoolean },
+});
+```
+
+A schema then references it like any built-in format:
+
+```jsonc
+{
+  "type": "object",
+  "properties": {
+    "attributes": {
+      "properties": {
+        "fixed-order": { "type": "string", "format": "pl-boolean" },
+      },
+    },
+  },
+}
+```
+
+Formats are functions (or `RegExp`, or ajv [`FormatDefinition`](https://ajv.js.org/options.html#formats) objects), so they can't live directly in `.htmlmustache.jsonc`. For the CLI and the VS Code extension (which both load `.htmlmustache.jsonc`), supply them through a `formatsModule` field pointing at a relative JS/TS file that exports a `Record<string, SchemaFormat>` as its default export:
+
+```jsonc
+// .htmlmustache.jsonc
+{
+  "customTags": [
+    {
+      "name": "pl-multiple-choice",
+      "schema": "elements/pl-multiple-choice/pl-multiple-choice.schema.json",
+    },
+  ],
+  "formatsModule": "./scripts/htmlmustache-formats.mjs",
+  "rules": { "customTagSchema": "error" },
+}
+```
+
+```js
+// scripts/htmlmustache-formats.mjs
+const BOOLEAN_STRINGS = new Set([
+  'true',
+  't',
+  '1',
+  'yes',
+  'y',
+  'on',
+  'false',
+  'f',
+  '0',
+  'no',
+  'n',
+  'off',
+]);
+
+export default {
+  'pl-boolean': (value) =>
+    typeof value === 'string' && BOOLEAN_STRINGS.has(value.toLowerCase()),
+};
+```
+
+The CLI and the language server dynamically import this file once per process (cached by absolute path) and register the exported formats on the schema validator before any tag schema compiles. Note the trust implication: pointing `formatsModule` at a path means running that code in-process when the CLI lints or the VS Code extension opens a document — treat it like a build script in your repo.
+
+If the file can't be loaded, or its export shape is wrong, you'll see a `customTagSchema`-rule diagnostic naming the path in the failure message; tag schemas that reference an unregistered format will then fail at compile time with the standard ajv "unknown format" error.
+
 ### Custom Rules
 
 Define project-specific lint rules using CSS-like selectors. Mustache constructs are written literally — `{{foo}}`, `{{{foo}}}`, `{{#section}}`, `{{^inverted}}`, `{{!comment}}`, `{{>partial}}`:

@@ -138,6 +138,13 @@ export interface HtmlMustacheConfig {
   exclude?: string[];
   rules?: RulesConfig;
   customRules?: CustomRule[];
+  /**
+   * Path (relative to the config file) to an ESM/CJS module whose default
+   * export is `Record<string, SchemaFormat>`. The CLI and LSP dynamically
+   * import it and register the formats on the schema validator before any
+   * tag schema compiles, so schemas can reference them via `"format": "..."`.
+   */
+  formatsModule?: string;
 }
 
 /**
@@ -323,6 +330,10 @@ export function validateConfig(raw: unknown): HtmlMustacheConfig {
       hasRules = true;
     }
     if (hasRules) config.rules = rules;
+  }
+
+  if (typeof obj.formatsModule === 'string' && obj.formatsModule.length > 0) {
+    config.formatsModule = obj.formatsModule;
   }
 
   if (Array.isArray(obj.customRules)) {
