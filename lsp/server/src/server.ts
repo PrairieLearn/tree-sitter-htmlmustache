@@ -26,6 +26,7 @@ import { mergeOptions } from '../../../js/formatter/mergeOptions.js';
 import { getEditorConfigOptions } from '../../../js/formatter/editorconfig.js';
 import { getDiagnostics } from './diagnostics.js';
 import { getCodeActions } from './codeActions.js';
+import { getCompletions } from './completion.js';
 import { initializeTextMateRegistry, isTextMateReady, tokenizeEmbeddedContent, setEmbeddedTokenizerLogger } from './embeddedTokenizer.js';
 import { findCustomCodeTagContent, isCodeTag } from '../../../js/shared/customCodeTags.js';
 import type { CustomCodeTagConfig } from '../../../js/shared/customCodeTags.js';
@@ -189,8 +190,12 @@ connection.onInitialize(async (params: InitializeParams): Promise<InitializeResu
       documentFormattingProvider: true,
       documentRangeFormattingProvider: true,
 
+      // Schema-driven completion for custom tag attributes and values
+      completionProvider: {
+        triggerCharacters: [' ', '"', "'", '='],
+      },
+
       // TODO: Add more capabilities as needed
-      // completionProvider: { resolveProvider: true },
       // definitionProvider: true,
       // referencesProvider: true,
     },
@@ -361,6 +366,22 @@ connection.onFoldingRanges((params) => {
   }
 
   return getFoldingRanges(tree);
+});
+
+// Completion handler (schema-driven attribute names + values)
+connection.onCompletion(async (params) => {
+  const document = documents.get(params.textDocument.uri);
+  if (!document) {
+    return [];
+  }
+
+  const tree = getTree(document);
+  if (!tree) {
+    return [];
+  }
+
+  const { schemaRegistry } = await resolveConfig(document.uri);
+  return getCompletions(tree, document, params, schemaRegistry);
 });
 
 // Code action handler (quick fixes)
