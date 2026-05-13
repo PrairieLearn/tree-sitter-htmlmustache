@@ -11,12 +11,16 @@ export type JSONSchema = Record<string, unknown>;
 
 export interface AttributeInfo {
   name: string;
-  /** True if the property name appears in the attributes schema's top-level
+  /**
+   * True if the property name appears in the attributes schema's top-level
    * `required` array. Conditional `required` from `if`/`then` is intentionally
-   * not surfaced. */
+   * not surfaced.
+   */
   required: boolean;
-  /** The first subschema describing this attribute (used to drive value
-   * completion + documentation). */
+  /**
+   * The first subschema describing this attribute (used to drive value
+   * completion + documentation).
+   */
   schema: JSONSchema;
 }
 
@@ -34,8 +38,10 @@ export interface AttributeValueCandidate {
 
 export interface AttributeValueResult {
   values: AttributeValueCandidate[];
-  /** Format names seen across any branch — surfaced as a hint (`format: X`)
-   * when there are no concrete values to offer. */
+  /**
+   * Format names seen across any branch — surfaced as a hint (`format: X`)
+   * when there are no concrete values to offer.
+   */
   formats: string[];
 }
 

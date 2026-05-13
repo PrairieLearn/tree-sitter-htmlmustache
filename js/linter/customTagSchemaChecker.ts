@@ -582,10 +582,7 @@ function constraintPhrase(error: ErrorObject): string | null {
  * <tag>" framing for an instancePath, or `null` when the path lands somewhere
  * a stock prefix doesn't make sense (root, `children/N/text`, etc.).
  */
-function attributePrefix(
-  segments: string[],
-  json: ElementJson,
-): string | null {
+function attributePrefix(segments: string[], json: ElementJson): string | null {
   if (segments[0] === 'attributes') {
     const attrName = segments[1];
     if (!attrName) return null;

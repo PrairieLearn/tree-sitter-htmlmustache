@@ -622,11 +622,16 @@ const uniqueChildText: SchemaKeyword = {
     const seen = new Set<string>();
     for (const child of data) {
       const text =
-        child && typeof child === 'object' ? (child as { text?: unknown }).text : undefined;
+        child && typeof child === 'object'
+          ? (child as { text?: unknown }).text
+          : undefined;
       if (typeof text !== 'string') continue;
       if (seen.has(text)) {
         uniqueChildText.errors = [
-          { keyword: 'unique-child-text', message: `duplicate child text "${text}"` },
+          {
+            keyword: 'unique-child-text',
+            message: `duplicate child text "${text}"`,
+          },
         ];
         return false;
       }
