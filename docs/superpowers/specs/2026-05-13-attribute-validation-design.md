@@ -61,11 +61,33 @@ Extend `customTags[]` with an optional `schema` field. The value is either a pat
 }
 ```
 
-- `schema: string` — path; resolved against the config file's directory; loaded lazily and cached per absolute path.
+- `schema: string` — path; resolved against the config file's directory; read and compiled eagerly when the config loads; the compiled validator is cached for the lifetime of the linter process. The LSP server does **not** watch schema files for changes — schema edits require a server restart. (Documented limitation; can be added later by extending the existing config watcher.)
 - `schema: object` — inline. Both file and inline schemas must declare `"$schema": "https://json-schema.org/draft/2020-12/schema"` (other drafts rejected with a config diagnostic).
 - Schema-load failures (missing file, JSON parse error, ajv compile error) produce a single config-level diagnostic at row 0, column 0 of every file checked under that config. The tag's other behaviors (`display`, `languageAttribute`, etc.) are unaffected.
 - Inline disable: `<!-- htmlmustache-disable customTagSchema -->` and `{{! htmlmustache-disable customTagSchema }}` follow the existing mechanism (registered in `customRuleIds` lookup).
 - `customTagSchema` is registered in `ruleMetadata.ts` with default severity `error` and a one-line description for the rules table in the README.
+
+### 3.1 The `htmlGlobalAttributes` extension keyword
+
+A single custom ajv keyword, `htmlGlobalAttributes`, is registered at compile time. When a schema's `attributes` object sets `"htmlGlobalAttributes": true`, the loader expands the list of HTML global attributes into the `properties` object *before* compile — so `additionalProperties: false` accepts them silently.
+
+```jsonc
+"attributes": {
+  "type": "object",
+  "additionalProperties": false,
+  "htmlGlobalAttributes": true,            // opt-in
+  "required": ["answers-name"],
+  "properties": {
+    "answers-name": { "type": "string" }
+    // class, id, style, lang, dir, tabindex, title, role,
+    // data-*, aria-* are added automatically
+  }
+}
+```
+
+The hard-coded list for MVP: `class`, `id`, `style`, `lang`, `dir`, `tabindex`, `title`, `role`, and the prefixes `data-*` and `aria-*`. Prefix entries expand to a `patternProperties` clause. The keyword is a no-op when omitted or false — schemas that don't use it match `pl-multiple-choice`'s strict behaviour (matches today's `pl.check_attribs`).
+
+This is the only extension keyword introduced by MVP. Further extensions (`severity`, per-error rule ids, etc.) are explicitly deferred.
 
 ## 4. Element-to-JSON mapping
 
@@ -99,26 +121,33 @@ Rules:
 
 - **`tag`**: lowercase.
 - **`attributes`**: object of `name → value`. Boolean-attribute syntax (no `=`) maps to `""`. Duplicate attributes (a separate lint rule) collapse last-wins to avoid double-reporting.
-- **`children`**: one-level walk. Mustache sections (`{{#…}}` / `{{^…}}`) are *flattened* — their inner elements are included as if the section were absent. Mustache interpolations, comments, partials, raw text, and HTML whitespace are dropped. This matches the kind-transparent ("max-set") semantics already used by selector rules.
+- **`children`**: one-level walk. **All HTML elements** (custom-tag or otherwise) appear, regardless of whether they themselves have a registered schema — this is how `tag.const`/`items.oneOf` rules in the parent can reject unknown child tags. Mustache sections (`{{#…}}` / `{{^…}}`) are *flattened* — their inner elements are included as if the section were absent. Mustache interpolations, comments, partials, raw text, HTML comments, and whitespace are dropped. This matches the kind-transparent ("max-set") semantics already used by selector rules.
 - **No `_fork` field**: section structure is not surfaced to the schema. Timeline-aware validation is out of scope; we lean on flatten + selector parity for now.
+- **Independent validation of nested schemas**: each custom tag occurrence is validated against its own schema (if one is registered), *independently* of the parent's validation. The parent's `children` schema constrains the child's shape from the parent's perspective (e.g. closed-set, parent-context conditional rules); the child's own schema constrains the child's intrinsic rules. Authors are expected to keep them disjoint by convention — parent schemas describe direct children only insofar as a rule depends on parent state; everything else lives on the child.
 
 ## 5. Attribute coercion and mustache waiver
 
 ajv runs with `{ coerceTypes: true, allErrors: true, useDefaults: false, strict: false }`.
 
 - `"2"` → `2` for `type: integer`; `"true"`/`"false"` → boolean; `""` → `true` for `type: boolean`. Mismatched coercion (e.g. `"abc"` for `integer`) emits a normal ajv error.
-- **Mustache waiver.** Some attribute values are not literal because they contain mustache constructs (`weight="{{w}}"`, `display="{{prefix}}-block"`). At runtime they can take any value; the linter must not flag a value-rule violation.
+- **Mustache waiver — sentinel substitution + post-filter.** Some attribute values are not literal because they contain mustache constructs (`weight="{{w}}"`, `display="{{prefix}}-block"`). At runtime they can take any value; the linter must not flag a value-dependent error.
 
-  Implementation is a **single pass with sentinel substitution**, performed while building the JSON value:
+  Implementation has two parts performed by the checker:
 
-  - Scan each attribute value for `{{`. If present, look up the schema branch that applies to that attribute (`properties[name]` after `allOf`/`anyOf` resolution) and substitute the *most permissive valid sentinel* derived from the schema:
-    - `enum: [...]` → first enum value (always passes the enum check)
-    - `type: boolean` → `true`
-    - `type: integer` / `number` → `0` (or the schema's `minimum` if `minimum > 0`)
-    - `type: string` → `""` (or any value matching `pattern`/`minLength`/`maxLength`; fall back to a single space if `minLength ≥ 1`)
-    - No type / unconstrained → leave the original string (no value rules to fail)
-  - Substitution is per-attribute. Presence is preserved (the key stays in `attributes`), so `required` and `additionalProperties: false` still fire on mustache-bearing attributes. Cross-attribute rules (`if/then` on attribute *values*) are intentionally waived when the gating attribute is mustache-bearing, since we can't statically know the runtime value.
-  - The substitution lookup is best-effort: schemas with deeply nested `allOf`/`oneOf` branching may fall back to "no substitution" rather than risk a wrong choice. Documented limitation; authors are encouraged to use flat `properties` declarations for attributes that may be mustache-bearing.
+  1. **Sentinel substitution at JSON-build time.** Scan each attribute value for `{{`. If present, look up the schema branch that applies to that attribute (`properties[name]` after `allOf`/`anyOf` resolution) and substitute a sentinel that passes ajv's coercion + the attribute's own value rules:
+     - `enum: [...]` → first enum value
+     - `type: boolean` → `true`
+     - `type: integer` / `number` → `0` (or the schema's `minimum` if `minimum > 0`)
+     - `type: string` → `""` (or a value matching `pattern`/`minLength`)
+     - Unconstrained or schema-less attribute → leave the original string
+
+     The substitution lookup is best-effort: schemas with deeply nested `allOf`/`oneOf` branching may fall back to "no substitution" rather than risk a wrong choice. Documented limitation; authors are encouraged to use flat `properties` declarations for attributes that may be mustache-bearing.
+
+  2. **Post-filter on `instancePath`.** Track which attributes were mustache-bearing on this element. After ajv runs, drop any error whose `instancePath` traverses one of those attributes — either as the offending property or as a value the rule consulted. Concretely: walk the error's `instancePath` and `schemaPath`/`params`; if any segment names a mustache-bearing attribute, the error is suppressed.
+
+     Effect: cross-attribute rules (`if/then` on values) are fully waived when any operand is mustache-bearing. This avoids false positives — sentinels chosen to satisfy local value rules can incidentally trigger or escape cross-attribute conditionals, and we don't want either case to surface as a diagnostic that depends on a value we can't predict.
+
+  Presence is preserved (the key stays in `attributes`), so `required` and `additionalProperties: false` still fire on mustache-bearing attributes — those rules don't depend on the value.
 
 - Schema authors write plain JSON Schema; no `nullable: true` or special markers are required.
 
@@ -166,7 +195,7 @@ Each ajv `ErrorObject` becomes a `FixableError` with:
   | `additionalProperties`/`items` on children | the offending child element's start tag           |
   | `minItems`/`minContains`/`required` on children            | element's `html_start_tag`                        |
 
-- **`message`**: prefer ajv's `errorMessage` (via `ajv-errors`) when the schema author supplies one; otherwise format ajv's default `keyword`/`params` into a human string (`"display must be one of 'inline', 'block', 'dropdown'"`).
+- **`message`**: produced by running ajv's errors through **`ajv-i18n` (English locale)** for a baseline of readable defaults, with **`ajv-errors`** as the schema-author escape hatch for one-off custom messages. We do not maintain a custom rewriter — the goal is to keep maintenance burden close to zero in this layer.
 - **`ruleName`**: always `'customTagSchema'`. Per-error rule names are out of MVP.
 - **`severity`**: inherited from the `customTagSchema` rule severity.
 - **`fix` / `fixDescription`**: absent in MVP.
@@ -291,8 +320,9 @@ cli/src/
   check.ts                       ← pass resolved schemas through to collectErrors
 
 package.json (root)
-  + ajv ^8                       ← validator
-  + ajv-errors ^3                ← optional human messages from schema
+  + ajv ^8                       ← validator (draft-2020-12 entry point)
+  + ajv-i18n ^4                  ← English-locale default messages
+  + ajv-errors ^3                ← author-supplied errorMessage overrides
 
 README.md
   + "Tag schemas" section
