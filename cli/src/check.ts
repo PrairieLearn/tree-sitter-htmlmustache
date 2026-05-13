@@ -13,6 +13,8 @@ import type { WalkableTree } from '../../src/core/collectErrors';
 import { filterCustomRulesForPath } from '../../src/core/customRuleFilter';
 import { toDiagnostic } from '../../src/core/diagnostic';
 import type { Diagnostic } from '../../src/core/diagnostic';
+import { loadSchemaRegistry } from '../../src/core/customTagSchemaLoader';
+import type { ConfigLoadError, SchemaRegistry } from '../../src/core/customTagSchemaLoader';
 
 // ── Types ──
 
@@ -26,10 +28,29 @@ export interface CheckResult {
   errors: CheckError[];
 }
 
+interface SchemaCheckOptions {
+  registry?: SchemaRegistry;
+  loadErrors?: ConfigLoadError[];
+}
+
 // ── Error collection ──
 
-export function collectErrors(tree: Tree, file: string, rules?: RulesConfig, customTagNames?: string[], customRules?: CustomRule[]): CheckError[] {
-  const errors = collectTreeErrors(tree as unknown as WalkableTree, rules, customTagNames, customRules);
+export function collectErrors(
+  tree: Tree,
+  file: string,
+  rules?: RulesConfig,
+  customTagNames?: string[],
+  customRules?: CustomRule[],
+  schemaOptions?: SchemaCheckOptions,
+): CheckError[] {
+  const errors = collectTreeErrors(
+    tree as unknown as WalkableTree,
+    rules,
+    customTagNames,
+    customRules,
+    schemaOptions?.registry,
+    schemaOptions?.loadErrors,
+  );
   return errors.map(error => ({
     file,
     nodeText: error.node.text,
@@ -140,7 +161,7 @@ export function expandGlobs(patterns: string[]): string[] {
 
 const DEFAULT_EXCLUDE_SEGMENTS = ['/node_modules/', '/.git/'];
 
-export function resolveFiles(cliPatterns: string[]): { files: string[]; config: HtmlMustacheConfig | null; configDir: string | null } {
+export function resolveFiles(cliPatterns: string[]): { files: string[]; config: HtmlMustacheConfig | null; configDir: string | null; schemaRegistry?: SchemaRegistry; schemaLoadErrors?: ConfigLoadError[] } {
   // Load config from cwd
   const configPath = findConfigFile(process.cwd());
   let config: HtmlMustacheConfig | null = null;
@@ -155,6 +176,13 @@ export function resolveFiles(cliPatterns: string[]): { files: string[]; config: 
     }
   }
 
+  const schemaResult = config
+    ? loadSchemaRegistry(config.customTags, {
+        configDir: configDir ?? undefined,
+        loadFile: (schemaPath, baseDir) => parseJsonc(fs.readFileSync(path.resolve(baseDir, schemaPath), 'utf-8')),
+      })
+    : undefined;
+
   // Determine include patterns
   let patterns: string[];
   if (cliPatterns.length > 0) {
@@ -162,7 +190,7 @@ export function resolveFiles(cliPatterns: string[]): { files: string[]; config: 
   } else if (config?.include && config.include.length > 0) {
     patterns = config.include;
   } else {
-    return { files: [], config, configDir };
+    return { files: [], config, configDir, schemaRegistry: schemaResult?.registry, schemaLoadErrors: schemaResult?.loadErrors };
   }
 
   // Expand globs
@@ -187,7 +215,7 @@ export function resolveFiles(cliPatterns: string[]): { files: string[]; config: 
     files = files.filter(f => !excludeSet.has(f));
   }
 
-  return { files, config, configDir };
+  return { files, config, configDir, schemaRegistry: schemaResult?.registry, schemaLoadErrors: schemaResult?.loadErrors };
 }
 
 // ── Fix application ──
@@ -249,7 +277,7 @@ export async function run(args: string[]): Promise<number> {
   const fixMode = args.includes('--fix');
   const patterns = args.filter(a => a !== '--fix');
 
-  const { files, config, configDir } = resolveFiles(patterns);
+  const { files, config, configDir, schemaRegistry, schemaLoadErrors } = resolveFiles(patterns);
 
   if (files.length === 0) {
     if (patterns.length === 0 && (!config?.include || config.include.length === 0)) {
@@ -288,7 +316,7 @@ export async function run(args: string[]): Promise<number> {
     if (fixMode) {
       // Apply fixes, then re-parse to report remaining errors
       const tree = parseDocument(source);
-      const errors = collectErrors(tree, displayPath, rules, customTagNames, applicableCustomRules);
+      const errors = collectErrors(tree, displayPath, rules, customTagNames, applicableCustomRules, { registry: schemaRegistry, loadErrors: schemaLoadErrors });
       const fixed = applyFixes(source, errors);
       if (fixed !== source) {
         fs.writeFileSync(file, fixed, 'utf-8');
@@ -297,7 +325,7 @@ export async function run(args: string[]): Promise<number> {
     }
 
     const tree = parseDocument(source);
-    const errors = collectErrors(tree, displayPath, rules, customTagNames, applicableCustomRules);
+    const errors = collectErrors(tree, displayPath, rules, customTagNames, applicableCustomRules, { registry: schemaRegistry, loadErrors: schemaLoadErrors });
 
     const fileErrors = errors.filter(e => e.severity !== 'warning');
     const fileWarnings = errors.filter(e => e.severity === 'warning');

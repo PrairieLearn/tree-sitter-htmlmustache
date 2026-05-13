@@ -11,8 +11,12 @@ import { fileURLToPath } from 'url';
 
 import { parseJsonc, validateConfig } from '../../../src/core/configSchema.js';
 import type { HtmlMustacheConfig } from '../../../src/core/configSchema.js';
+import { loadSchemaRegistry } from '../../../src/core/customTagSchemaLoader.js';
+import type { ConfigLoadError, SchemaRegistry } from '../../../src/core/customTagSchemaLoader.js';
 
 const CONFIG_FILENAME = '.htmlmustache.jsonc';
+
+const schemaCache = new Map<string, { schemaRegistry: SchemaRegistry; schemaLoadErrors: ConfigLoadError[] }>();
 
 /**
  * Walk up directories from `startDir` looking for `.htmlmustache.jsonc`.
@@ -35,10 +39,30 @@ export function findConfigFile(startDir: string): string | null {
   }
 }
 
-export interface LoadedConfig {
+export interface LoadedConfig extends HtmlMustacheConfig {
   config: HtmlMustacheConfig;
   /** Directory containing the .htmlmustache.jsonc — used to resolve relative globs. */
   configDir: string;
+  schemaRegistry: SchemaRegistry;
+  schemaLoadErrors: ConfigLoadError[];
+}
+
+function readSchemaFile(schemaPath: string, configDir: string): unknown {
+  const resolved = path.resolve(configDir, schemaPath);
+  return parseJsonc(fs.readFileSync(resolved, 'utf-8'));
+}
+
+function loadSchemasCached(config: HtmlMustacheConfig, configDir: string): { schemaRegistry: SchemaRegistry; schemaLoadErrors: ConfigLoadError[] } {
+  const key = `${configDir}\0${JSON.stringify(config.customTags ?? [])}`;
+  const cached = schemaCache.get(key);
+  if (cached) return cached;
+  const { registry: schemaRegistry, loadErrors: schemaLoadErrors } = loadSchemaRegistry(config.customTags, {
+    configDir,
+    loadFile: readSchemaFile,
+  });
+  const result = { schemaRegistry, schemaLoadErrors };
+  schemaCache.set(key, result);
+  return result;
 }
 
 /**
@@ -67,7 +91,9 @@ export function loadConfigFileForPath(filePath: string): LoadedConfig | null {
     const text = fs.readFileSync(configPath, 'utf-8');
     const raw = parseJsonc(text);
     const config = validateConfig(raw);
-    return { config, configDir: path.dirname(configPath) };
+    const configDir = path.dirname(configPath);
+    const { schemaRegistry, schemaLoadErrors } = loadSchemasCached(config, configDir);
+    return { ...config, config, configDir, schemaRegistry, schemaLoadErrors };
   } catch {
     return null;
   }

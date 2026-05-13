@@ -52,6 +52,11 @@ export const RULES: RuleDefinition[] = [
     defaultSeverity: 'off',
     description: 'Flags configured elements whose inner content exceeds a byte-length threshold (opt-in; requires `elements: [{ tag, maxBytes }]` option)',
   },
+  {
+    name: 'customTagSchema',
+    defaultSeverity: 'error',
+    description: 'Validates configured custom tags against their JSON Schema contracts',
+  },
 ];
 
 /** Set of all known rule names (for config validation). */

@@ -20,6 +20,7 @@ import { RULE_DEFAULTS } from '../core/ruleMetadata.js';
 import { toDiagnostic } from '../core/diagnostic.js';
 import type { Diagnostic } from '../core/diagnostic.js';
 import { GRAMMAR_WASM_FILENAME } from '../core/grammar.js';
+import { loadSchemaRegistry } from '../core/customTagSchemaLoader.js';
 import type {
   HtmlMustacheConfig,
   RulesConfig,
@@ -101,11 +102,15 @@ export async function createLinter(opts: CreateLinterOptions): Promise<Linter> {
       if (!tree) throw new Error('Failed to parse document');
       try {
         const customTagNames = config?.customTags?.map((t) => t.name);
+        const inlineSchemaTags = config?.customTags?.filter((t) => t.schema && typeof t.schema !== 'string');
+        const schemaResult = loadSchemaRegistry(inlineSchemaTags);
         const errors = collectErrors(
           tree as unknown as WalkableTree,
           config?.rules,
           customTagNames,
           config?.customRules,
+          schemaResult.registry,
+          schemaResult.loadErrors,
         );
         return errors.map(toDiagnostic);
       } finally {

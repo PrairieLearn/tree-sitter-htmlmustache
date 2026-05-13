@@ -31,6 +31,7 @@ import { findCustomCodeTagContent, isCodeTag } from '../../../src/core/customCod
 import type { CustomCodeTagConfig } from '../../../src/core/customCodeTags.js';
 import { loadConfigFile } from './configFile.js';
 import type { HtmlMustacheConfig, NoBreakDelimiter } from '../../../src/core/configSchema.js';
+import type { ConfigLoadError, SchemaRegistry } from '../../../src/core/customTagSchemaLoader.js';
 import { filterCustomRulesForPath } from '../../../src/core/customRuleFilter.js';
 
 // Create connection and document manager
@@ -57,6 +58,8 @@ function resolveConfig(uri: string): {
   printWidth: number;
   mustacheSpaces: boolean | undefined;
   noBreakDelimiters: NoBreakDelimiter[] | undefined;
+  schemaRegistry: SchemaRegistry | undefined;
+  schemaLoadErrors: ConfigLoadError[] | undefined;
 } {
   const loaded = loadConfigFile(uri);
   const config = loaded?.config ?? null;
@@ -67,6 +70,8 @@ function resolveConfig(uri: string): {
     printWidth: config?.printWidth ?? 80,
     mustacheSpaces: config?.mustacheSpaces,
     noBreakDelimiters: config?.noBreakDelimiters,
+    schemaRegistry: loaded?.schemaRegistry,
+    schemaLoadErrors: loaded?.schemaLoadErrors,
   };
 }
 
@@ -201,10 +206,10 @@ documents.onDidOpen((event) => {
   connection.console.log(`Document opened: ${event.document.uri} (language: ${event.document.languageId})`);
   const tree = parseAndCacheDocument(event.document);
   if (tree) {
-    const { config, configDir } = resolveConfig(event.document.uri);
+    const { config, configDir, schemaRegistry, schemaLoadErrors } = resolveConfig(event.document.uri);
     const customTagNames = config?.customTags?.map(t => t.name);
     const customRules = applicableCustomRules(event.document.uri, config, configDir);
-    connection.sendDiagnostics({ uri: event.document.uri, diagnostics: getDiagnostics(tree, config?.rules, customTagNames, customRules) });
+    connection.sendDiagnostics({ uri: event.document.uri, diagnostics: getDiagnostics(tree, config?.rules, customTagNames, customRules, schemaRegistry, schemaLoadErrors) });
   }
 });
 
@@ -212,10 +217,10 @@ documents.onDidOpen((event) => {
 documents.onDidChangeContent((change) => {
   const tree = parseAndCacheDocument(change.document);
   if (tree) {
-    const { config, configDir } = resolveConfig(change.document.uri);
+    const { config, configDir, schemaRegistry, schemaLoadErrors } = resolveConfig(change.document.uri);
     const customTagNames = config?.customTags?.map(t => t.name);
     const customRules = applicableCustomRules(change.document.uri, config, configDir);
-    connection.sendDiagnostics({ uri: change.document.uri, diagnostics: getDiagnostics(tree, config?.rules, customTagNames, customRules) });
+    connection.sendDiagnostics({ uri: change.document.uri, diagnostics: getDiagnostics(tree, config?.rules, customTagNames, customRules, schemaRegistry, schemaLoadErrors) });
   }
 });
 

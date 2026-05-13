@@ -11,6 +11,7 @@ export interface CustomCodeTagConfig {
   languageDefault?: string;
   indent?: CustomCodeTagIndentMode;
   indentAttribute?: string;
+  schema?: string | Record<string, unknown>;
 }
 
 /** Alias for CustomCodeTagConfig (unified name). */

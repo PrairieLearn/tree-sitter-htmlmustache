@@ -235,18 +235,52 @@ Additionally, the following rules are configurable. Set their severities (`"erro
 
 <!-- RULES_TABLE_START -->
 
-| Rule                           | Default   | Description                                                                  |
-| ------------------------------ | --------- | ---------------------------------------------------------------------------- |
-| `nestedDuplicateSections`      | `error`   | Flags `{{#name}}` nested inside another `{{#name}}` with the same name       |
-| `unquotedMustacheAttributes`   | `error`   | Requires quotes around mustache expressions used as attribute values         |
-| `consecutiveDuplicateSections` | `warning` | Warns when adjacent same-name sections can be merged                         |
-| `selfClosingNonVoidTags`       | `error`   | Disallows self-closing syntax on non-void HTML elements (e.g. `<div/>`)      |
-| `duplicateAttributes`          | `error`   | Detects duplicate HTML attributes on the same element                        |
-| `unescapedEntities`            | `warning` | Flags unescaped `&` and `>` characters in text content                       |
-| `preferMustacheComments`       | `off`     | Suggests replacing HTML comments with mustache comments                      |
-| `unrecognizedHtmlTags`         | `error`   | Flags HTML tags that are not standard HTML elements or valid custom elements |
+| Rule                           | Default   | Description                                                                   |
+| ------------------------------ | --------- | ----------------------------------------------------------------------------- |
+| `nestedDuplicateSections`      | `error`   | Flags `{{#name}}` nested inside another `{{#name}}` with the same name        |
+| `unquotedMustacheAttributes`   | `error`   | Requires quotes around mustache expressions used as attribute values          |
+| `consecutiveDuplicateSections` | `warning` | Warns when adjacent same-name sections can be merged                          |
+| `selfClosingNonVoidTags`       | `error`   | Disallows self-closing syntax on non-void HTML elements (e.g. `<div/>`)       |
+| `duplicateAttributes`          | `error`   | Detects duplicate HTML attributes on the same element                         |
+| `unescapedEntities`            | `warning` | Flags unescaped `&` and `>` characters in text content                        |
+| `preferMustacheComments`       | `off`     | Suggests replacing HTML comments with mustache comments                       |
+| `unrecognizedHtmlTags`         | `error`   | Flags HTML tags that are not standard HTML elements or valid custom elements  |
+| `elementContentTooLong`        | `off`     | Flags configured elements whose inner content exceeds a byte-length threshold |
+| `customTagSchema`              | `error`   | Validates configured custom tags against their JSON Schema contracts          |
 
 <!-- RULES_TABLE_END -->
+
+### Tag Schemas
+
+Custom tags can declare a JSON Schema draft 2020-12 contract. The schema may be inline or a path resolved relative to `.htmlmustache.jsonc`:
+
+```jsonc
+{
+  "customTags": [
+    {
+      "name": "pl-multiple-choice",
+      "schema": "elements/pl-multiple-choice/pl-multiple-choice.schema.json",
+    },
+  ],
+  "rules": {
+    "customTagSchema": "error",
+  },
+}
+```
+
+Schemas validate this value shape:
+
+```jsonc
+{
+  "tag": "pl-multiple-choice",
+  "attributes": { "answers-name": "q1", "weight": "2" },
+  "children": [{ "tag": "pl-answer", "attributes": { "correct": "true" } }],
+}
+```
+
+Attribute values are coerced by JSON Schema (`"2"` can satisfy an integer, boolean attributes become `true`). Attribute values containing mustache are treated as unknown runtime values, so value-dependent schema errors are waived while presence and unknown-attribute checks still run. Mustache sections are flattened when building `children`, so children inside `{{#section}}...{{/section}}` count as reachable; timeline-aware child counts are not modeled yet.
+
+Set `"htmlGlobalAttributes": true` on an `attributes` schema to allow `class`, `id`, `style`, `lang`, `dir`, `tabindex`, `title`, `role`, `data-*`, and `aria-*` alongside the schema's explicit properties.
 
 ### Custom Rules
 

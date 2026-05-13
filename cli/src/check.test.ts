@@ -4,6 +4,7 @@ import path from 'node:path';
 import os from 'node:os';
 import { collectErrors, formatError, formatSummary, resolveFiles, applyFixes } from './check';
 import { initializeParser, parseDocument } from './wasm';
+import { loadSchemaRegistry } from '../../src/core/customTagSchemaLoader';
 
 beforeAll(async () => {
   await initializeParser();
@@ -11,6 +12,14 @@ beforeAll(async () => {
 
 function parse(source: string) {
   return parseDocument(source);
+}
+
+const DRAFT_2020_12 = 'https://json-schema.org/draft/2020-12/schema';
+
+function schemaRegistryFor(name: string, schema: Record<string, unknown>) {
+  const { registry, loadErrors } = loadSchemaRegistry([{ name, schema }]);
+  expect(loadErrors).toEqual([]);
+  return registry;
 }
 
 describe('collectErrors', () => {
@@ -948,6 +957,225 @@ describe('custom rules', () => {
       { id: 'no-font', selector: 'font', message: 'Deprecated', severity: 'off' },
     ]);
     expect(errors.some(e => e.message === 'Deprecated')).toBe(false);
+  });
+});
+
+describe('custom tag schema', () => {
+  it('detects missing required attribute on inline schema', () => {
+    const registry = schemaRegistryFor('x-card', {
+      $schema: DRAFT_2020_12,
+      type: 'object',
+      properties: {
+        attributes: {
+          type: 'object',
+          properties: { kind: { type: 'string' } },
+          required: ['kind'],
+        },
+      },
+    });
+    const tree = parse('<x-card></x-card>');
+    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
+
+    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message.includes('required property'))).toBe(true);
+    expect(errors.some(e => e.message.includes('kind'))).toBe(true);
+  });
+
+  it('reports unknown attribute at the attribute location with ruleName', () => {
+    const registry = schemaRegistryFor('x-card', {
+      $schema: DRAFT_2020_12,
+      type: 'object',
+      properties: {
+        attributes: {
+          type: 'object',
+          properties: { kind: { type: 'string' } },
+          additionalProperties: false,
+        },
+      },
+    });
+    const tree = parse('<x-card kind="ok"\n  extra="x"\n></x-card>');
+    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
+    const err = errors.find(e => e.ruleName === 'customTagSchema' && e.message.includes('additional properties'));
+
+    expect(err).toBeDefined();
+    expect(err!.line).toBe(2);
+    expect(err!.column).toBe(3);
+  });
+
+  it('waives mustache-bearing enum and number values but still reports unknown attributes', () => {
+    const registry = schemaRegistryFor('x-card', {
+      $schema: DRAFT_2020_12,
+      type: 'object',
+      properties: {
+        attributes: {
+          type: 'object',
+          properties: {
+            variant: { enum: ['primary', 'secondary'] },
+            count: { type: 'number' },
+          },
+          additionalProperties: false,
+        },
+      },
+    });
+    const tree = parse('<x-card variant="{{variant}}" count="{{count}}" mystery="x"></x-card>');
+    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
+    const schemaErrors = errors.filter(e => e.ruleName === 'customTagSchema');
+
+    expect(schemaErrors).toHaveLength(1);
+    expect(schemaErrors[0].message).toContain('additional properties');
+  });
+
+  it('accepts boolean attributes with boolean schemas', () => {
+    const registry = schemaRegistryFor('x-card', {
+      $schema: DRAFT_2020_12,
+      type: 'object',
+      properties: {
+        attributes: {
+          type: 'object',
+          properties: { inline: { type: 'boolean' } },
+        },
+      },
+    });
+    const tree = parse('<x-card inline></x-card>');
+    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
+
+    expect(errors.some(e => e.ruleName === 'customTagSchema')).toBe(false);
+  });
+
+  it('waives mustache-bearing child attribute values in parent schemas', () => {
+    const registry = schemaRegistryFor('x-list', {
+      $schema: DRAFT_2020_12,
+      type: 'object',
+      properties: {
+        children: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              tag: { const: 'x-item' },
+              attributes: {
+                type: 'object',
+                properties: { score: { type: 'number', minimum: 0, maximum: 1 } },
+              },
+            },
+          },
+        },
+      },
+    });
+    const tree = parse('<x-list><x-item score="{{score}}"></x-item></x-list>');
+    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-list', 'x-item'], undefined, { registry });
+
+    expect(errors.some(e => e.ruleName === 'customTagSchema')).toBe(false);
+  });
+
+  it('does not waive unrelated cross-attribute schema errors', () => {
+    const registry = schemaRegistryFor('x-card', {
+      $schema: DRAFT_2020_12,
+      type: 'object',
+      properties: {
+        attributes: {
+          type: 'object',
+          properties: {
+            foo: { type: 'string' },
+            inline: { type: 'boolean' },
+            display: { enum: ['block'] },
+          },
+          allOf: [{ not: { required: ['inline', 'display'] } }],
+        },
+      },
+    });
+    const tree = parse('<x-card foo="{{value}}" inline display="block"></x-card>');
+    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
+
+    expect(errors.some(e => e.ruleName === 'customTagSchema')).toBe(true);
+  });
+
+  it('waives then-branch errors caused by mustache-bearing conditional operands', () => {
+    const registry = schemaRegistryFor('x-card', {
+      $schema: DRAFT_2020_12,
+      type: 'object',
+      properties: {
+        attributes: {
+          type: 'object',
+          properties: {
+            size: { type: 'integer' },
+            display: { const: 'dropdown' },
+          },
+          allOf: [{ if: { required: ['size'] }, then: { required: ['display'] } }],
+        },
+      },
+    });
+    const tree = parse('<x-card size="{{n}}"></x-card>');
+    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
+
+    expect(errors.some(e => e.ruleName === 'customTagSchema')).toBe(false);
+  });
+
+  it('does not waive literal sibling child violations due to another child mustache attribute', () => {
+    const registry = schemaRegistryFor('x-list', {
+      $schema: DRAFT_2020_12,
+      type: 'object',
+      properties: {
+        children: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: {
+              attributes: {
+                type: 'object',
+                properties: { score: { type: 'number' }, feedback: { type: 'string' } },
+                not: { required: ['score', 'feedback'] },
+              },
+            },
+          },
+        },
+      },
+    });
+    const tree = parse('<x-list><x-item score="{{s}}"></x-item><x-item score="1" feedback="bad"></x-item></x-list>');
+    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-list', 'x-item'], undefined, { registry });
+
+    expect(errors.some(e => e.ruleName === 'customTagSchema')).toBe(true);
+  });
+
+  it('includes section-flattened children inside mustache sections', () => {
+    const registry = schemaRegistryFor('x-list', {
+      $schema: DRAFT_2020_12,
+      type: 'object',
+      properties: {
+        children: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { tag: { const: 'x-item' } },
+            required: ['tag'],
+          },
+        },
+      },
+    });
+    const tree = parse('<x-list>{{#items}}<x-bad></x-bad>{{/items}}</x-list>');
+    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-list', 'x-bad'], undefined, { registry });
+    const err = errors.find(e => e.ruleName === 'customTagSchema');
+
+    expect(err).toBeDefined();
+    expect(err!.message).toContain('constant');
+    expect(err!.nodeText).toBe('<x-bad>');
+  });
+
+  it('inline disable suppresses customTagSchema', () => {
+    const registry = schemaRegistryFor('x-card', {
+      $schema: DRAFT_2020_12,
+      type: 'object',
+      properties: {
+        attributes: {
+          type: 'object',
+          properties: { kind: { type: 'string' } },
+          required: ['kind'],
+        },
+      },
+    });
+    const tree = parse('{{! htmlmustache-disable customTagSchema }}\n<x-card></x-card>');
+    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
+
+    expect(errors.some(e => e.ruleName === 'customTagSchema')).toBe(false);
   });
 });
 

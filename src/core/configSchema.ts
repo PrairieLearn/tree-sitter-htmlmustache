@@ -35,6 +35,7 @@ export interface RulesConfig {
   preferMustacheComments?: RuleEntry;
   unrecognizedHtmlTags?: RuleEntry;
   elementContentTooLong?: RuleEntryWithOptions<ElementContentTooLongOptions>;
+  customTagSchema?: RuleEntry;
 }
 
 const VALID_RULE_SEVERITIES = new Set<string>(['error', 'warning', 'off']);
@@ -180,6 +181,11 @@ function parseCustomTagArray(arr: unknown): CustomCodeTagConfig[] {
         tag.indent = e.indent as CustomCodeTagIndentMode;
       }
       if (typeof e.indentAttribute === 'string') tag.indentAttribute = e.indentAttribute;
+      if (typeof e.schema === 'string') {
+        tag.schema = e.schema;
+      } else if (e.schema && typeof e.schema === 'object' && !Array.isArray(e.schema)) {
+        tag.schema = e.schema as Record<string, unknown>;
+      }
       tags.push(tag);
     }
   }

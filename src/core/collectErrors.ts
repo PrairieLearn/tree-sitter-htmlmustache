@@ -21,6 +21,8 @@ import type { RulesConfig, RuleSeverity, CustomRule, ElementContentTooLongOption
 import { RULE_DEFAULTS, KNOWN_RULE_NAMES } from './ruleMetadata.js';
 import { parseSelector, matchSelector } from './selectorMatcher.js';
 import type { ParsedSelector } from './selectorMatcher.js';
+import type { SchemaRegistry, ConfigLoadError } from './customTagSchemaLoader.js';
+import { checkCustomTagSchemas } from './customTagSchemaChecker.js';
 
 // Parsing a selector is non-trivial (runs parsel-js) and lint() is called
 // per-keystroke in browsers, so cache by raw selector string. `null` cached
@@ -65,6 +67,18 @@ const ERROR_NODE_TYPES = new Set([
   'mustache_erroneous_section_end',
   'mustache_erroneous_inverted_section_end',
 ]);
+
+function configDiagnosticNode(rootNode: BalanceNode): BalanceNode {
+  return {
+    type: 'config_diagnostic',
+    text: '',
+    startPosition: { row: 0, column: 0 },
+    endPosition: { row: 0, column: 1 },
+    startIndex: rootNode.startIndex,
+    endIndex: rootNode.startIndex,
+    children: [],
+  };
+}
 
 function errorMessageForNode(nodeType: string, node: BalanceNode): string {
   if (nodeType === 'mustache_erroneous_section_end' || nodeType === 'mustache_erroneous_inverted_section_end') {
@@ -128,7 +142,14 @@ function collectDisabledRules(rootNode: BalanceNode, customRuleIds?: Set<string>
  * Collect all errors from a parsed tree: syntax errors, balance errors,
  * unclosed tags, and mustache lint checks.
  */
-export function collectErrors(tree: WalkableTree, rules?: RulesConfig, customTagNames?: string[], customRules?: CustomRule[]): CheckError[] {
+export function collectErrors(
+  tree: WalkableTree,
+  rules?: RulesConfig,
+  customTagNames?: string[],
+  customRules?: CustomRule[],
+  schemaRegistry?: SchemaRegistry,
+  schemaLoadErrors?: ConfigLoadError[],
+): CheckError[] {
   const errors: CheckError[] = [];
   const cursor = tree.walk() as unknown as TreeCursor;
 
@@ -174,6 +195,18 @@ export function collectErrors(tree: WalkableTree, rules?: RulesConfig, customTag
     (effectiveRules as Record<string, string>)[rule] = 'off';
   }
 
+  const { severity: schemaSeverity } = resolveRuleConfig(effectiveRules, 'customTagSchema');
+  if (schemaSeverity !== 'off') {
+    for (const loadError of schemaLoadErrors ?? []) {
+      errors.push({
+        node: configDiagnosticNode(tree.rootNode),
+        message: loadError.message,
+        severity: schemaSeverity === 'warning' ? 'warning' : 'error',
+        ruleName: 'customTagSchema',
+      });
+    }
+  }
+
   // Configurable lint checks
   const sourceText = tree.rootNode.text;
 
@@ -193,6 +226,7 @@ export function collectErrors(tree: WalkableTree, rules?: RulesConfig, customTag
         return checkElementContentTooLong(tree.rootNode, elements);
       },
     },
+    { rule: 'customTagSchema', errors: () => checkCustomTagSchemas(tree.rootNode, schemaRegistry) },
   ];
 
   for (const { rule, errors: getErrors } of ruleChecks) {
