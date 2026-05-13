@@ -17,10 +17,10 @@ tree-sitter build --wasm
 
 # 2. Install LSP dependencies
 cd lsp
-npm install
+pnpm install
 
 # 3. Build the LSP
-npm run build
+pnpm run build
 
 # 4. Test in VS Code (see below)
 ```
@@ -31,7 +31,7 @@ The LSP requires the tree-sitter grammar compiled to WebAssembly. From the **pro
 
 ```bash
 # Make sure tree-sitter CLI is installed
-npm install -g tree-sitter-cli
+pnpm add -g tree-sitter-cli  # or use the one in this repo's devDependencies
 
 # Build the WASM file (creates tree-sitter-htmlmustache.wasm)
 tree-sitter build --wasm
@@ -45,10 +45,10 @@ This creates `tree-sitter-htmlmustache.wasm` in the project root, which the LSP 
 cd lsp
 
 # Install all dependencies (client + server)
-npm install
+pnpm install
 
 # Build both client and server
-npm run build
+pnpm run build
 ```
 
 ### Development Mode
@@ -56,7 +56,7 @@ npm run build
 For active development, use watch mode to auto-rebuild on changes:
 
 ```bash
-npm run watch
+pnpm run watch
 ```
 
 ## Testing in VS Code
@@ -105,7 +105,7 @@ ls *.wasm  # Should show tree-sitter-htmlmustache.wasm
 
 ### Type errors during build
 
-Run `npm install` in the `lsp/` directory to install dependencies.
+Run `pnpm install` from the project root to install dependencies.
 
 ## Architecture
 

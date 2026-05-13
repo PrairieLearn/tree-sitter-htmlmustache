@@ -12,8 +12,8 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseText, createTestQuery } from './setup.js';
-import { findCustomCodeTagContent } from '../../../src/core/customCodeTags.js';
-import type { CustomCodeTagConfig } from '../../../src/core/customCodeTags.js';
+import { findCustomCodeTagContent } from '../../../js/shared/customCodeTags.js';
+import type { CustomCodeTagConfig } from '../../../js/shared/customCodeTags.js';
 import {
   initializeTextMateRegistry,
   isTextMateReady,

@@ -135,6 +135,96 @@ echo '<div><p>hi</p></div>' | htmlmustache format --stdin
 | `--print-width N`   | Max line width (default: 80)                     |
 | `--mustache-spaces` | Add spaces inside mustache delimiters            |
 
+## JavaScript API
+
+The package ships three independent subpath exports. Pick the one you need; each pulls in only its own deps.
+
+| Subpath       | What you get                                                                    | Deps                               |
+| ------------- | ------------------------------------------------------------------------------- | ---------------------------------- |
+| `./parser`    | `createParser({ locateWasm })` → typed JSON AST + `walk` helper                 | `web-tree-sitter`                  |
+| `./linter`    | `createLinter({ locateWasm })` → `lint(source, config) → Diagnostic[]`          | `web-tree-sitter`, `ajv`           |
+| `./formatter` | `createFormatter({ locateWasm, prettier })` → `format(source, config) → string` | `web-tree-sitter`, peer `prettier` |
+| `./wasm`      | Direct URL of `tree-sitter-htmlmustache.wasm`                                   | —                                  |
+
+### Parser — typed JSON AST
+
+```ts
+import { createParser, walk } from '@reteps/tree-sitter-htmlmustache/parser';
+
+const parser = await createParser({
+  locateWasm: '/static/tree-sitter-htmlmustache.wasm',
+});
+
+const { rootNode, hasError } = parser.parse('<p>{{name}}</p>');
+
+walk(rootNode, (node, parents) => {
+  switch (node.type) {
+    case 'html_element':
+      // node.children is narrowed to HtmlStartTagNode | HtmlEndTagNode | ...
+      console.log('element:', node.text);
+      break;
+    case 'mustache_interpolation':
+      // node.children: MustacheIdentifierNode | MustachePathExpressionNode
+      console.log('interpolation:', node.text);
+      break;
+  }
+});
+```
+
+The `SyntaxNode` discriminated union is generated from the grammar's
+`node-types.json` — switching on `node.type` narrows `node.children` to the
+exact set of allowed children. Build your own validator on top of `walk` with
+full autocomplete and exhaustiveness checking.
+
+### Linter
+
+```ts
+import {
+  createLinter,
+  DEFAULT_CONFIG,
+} from '@reteps/tree-sitter-htmlmustache/linter';
+
+const linter = await createLinter({
+  locateWasm: '/static/tree-sitter-htmlmustache.wasm',
+});
+const diagnostics = linter.lint('<a href={{url}}></a>', DEFAULT_CONFIG);
+// → [{ line, column, severity: 'error', ruleName: 'unquotedMustacheAttributes', message, ... }]
+```
+
+Custom rules and per-tag JSON-Schema validation are passed through the
+`config` argument — see the [Configuration](#configuration) section for the
+shape.
+
+### Formatter
+
+```ts
+import { createFormatter } from '@reteps/tree-sitter-htmlmustache/formatter';
+import prettier from 'prettier';
+
+const formatter = await createFormatter({
+  locateWasm: '/static/tree-sitter-htmlmustache.wasm',
+  prettier, // optional — for embedded <script> / <style>
+});
+
+const formatted = await formatter.format('<div><p>hi</p></div>', {
+  indentSize: 2,
+});
+```
+
+### `locateWasm`
+
+Both a string (URL of the grammar wasm) and a callback are supported:
+
+```ts
+locateWasm: (name) => {
+  if (name === 'tree-sitter-htmlmustache.wasm')
+    return '/static/htmlmustache.wasm';
+  return `/static/${name}`; // web-tree-sitter resolves tree-sitter.wasm itself
+};
+```
+
+In Node, pass absolute file paths. In the browser, pass URLs.
+
 ## Format Ignore
 
 Skip formatting for specific regions using ignore directives. Both HTML and Mustache comment forms are supported.
@@ -202,8 +292,9 @@ Create a `.htmlmustache.jsonc` file in your project root to configure formatting
   // Add spaces inside mustache delimiters: {{ foo }} vs {{foo}} (default: false)
   "mustacheSpaces": true,
 
-  // Treat custom tags as raw code blocks (like <script>/<style>)
-  "customCodeTags": [
+  // Treat custom tags as raw code blocks (like <script>/<style>), or bind
+  // a JSON Schema for attribute/child validation — see Tag Schemas below.
+  "customTags": [
     {
       "name": "x-code",
       "languageDefault": "javascript",
@@ -235,18 +326,118 @@ Additionally, the following rules are configurable. Set their severities (`"erro
 
 <!-- RULES_TABLE_START -->
 
-| Rule                           | Default   | Description                                                                  |
-| ------------------------------ | --------- | ---------------------------------------------------------------------------- |
-| `nestedDuplicateSections`      | `error`   | Flags `{{#name}}` nested inside another `{{#name}}` with the same name       |
-| `unquotedMustacheAttributes`   | `error`   | Requires quotes around mustache expressions used as attribute values         |
-| `consecutiveDuplicateSections` | `warning` | Warns when adjacent same-name sections can be merged                         |
-| `selfClosingNonVoidTags`       | `error`   | Disallows self-closing syntax on non-void HTML elements (e.g. `<div/>`)      |
-| `duplicateAttributes`          | `error`   | Detects duplicate HTML attributes on the same element                        |
-| `unescapedEntities`            | `warning` | Flags unescaped `&` and `>` characters in text content                       |
-| `preferMustacheComments`       | `off`     | Suggests replacing HTML comments with mustache comments                      |
-| `unrecognizedHtmlTags`         | `error`   | Flags HTML tags that are not standard HTML elements or valid custom elements |
+| Rule                           | Default   | Description                                                                   |
+| ------------------------------ | --------- | ----------------------------------------------------------------------------- |
+| `nestedDuplicateSections`      | `error`   | Flags `{{#name}}` nested inside another `{{#name}}` with the same name        |
+| `unquotedMustacheAttributes`   | `error`   | Requires quotes around mustache expressions used as attribute values          |
+| `consecutiveDuplicateSections` | `warning` | Warns when adjacent same-name sections can be merged                          |
+| `selfClosingNonVoidTags`       | `error`   | Disallows self-closing syntax on non-void HTML elements (e.g. `<div/>`)       |
+| `duplicateAttributes`          | `error`   | Detects duplicate HTML attributes on the same element                         |
+| `unescapedEntities`            | `warning` | Flags unescaped `&` and `>` characters in text content                        |
+| `preferMustacheComments`       | `off`     | Suggests replacing HTML comments with mustache comments                       |
+| `unrecognizedHtmlTags`         | `error`   | Flags HTML tags that are not standard HTML elements or valid custom elements  |
+| `elementContentTooLong`        | `off`     | Flags configured elements whose inner content exceeds a byte-length threshold |
+| `customTagSchema`              | `error`   | Validates configured custom tags against their JSON Schema contracts          |
 
 <!-- RULES_TABLE_END -->
+
+### Tag Schemas
+
+Custom tags can declare a JSON Schema draft 2020-12 contract. The schema may be inline or a path resolved relative to `.htmlmustache.jsonc`:
+
+```jsonc
+{
+  "customTags": [
+    {
+      "name": "pl-multiple-choice",
+      "schema": "elements/pl-multiple-choice/pl-multiple-choice.schema.json",
+    },
+  ],
+  "rules": {
+    "customTagSchema": "error",
+  },
+}
+```
+
+Schemas validate this value shape:
+
+```jsonc
+{
+  "tag": "pl-multiple-choice",
+  "attributes": { "answers-name": "q1", "weight": "2" },
+  "children": [{ "tag": "pl-answer", "attributes": { "correct": "true" } }],
+}
+```
+
+Attribute values are coerced by JSON Schema (`"2"` can satisfy an integer, boolean attributes become `true`). Attribute values containing mustache are treated as unknown runtime values, so value-dependent schema errors are waived while presence and unknown-attribute checks still run. Mustache sections are flattened when building `children`, so children inside `{{#section}}...{{/section}}` count as reachable; timeline-aware child counts are not modeled yet.
+
+Set `"htmlGlobalAttributes": true` on an `attributes` sub-schema to permit the WHATWG HTML global attributes (sourced from [`html-element-attributes`](https://github.com/wooorm/html-element-attributes) — `class`, `id`, `style`, `hidden`, `slot`, `inert`, `popover`, `contenteditable`, `spellcheck`, etc.), every `aria-*` attribute and `role` (from [`aria-attributes`](https://github.com/wooorm/aria-attributes)), and the `data-*` pattern, alongside whichever properties the schema explicitly declares:
+
+```jsonc
+{
+  "type": "object",
+  "properties": {
+    "tag": { "const": "pl-card" },
+    "attributes": {
+      "type": "object",
+      "htmlGlobalAttributes": true, // ← here, on the attributes sub-schema
+      "properties": {
+        "kind": { "enum": ["info", "warning"] },
+      },
+      "required": ["kind"],
+      "additionalProperties": false,
+    },
+  },
+}
+```
+
+Schema authors can still tighten any single attribute by redeclaring it under `properties` — the explicit declaration wins. Without this flag, `additionalProperties: false` would reject `<pl-card class="...">` because `class` isn't declared.
+
+#### Diagnostics
+
+Schema diagnostics are phrased in HTML/element terms rather than JSON-Schema vocabulary, so template authors aren't asked to translate `instancePath` and `additionalProperty` back into the markup they wrote. Examples:
+
+| Schema constraint                              | Diagnostic                                                                           |
+| ---------------------------------------------- | ------------------------------------------------------------------------------------ |
+| `attributes.required: ["answers-name"]`        | `<pl-multiple-choice> is missing required attribute "answers-name".`                 |
+| `attributes.additionalProperties: false`       | `Unknown attribute "extra" on <pl-multiple-choice>.`                                 |
+| `attributes.display.enum: ["block", "inline"]` | `Attribute "display" on <pl-multiple-choice> must be one of: "block", "inline".`     |
+| `attributes.size.type: "integer"`              | `Attribute "size" on <pl-multiple-choice> must be integer.`                          |
+| `attributes.weight.minimum: 0`                 | `Attribute "weight" on <pl-multiple-choice> must be >= 0.`                           |
+| `children[].tag.const: "pl-answer"`            | `<pl-multiple-choice> only allows <pl-answer> children; found <p>.`                  |
+| child `attributes.required: ["correct"]`       | `<pl-answer> child of <pl-multiple-choice> is missing required attribute "correct".` |
+
+Constraints without a rewriter (typically `not`, `allOf`, `if`/`then`, custom keywords) fall through to ajv's localized text. Every diagnostic carries `ruleName: "customTagSchema"` and points at the element, the attribute, or the offending child — see [Disabling Lint Rules](#disabling-lint-rules) to silence them per-region.
+
+#### Custom error messages
+
+Override individual diagnostics with JSON Schema's [`errorMessage` keyword](https://ajv.js.org/packages/ajv-errors.html) (enabled via [`ajv-errors`](https://www.npmjs.com/package/ajv-errors)). Authored strings flow through unchanged — the HTML-shaped rewriter only kicks in when the schema doesn't provide one.
+
+```jsonc
+{
+  "type": "object",
+  "required": ["answers-name"],
+  "properties": {
+    "size": { "type": "integer", "minimum": 1 },
+    "display": { "enum": ["block", "inline", "dropdown"] },
+  },
+  "errorMessage": {
+    "required": {
+      // Per-property override for `required` failures
+      "answers-name": "Add `answers-name=\"...\"` so this question can be graded.",
+    },
+    "properties": {
+      // Per-property override for *value-level* failures (type, minimum, enum, ...)
+      "size": "`size` must be a positive whole number — got ${0}.",
+      "display": "`display` must be one of: block, inline, dropdown.",
+    },
+    // Catch-all for the whole object
+    "_": "<pl-multiple-choice> failed its schema.",
+  },
+}
+```
+
+ajv-errors substitutes the original ajv error with one whose message is your string; the rewriter sees `keyword: "errorMessage"`, doesn't recognise it, and passes the string through. Use this when the default phrasing doesn't say enough about your domain (e.g. linking authors to a runbook URL, naming a specific config the attribute drives).
 
 ### Custom Rules
 

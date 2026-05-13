@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { filterCustomRulesForPath, ruleMatchesPath } from '../../../src/core/customRuleFilter.js';
-import type { CustomRule } from '../../../src/core/configSchema.js';
+import { filterCustomRulesForPath, ruleMatchesPath } from '../../../js/linter/customRuleFilter.js';
+import type { CustomRule } from '../../../js/shared/configSchema.js';
 
 function rule(partial: Partial<CustomRule> & Pick<CustomRule, 'id'>): CustomRule {
   return { id: partial.id, selector: 'div', message: 'm', ...partial };

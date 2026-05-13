@@ -1,10 +1,18 @@
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver';
 import type { Tree } from './parser.js';
-import { collectErrors } from '../../../src/core/collectErrors.js';
-import type { RulesConfig, CustomRule } from '../../../src/core/configSchema.js';
+import { collectErrors } from '../../../js/linter/collectErrors.js';
+import type { RulesConfig, CustomRule } from '../../../js/shared/configSchema.js';
+import type { ConfigLoadError, SchemaRegistry } from '../../../js/shared/customTagSchemaLoader.js';
 
-export function getDiagnostics(tree: Tree, rules?: RulesConfig, customTagNames?: string[], customRules?: CustomRule[]): Diagnostic[] {
-  const errors = collectErrors(tree, rules, customTagNames, customRules);
+export function getDiagnostics(
+  tree: Tree,
+  rules?: RulesConfig,
+  customTagNames?: string[],
+  customRules?: CustomRule[],
+  schemaRegistry?: SchemaRegistry,
+  schemaLoadErrors?: ConfigLoadError[],
+): Diagnostic[] {
+  const errors = collectErrors(tree, rules, customTagNames, customRules, schemaRegistry, schemaLoadErrors);
   return errors.map(error => ({
     severity: error.severity === 'warning' ? DiagnosticSeverity.Warning : DiagnosticSeverity.Error,
     range: {
