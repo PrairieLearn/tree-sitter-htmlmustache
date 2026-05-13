@@ -7,7 +7,7 @@ import { describe, it, expect } from 'vitest';
 import { format as prettierFormat } from 'prettier';
 import { FormattingOptions } from 'vscode-languageserver/node';
 import { parseText, createMockDocument } from '../setup.js';
-import { formatDocument } from '../../../../src/core/formatting/index.js';
+import { formatDocument } from '../../../../js/formatter/document.js';
 import type { Node as SyntaxNode } from 'web-tree-sitter';
 
 const defaultOptions: FormattingOptions = {

@@ -4,119 +4,151 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-This is a tree-sitter grammar for HTML with Mustache template syntax support. It extends the standard tree-sitter-html grammar to parse Mustache constructs (`{{...}}`, `{{#...}}`, `{{/...}}`, `{{^...}}`, `{{{...}}}`, `{{!...}}`, `{{>...}}`) embedded within HTML. The project also includes a VS Code extension with an LSP server and a CLI linter.
+A tree-sitter grammar for HTML with Mustache template syntax (`{{...}}`, `{{#...}}`, `{{/...}}`, `{{^...}}`, `{{{...}}}`, `{{!...}}`, `{{>...}}`) embedded within HTML. The repo also ships a parser entry, a linter, a formatter, a CLI, and a VS Code LSP extension.
 
 ## Common Commands
 
 ```bash
-# Generate parser from grammar (required after modifying grammar.js)
-tree-sitter generate
+# Tree-sitter grammar
+tree-sitter generate              # Regenerate src/parser.c + src/node-types.json from grammar.js
+tree-sitter test                  # Run the parser test suite (test/corpus/*.txt)
+tree-sitter test -f "pattern"     # Filter to specific corpus tests
+pnpm run build                    # Build the .wasm
+pnpm start                        # Build .wasm + open the playground
 
-# Run the parser test suite (166 tests in test/corpus/*.txt)
-tree-sitter test
+# JS entry points (parser, linter, formatter, CLI)
+pnpm run generate:ast-types       # Regenerate js/parser/nodeTypes.generated.ts from src/node-types.json
+pnpm run build:js                 # esbuild + tsc emit into dist/
+pnpm run typecheck                # tsc -p js/tsconfig.json --noEmit
+pnpm run test:js                  # vitest run (picks up js/**/*.test.ts)
+pnpm run lint                     # eslint over everything
+pnpm run format:check             # prettier dry-run
 
-# Run a single test by name filter
-tree-sitter test -f "test name pattern"
-
-# Run Node.js binding tests
-npm test
-
-# Lint grammar.js
-npm run lint
-
-# Check formatting
-npm run format:check
-
-# Build CLI (compiles cli/src/check.ts -> cli/out/check.js)
-npm run build:cli
-
-# Run CLI tests (vitest)
-npm run test:cli
-
-# Build WASM and open playground for interactive testing
-npm start
+# Node native binding tests
+pnpm test                         # tree-sitter test + bindings/node/*_test.js
 ```
 
-### LSP Development (in `lsp/` directory)
+### LSP development (in `lsp/`)
 
 ```bash
 cd lsp
 pnpm install
-
-# Build the extension (esbuild + WASM copy)
-pnpm run build
-
-# Run LSP server tests (vitest)
-pnpm run test
-
-# Watch mode for LSP tests
-pnpm run test:watch
-
-# Typecheck client and server
-pnpm run typecheck
-
-# Lint LSP code
+pnpm run build        # Build the extension (esbuild + WASM copy)
+pnpm run test         # LSP server vitest
+pnpm run typecheck    # tsc --noEmit for client + server
 pnpm run lint
 ```
 
 ## Architecture
 
-### Three Components
+### Four shipped components
 
-1. **Tree-sitter grammar** (root): Parser definition in `grammar.js` + external scanner in `src/scanner.c`. Published as `@reteps/tree-sitter-htmlmustache` on npm.
-2. **LSP server + VS Code extension** (`lsp/`): Separate pnpm workspace. TypeScript-based language server providing formatting, diagnostics, semantic tokens, hover, folding, and document symbols.
-3. **CLI linter** (`cli/`): `htmlmustache check` command for template validation. Built with TypeScript, tested with vitest.
+1. **Tree-sitter grammar** (root): `grammar.js` + `src/scanner.c`. Generates `src/parser.c`, `src/node-types.json`, etc. Published as `@reteps/tree-sitter-htmlmustache` (the `.` subpath of the package is the native binding via `bindings/node`).
+2. **JS API** (`js/`): three subpath exports — `./parser`, `./linter`, `./formatter` — each backed by web-tree-sitter (wasm). Built into `dist/<entry>/`.
+3. **CLI** (`js/cli/`, bin `htmlmustache`): wraps the linter and formatter with config-file + glob discovery. Bin path is `dist/cli/main.js`.
+4. **LSP server + VS Code extension** (`lsp/`): separate pnpm workspace. Imports from `js/` via relative paths.
 
-### Grammar Core Files
+### Tree-sitter grammar files (in `src/`, tree-sitter-owned)
 
-- **grammar.js**: Main grammar definition combining HTML and Mustache rules. Uses tree-sitter DSL with `externals` for tokens requiring scanner state.
+- `grammar.js` (root): grammar DSL combining HTML and Mustache rules.
+- `src/scanner.c`: external scanner. Maintains two stacks — `tags` (HTML) and `mustache_tags` (Mustache sections) — to support cross-grammar implicit closures.
+- `src/tag.h`: HTML tag containment rules.
+- `src/mustache_tag.h`: Mustache section tracking with `html_tag_stack_size` for the cross-grammar implicit-end-tag mechanism.
+- `src/custom_raw_tags.h`: compile-time list of tags whose content is parsed as raw text.
+- `src/parser.c`, `src/tree_sitter/parser.h`, `src/node-types.json`, `src/grammar.json`: generated. Don't hand-edit. After `tree-sitter generate`, regenerate AST types with `pnpm run generate:ast-types`.
 
-- **src/scanner.c**: External scanner handling context-sensitive tokens. Maintains two stacks:
-  - `tags` (HTML tag stack) - tracks open HTML elements for implicit end tags
-  - `mustache_tags` (Mustache section stack) - tracks open `{{#...}}`/`{{^...}}` sections
+#### Key design: cross-grammar implicit end tags
 
-- **src/tag.h**: HTML tag type definitions and containment rules (which tags can nest inside others).
-
-- **src/mustache_tag.h**: Mustache tag tracking with `html_tag_stack_size` to support cross-grammar implicit closures.
-
-- **src/custom_raw_tags.h**: Compile-time definition of custom tags whose content is treated as raw text (not parsed as HTML/Mustache).
-
-### Key Design: Cross-Grammar Implicit End Tags
-
-When a Mustache section ends (`{{/...}}`), it may need to implicitly close HTML tags opened within that section. The scanner tracks `html_tag_stack_size` at mustache section start to know how many HTML tags to pop when the section closes. This enables parsing patterns like:
+When `{{/...}}` closes, it may implicitly close HTML tags opened within the section. The scanner records `html_tag_stack_size` at the section's `{{#...}}` so it knows how many HTML tags to pop. This makes patterns like the following parse correctly:
 
 ```html
 {{#items}}
-<li>
-  {{name}}{{/items}}
-  <!-- The </li> is implicit when {{/items}} is encountered -->
-</li>
+<li>{{name}}{{/items}}
 ```
 
-### LSP Architecture
+### JS layout (`js/`)
 
-The LSP server (`lsp/server/src/`) uses web-tree-sitter (WASM) to parse documents. Key modules:
+```
+js/
+  parser/      # ./parser entry — typed JSON AST + walk
+    index.ts
+    nodeTypes.generated.ts   # GENERATED from src/node-types.json
+    parser.test.ts
+  linter/      # ./linter entry — lint() + rule engine + checkers
+    index.ts, collectErrors.ts, mustacheChecks.ts,
+    htmlBalanceChecker.ts, customRuleFilter.ts,
+    customTagSchemaChecker.ts, selectorMatcher.ts,
+    diagnostic.ts, linter.test.ts
+  formatter/   # ./formatter entry — format() + IR pipeline + EditorConfig
+    index.ts, document.ts, classifier.ts, formatters.ts,
+    printer.ts, ir.ts, mergeOptions.ts, embedded.ts,
+    embeddedRegions.ts, editorconfig.ts, utils.ts, formatter.test.ts
+  shared/      # Types and helpers used by 2+ entries (or by CLI + LSP)
+    grammar.ts, nodeHelpers.ts, configSchema.ts, configFile.ts,
+    customCodeTags.ts, customTagSchemaLoader.ts, ruleMetadata.ts,
+    cssDisplay.ts
+  cli/         # CLI binary
+    main.ts, check.ts, format.ts, wasm.ts, *.test.ts
+  tsconfig.json
+```
 
-- **formatting/**: Prettier-inspired formatter with an IR (intermediate representation). Pipeline: tree -> classifier -> IR doc -> printer -> text. The `ir.ts` defines the Doc type, `classifier.ts` maps syntax nodes to formatting behavior, `formatters.ts` builds IR docs, and `printer.ts` renders to text.
-- **embeddedTokenizer.ts**: Uses TextMate grammars (via vscode-textmate + vscode-oniguruma) for syntax highlighting inside `<script>`, `<style>`, and custom code tags.
-- **diagnostics.ts**: Reports parse errors, mismatched tags.
-- **semanticTokens.ts**: Full semantic token provider using tree-sitter highlight queries.
+### Typed AST via codegen
 
-### Test Files
+`scripts/generate-ast-types.ts` reads `src/node-types.json` (emitted by `tree-sitter generate`) and writes `js/parser/nodeTypes.generated.ts`. The output is a discriminated union: one `BaseNode<T, Children>` per named grammar rule, plus a `SyntaxNode` union. Hidden rules (named with a leading `_`) are filtered out.
 
-- `test/corpus/*.txt`: Tree-sitter parser tests (name, input, expected S-expression).
-- `cli/src/check.test.ts`: CLI linter tests (vitest).
-- `lsp/server/test/*.test.ts`: LSP feature tests (vitest) — formatting, diagnostics, hover, folding, semantic tokens, etc.
+Switching on `node.type` narrows the node's `children` array to the exact set of allowed children. Don't hand-edit `nodeTypes.generated.ts` — regenerate via `pnpm run generate:ast-types` after any grammar change.
 
-### Query Files
+### Formatter pipeline
 
-- `queries/highlights.scm`: Syntax highlighting queries
-- `queries/injections.scm`: Language injection queries (script/style content)
+The formatter (`js/formatter/`) is a Prettier-inspired IR pipeline:
+1. **Classifier** (`classifier.ts`): maps syntax nodes to CSS-`display`-like categories. Uses `CSSDisplay` from `js/shared/cssDisplay.ts`.
+2. **AST → IR** (`formatters.ts`): walks the tree, building a `Doc` from `ir.ts`.
+3. **IR → string** (`printer.ts`): renders `Doc` to text with indentation.
+Embedded `<script>` / `<style>` / custom code-tag bodies are extracted by `embeddedRegions.ts` and reformatted via an injected `prettier` (peer dep) by `embedded.ts`.
 
-## Development Workflow
+### LSP
 
-After modifying `grammar.js` or `src/scanner.c`, always run `tree-sitter generate` before `tree-sitter test`. The generate step produces `src/parser.c` and related files from the grammar definition.
+The LSP server (`lsp/server/src/`) uses web-tree-sitter (wasm) and imports the rule engine + formatter from `../../../js/{shared,linter,formatter}/`. Key modules:
 
-The LSP depends on `tree-sitter-htmlmustache.wasm` (built via `tree-sitter build --wasm`). If you change the grammar, rebuild the WASM before testing LSP features.
+- **`server.ts`**: top-level LSP plumbing.
+- **`diagnostics.ts`**: parse errors + lint diagnostics via `js/linter`.
+- **`embeddedTokenizer.ts`**: TextMate-grammar-based syntax highlighting for embedded code regions (uses `vscode-textmate` + `vscode-oniguruma`).
+- **`semanticTokens.ts`**: full semantic-token provider using tree-sitter highlight queries.
 
-Package manager: `pnpm` for the root package and the `lsp/` workspace. Node version 22.
+### Tests
+
+- `test/corpus/*.txt`: tree-sitter parser corpus.
+- `bindings/node/*_test.js`: Node-native binding smoke tests.
+- `js/**/*.test.ts`: vitest, run via `pnpm run test:js`. Picked up by root `vitest.config.ts`.
+- `lsp/server/test/**/*.test.ts`: LSP vitest, separate workspace.
+
+### Query files
+
+- `queries/highlights.scm`: syntax highlighting.
+- `queries/injections.scm`: language injections (script/style content).
+
+## Development workflow
+
+1. Modify `grammar.js` or `src/scanner.c`.
+2. `tree-sitter generate` — regenerates `src/parser.c`, `src/node-types.json`, etc.
+3. `pnpm run generate:ast-types` — propagates grammar changes into `js/parser/nodeTypes.generated.ts`.
+4. `tree-sitter test` — corpus tests.
+5. `pnpm run build` — rebuild the wasm (LSP + js entries both load it).
+6. `pnpm run test:js` and `pnpm --prefix lsp/server run test` — runtime tests.
+7. `pnpm run typecheck` and `pnpm --prefix lsp run typecheck` — type safety.
+
+The LSP depends on `tree-sitter-htmlmustache.wasm` (built via `pnpm run build`). Rebuild after grammar changes before testing LSP features.
+
+Package manager: `pnpm`. `lsp/` is a separate workspace with its own client + server. Node 22.
+
+## Public package exports
+
+| Subpath        | Purpose                                                       |
+| -------------- | ------------------------------------------------------------- |
+| `.`            | Native tree-sitter binding (`bindings/node`)                  |
+| `./parser`     | `createParser({ locateWasm })` → typed JSON AST + `walk`      |
+| `./linter`     | `createLinter({ locateWasm })` → `lint(source, config)`       |
+| `./formatter`  | `createFormatter({ locateWasm, prettier })` → `format(...)`   |
+| `./wasm`       | Direct URL to `tree-sitter-htmlmustache.wasm`                 |
+
+See `docs/adr/0001-restructure-js-entry-points.md` for the rationale behind the split.

@@ -1,6 +1,6 @@
 {
   "name": "@reteps/tree-sitter-htmlmustache",
-  "version": "0.9.3",
+  "version": "0.10.0",
   "description": "HTML with Mustache/Handlebars template syntax grammar for tree-sitter",
   "repository": {
     "type": "git",
@@ -12,7 +12,7 @@
   },
   "main": "bindings/node",
   "bin": {
-    "htmlmustache": "cli/out/main.js"
+    "htmlmustache": "dist/cli/main.js"
   },
   "types": "bindings/node",
   "exports": {
@@ -20,10 +20,19 @@
       "types": "./bindings/node/index.d.ts",
       "default": "./bindings/node/index.js"
     },
-    "./browser": {
-      "types": "./browser/out/browser/index.d.ts",
-      "import": "./browser/out/browser/index.mjs"
+    "./parser": {
+      "types": "./dist/parser/index.d.ts",
+      "import": "./dist/parser/index.mjs"
     },
+    "./linter": {
+      "types": "./dist/linter/index.d.ts",
+      "import": "./dist/linter/index.mjs"
+    },
+    "./formatter": {
+      "types": "./dist/formatter/index.d.ts",
+      "import": "./dist/formatter/index.mjs"
+    },
+    "./wasm": "./tree-sitter-htmlmustache.wasm",
     "./tree-sitter-htmlmustache.wasm": "./tree-sitter-htmlmustache.wasm",
     "./package.json": "./package.json"
   },
@@ -42,10 +51,12 @@
     "prebuilds/**",
     "bindings/node/*",
     "queries/*",
-    "src/**",
-    "*.wasm",
-    "cli/out/*",
-    "browser/out/**"
+    "src/**/*.c",
+    "src/**/*.h",
+    "src/node-types.json",
+    "src/grammar.json",
+    "dist/**",
+    "*.wasm"
   ],
   "dependencies": {
     "ajv": "^8.20.0",
@@ -101,17 +112,18 @@
   "scripts": {
     "install": "node-gyp-build || exit 0",
     "build": "tree-sitter build --wasm",
-    "prepack": "tree-sitter build --wasm && node cli/esbuild.mjs && node browser/esbuild.mjs && tsc -p src/browser/tsconfig.json",
-    "build:cli": "node cli/esbuild.mjs",
-    "build:browser": "node browser/esbuild.mjs && tsc -p src/browser/tsconfig.json",
-    "check": "node cli/out/check.js check",
+    "build:js": "node esbuild.config.mjs && tsc -p js/tsconfig.json",
+    "prepack": "tree-sitter build --wasm && pnpm run generate:ast-types && pnpm run build:js",
+    "check": "node dist/cli/main.js check",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "prestart": "tree-sitter build --wasm",
     "start": "tree-sitter playground",
     "test": "tree-sitter test && node --test bindings/node/*_test.js",
-    "test:cli": "vitest run --config cli/vitest.config.ts",
+    "test:js": "vitest run",
+    "typecheck": "tsc -p js/tsconfig.json --noEmit",
+    "generate:ast-types": "tsx scripts/generate-ast-types.ts",
     "generate:rule-docs": "tsx scripts/generate-rule-docs.ts"
   }
 }

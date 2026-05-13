@@ -135,6 +135,88 @@ echo '<div><p>hi</p></div>' | htmlmustache format --stdin
 | `--print-width N`   | Max line width (default: 80)                     |
 | `--mustache-spaces` | Add spaces inside mustache delimiters            |
 
+## JavaScript API
+
+The package ships three independent subpath exports. Pick the one you need; each pulls in only its own deps.
+
+| Subpath        | What you get                                                       | Deps                            |
+| -------------- | ------------------------------------------------------------------ | ------------------------------- |
+| `./parser`     | `createParser({ locateWasm })` → typed JSON AST + `walk` helper    | `web-tree-sitter`               |
+| `./linter`     | `createLinter({ locateWasm })` → `lint(source, config) → Diagnostic[]` | `web-tree-sitter`, `ajv`        |
+| `./formatter`  | `createFormatter({ locateWasm, prettier })` → `format(source, config) → string` | `web-tree-sitter`, peer `prettier` |
+| `./wasm`       | Direct URL of `tree-sitter-htmlmustache.wasm`                      | —                               |
+
+### Parser — typed JSON AST
+
+```ts
+import { createParser, walk } from '@reteps/tree-sitter-htmlmustache/parser';
+
+const parser = await createParser({
+  locateWasm: '/static/tree-sitter-htmlmustache.wasm',
+});
+
+const { rootNode, hasError } = parser.parse('<p>{{name}}</p>');
+
+walk(rootNode, (node, parents) => {
+  switch (node.type) {
+    case 'html_element':
+      // node.children is narrowed to HtmlStartTagNode | HtmlEndTagNode | ...
+      console.log('element:', node.text);
+      break;
+    case 'mustache_interpolation':
+      // node.children: MustacheIdentifierNode | MustachePathExpressionNode
+      console.log('interpolation:', node.text);
+      break;
+  }
+});
+```
+
+The `SyntaxNode` discriminated union is generated from the grammar's
+`node-types.json` — switching on `node.type` narrows `node.children` to the
+exact set of allowed children. Build your own validator on top of `walk` with
+full autocomplete and exhaustiveness checking.
+
+### Linter
+
+```ts
+import { createLinter, DEFAULT_CONFIG } from '@reteps/tree-sitter-htmlmustache/linter';
+
+const linter = await createLinter({ locateWasm: '/static/tree-sitter-htmlmustache.wasm' });
+const diagnostics = linter.lint('<a href={{url}}></a>', DEFAULT_CONFIG);
+// → [{ line, column, severity: 'error', ruleName: 'unquotedMustacheAttributes', message, ... }]
+```
+
+Custom rules and per-tag JSON-Schema validation are passed through the
+`config` argument — see the [Configuration](#configuration) section for the
+shape.
+
+### Formatter
+
+```ts
+import { createFormatter } from '@reteps/tree-sitter-htmlmustache/formatter';
+import prettier from 'prettier';
+
+const formatter = await createFormatter({
+  locateWasm: '/static/tree-sitter-htmlmustache.wasm',
+  prettier,                           // optional — for embedded <script> / <style>
+});
+
+const formatted = await formatter.format('<div><p>hi</p></div>', { indentSize: 2 });
+```
+
+### `locateWasm`
+
+Both a string (URL of the grammar wasm) and a callback are supported:
+
+```ts
+locateWasm: (name) => {
+  if (name === 'tree-sitter-htmlmustache.wasm') return '/static/htmlmustache.wasm';
+  return `/static/${name}`;          // web-tree-sitter resolves tree-sitter.wasm itself
+}
+```
+
+In Node, pass absolute file paths. In the browser, pass URLs.
+
 ## Format Ignore
 
 Skip formatting for specific regions using ignore directives. Both HTML and Mustache comment forms are supported.

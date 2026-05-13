@@ -2,7 +2,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { Parser, Language, Query, Tree } from 'web-tree-sitter';
-import { GRAMMAR_WASM_FILENAME } from '../../../src/core/grammar.js';
+import { GRAMMAR_WASM_FILENAME } from '../../../js/shared/grammar.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 

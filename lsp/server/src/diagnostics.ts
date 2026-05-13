@@ -1,8 +1,8 @@
 import { Diagnostic, DiagnosticSeverity } from 'vscode-languageserver';
 import type { Tree } from './parser.js';
-import { collectErrors } from '../../../src/core/collectErrors.js';
-import type { RulesConfig, CustomRule } from '../../../src/core/configSchema.js';
-import type { ConfigLoadError, SchemaRegistry } from '../../../src/core/customTagSchemaLoader.js';
+import { collectErrors } from '../../../js/linter/collectErrors.js';
+import type { RulesConfig, CustomRule } from '../../../js/shared/configSchema.js';
+import type { ConfigLoadError, SchemaRegistry } from '../../../js/shared/customTagSchemaLoader.js';
 
 export function getDiagnostics(
   tree: Tree,

@@ -18,7 +18,7 @@ import {
   isGroup,
   isFill,
   isIfBreak,
-} from '../../../../src/core/formatting/ir.js';
+} from '../../../../js/formatter/ir.js';
 
 describe('IR Builders', () => {
   describe('text()', () => {
