@@ -1054,8 +1054,7 @@ describe('custom tag schema', () => {
     const tree = parse('<x-card></x-card>');
     const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
 
-    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message.includes('required property'))).toBe(true);
-    expect(errors.some(e => e.message.includes('kind'))).toBe(true);
+    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message === '<x-card> is missing required attribute "kind".')).toBe(true);
   });
 
   it('reports unknown attribute at the attribute location with ruleName', () => {
@@ -1072,7 +1071,7 @@ describe('custom tag schema', () => {
     });
     const tree = parse('<x-card kind="ok"\n  extra="x"\n></x-card>');
     const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
-    const err = errors.find(e => e.ruleName === 'customTagSchema' && e.message.includes('additional properties'));
+    const err = errors.find(e => e.ruleName === 'customTagSchema' && e.message === 'Unknown attribute "extra" on <x-card>.');
 
     expect(err).toBeDefined();
     expect(err!.line).toBe(2);
@@ -1099,7 +1098,47 @@ describe('custom tag schema', () => {
     const schemaErrors = errors.filter(e => e.ruleName === 'customTagSchema');
 
     expect(schemaErrors).toHaveLength(1);
-    expect(schemaErrors[0].message).toContain('additional properties');
+    expect(schemaErrors[0].message).toBe('Unknown attribute "mystery" on <x-card>.');
+  });
+
+  it('rewrites attribute enum and type schema messages using HTML terms', () => {
+    const registry = schemaRegistryFor('x-card', {
+      $schema: DRAFT_2020_12,
+      type: 'object',
+      properties: {
+        attributes: {
+          type: 'object',
+          properties: {
+            variant: { enum: ['primary', 'secondary'] },
+            count: { type: 'number' },
+          },
+        },
+      },
+    });
+    const tree = parse('<x-card variant="tertiary" count="many"></x-card>');
+    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
+
+    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message === 'Attribute "variant" on <x-card> must be one of: "primary", "secondary".')).toBe(true);
+    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message === 'Attribute "count" on <x-card> must be number.')).toBe(true);
+  });
+
+  it('rewrites attribute numeric bounds using HTML terms', () => {
+    const registry = schemaRegistryFor('x-card', {
+      $schema: DRAFT_2020_12,
+      type: 'object',
+      properties: {
+        attributes: {
+          type: 'object',
+          properties: {
+            score: { type: 'number', minimum: 0, maximum: 1 },
+          },
+        },
+      },
+    });
+    const tree = parse('<x-card score="2"></x-card>');
+    const errors = collectErrors(tree, 'test.mustache', undefined, ['x-card'], undefined, { registry });
+
+    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message === 'Attribute "score" on <x-card> must be <= 1.')).toBe(true);
   });
 
   it('accepts boolean attributes with boolean schemas', () => {
@@ -1234,7 +1273,7 @@ describe('custom tag schema', () => {
     const err = errors.find(e => e.ruleName === 'customTagSchema');
 
     expect(err).toBeDefined();
-    expect(err!.message).toContain('constant');
+    expect(err!.message).toBe('<x-list> only allows <x-item> children; found <x-bad>.');
     expect(err!.nodeText).toBe('<x-bad>');
   });
 
@@ -1260,8 +1299,7 @@ describe('custom tag schema', () => {
     const tree = parse('<pl-multiple-choice></pl-multiple-choice>');
     const errors = collectErrors(tree, 'test.mustache', undefined, ['pl-multiple-choice', 'pl-answer'], undefined, { registry: plMultipleChoiceRegistry() });
 
-    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message.includes('required property'))).toBe(true);
-    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message.includes('answers-name'))).toBe(true);
+    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message === '<pl-multiple-choice> is missing required attribute "answers-name".')).toBe(true);
   });
 
   it('validates representative pl-multiple-choice closed attributes with html globals', () => {
@@ -1270,7 +1308,7 @@ describe('custom tag schema', () => {
     const schemaErrors = errors.filter(e => e.ruleName === 'customTagSchema');
 
     expect(schemaErrors).toHaveLength(1);
-    expect(schemaErrors[0].message).toContain('additional properties');
+    expect(schemaErrors[0].message).toBe('Unknown attribute "mystery" on <pl-multiple-choice>.');
     expect(schemaErrors[0].nodeText).toContain('mystery');
   });
 
@@ -1285,7 +1323,7 @@ describe('custom tag schema', () => {
     const tree = parse('<pl-multiple-choice answers-name="ans"><span correct="true" feedback="ok" score="1"></span></pl-multiple-choice>');
     const errors = collectErrors(tree, 'test.mustache', undefined, ['pl-multiple-choice', 'pl-answer'], undefined, { registry: plMultipleChoiceRegistry() });
 
-    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message.includes('constant'))).toBe(true);
+    expect(errors.some(e => e.ruleName === 'customTagSchema' && e.message === '<pl-multiple-choice> only allows <pl-answer> children; found <span>.')).toBe(true);
   });
 
   it('validates representative pl-multiple-choice builtin-grading false child score', () => {

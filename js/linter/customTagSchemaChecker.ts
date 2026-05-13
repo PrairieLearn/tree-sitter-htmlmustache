@@ -272,6 +272,86 @@ function childIndexFromError(error: ErrorObject): number | null {
   return null;
 }
 
+function formatValueList(values: unknown): string | null {
+  if (!Array.isArray(values) || values.length === 0) return null;
+  return values.map(value => JSON.stringify(value)).join(', ');
+}
+
+function formatType(type: unknown): string {
+  return Array.isArray(type) ? type.join(' or ') : String(type);
+}
+
+function messageForError(error: ErrorObject, json: ElementJson): string {
+  const segments = pathSegments(error.instancePath);
+  const tag = json.tag;
+
+  if (segments[0] === 'attributes') {
+    if (error.keyword === 'required' && typeof error.params.missingProperty === 'string') {
+      return `<${tag}> is missing required attribute "${error.params.missingProperty}".`;
+    }
+    if (error.keyword === 'additionalProperties' && typeof error.params.additionalProperty === 'string') {
+      return `Unknown attribute "${error.params.additionalProperty}" on <${tag}>.`;
+    }
+
+    const attrName = segments[1];
+    if (attrName) {
+      if (error.keyword === 'enum') {
+        const allowed = formatValueList(error.params.allowedValues);
+        return `Attribute "${attrName}" on <${tag}> must be one of: ${allowed ?? 'the allowed values'}.`;
+      }
+      if (error.keyword === 'const') {
+        return `Attribute "${attrName}" on <${tag}> must be ${JSON.stringify(error.params.allowedValue)}.`;
+      }
+      if (error.keyword === 'type') {
+        return `Attribute "${attrName}" on <${tag}> must be ${formatType(error.params.type)}.`;
+      }
+      if (error.keyword === 'minimum') {
+        return `Attribute "${attrName}" on <${tag}> must be >= ${String(error.params.limit)}.`;
+      }
+      if (error.keyword === 'maximum') {
+        return `Attribute "${attrName}" on <${tag}> must be <= ${String(error.params.limit)}.`;
+      }
+    }
+  }
+
+  if (segments[0] === 'children') {
+    const childIndex = Number(segments[1]);
+    const child = Number.isInteger(childIndex) ? json.children[childIndex] : undefined;
+    if (child && segments[2] === 'tag' && error.keyword === 'const') {
+      return `<${tag}> only allows <${String(error.params.allowedValue)}> children; found <${child.tag}>.`;
+    }
+    if (child && segments[2] === 'attributes') {
+      if (error.keyword === 'required' && typeof error.params.missingProperty === 'string') {
+        return `<${child.tag}> child of <${tag}> is missing required attribute "${error.params.missingProperty}".`;
+      }
+      if (error.keyword === 'additionalProperties' && typeof error.params.additionalProperty === 'string') {
+        return `Unknown attribute "${error.params.additionalProperty}" on <${child.tag}> child of <${tag}>.`;
+      }
+      const attrName = segments[3];
+      if (attrName) {
+        if (error.keyword === 'enum') {
+          const allowed = formatValueList(error.params.allowedValues);
+          return `Attribute "${attrName}" on <${child.tag}> child of <${tag}> must be one of: ${allowed ?? 'the allowed values'}.`;
+        }
+        if (error.keyword === 'const') {
+          return `Attribute "${attrName}" on <${child.tag}> child of <${tag}> must be ${JSON.stringify(error.params.allowedValue)}.`;
+        }
+        if (error.keyword === 'type') {
+          return `Attribute "${attrName}" on <${child.tag}> child of <${tag}> must be ${formatType(error.params.type)}.`;
+        }
+        if (error.keyword === 'minimum') {
+          return `Attribute "${attrName}" on <${child.tag}> child of <${tag}> must be >= ${String(error.params.limit)}.`;
+        }
+        if (error.keyword === 'maximum') {
+          return `Attribute "${attrName}" on <${child.tag}> child of <${tag}> must be <= ${String(error.params.limit)}.`;
+        }
+      }
+    }
+  }
+
+  return error.message ?? 'does not satisfy custom tag schema';
+}
+
 function nodeForError(error: ErrorObject, context: ElementContext): BalanceNode {
   const segments = pathSegments(error.instancePath);
   if (segments[0] === 'attributes') {
@@ -297,7 +377,7 @@ function validateElement(compiled: CompiledTagSchema, element: BalanceNode): Fix
   localizeEn(errors);
   return errors.map(error => ({
     node: nodeForError(error, built.context),
-    message: error.message ?? 'does not satisfy custom tag schema',
+    message: messageForError(error, built.json),
   }));
 }
 
