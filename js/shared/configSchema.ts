@@ -54,6 +54,7 @@ export interface RulesConfig {
   unrecognizedHtmlTags?: RuleEntry;
   elementContentTooLong?: RuleEntryWithOptions<ElementContentTooLongOptions>;
   customTagSchema?: RuleEntry;
+  customTagDeprecations?: RuleEntry;
 }
 
 const VALID_RULE_SEVERITIES = new Set<string>(['error', 'warning', 'off']);

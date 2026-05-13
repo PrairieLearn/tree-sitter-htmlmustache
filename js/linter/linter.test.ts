@@ -526,9 +526,7 @@ describe('schema diagnostic merging', () => {
       })
       .filter((x) => x.ruleName === 'customTagSchema');
     expect(d).toHaveLength(1);
-    expect(d[0].message).toBe(
-      'Attribute "max" on <pl-card> must be integer.',
-    );
+    expect(d[0].message).toBe('Attribute "max" on <pl-card> must be integer.');
   });
 
   it('translates a plain format failure with attribute context', async () => {
@@ -554,6 +552,166 @@ describe('schema diagnostic merging', () => {
     expect(d[0].message).toBe(
       'Attribute "answers" on <pl-card> must match format "pl-boolean".',
     );
+  });
+});
+
+describe('customTagDeprecations rule', () => {
+  it('flags a deprecated tag at the start tag with description as reason', () => {
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      deprecated: true,
+      description: 'Use <pl-question-panel> instead.',
+    };
+    const d = linter
+      .lint('<pl-legacy></pl-legacy>', {
+        customTags: [{ name: 'pl-legacy', schema }],
+      })
+      .filter((x) => x.ruleName === 'customTagDeprecations');
+    expect(d).toHaveLength(1);
+    expect(d[0].severity).toBe('warning');
+    expect(d[0].message).toBe(
+      '<pl-legacy> is deprecated. Use <pl-question-panel> instead.',
+    );
+  });
+
+  it('flags a deprecated attribute and skips a value-level check for it', () => {
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: {
+        attributes: {
+          type: 'object',
+          properties: {
+            'old-name': {
+              deprecated: true,
+              description: 'Renamed to "answers-name".',
+              oneOf: [{ const: 'a', deprecated: true }, { const: 'b' }],
+            },
+          },
+        },
+      },
+    };
+    const d = linter
+      .lint('<pl-card old-name="a"></pl-card>', {
+        customTags: [{ name: 'pl-card', schema }],
+      })
+      .filter((x) => x.ruleName === 'customTagDeprecations');
+    expect(d).toHaveLength(1);
+    expect(d[0].message).toBe(
+      'Attribute "old-name" on <pl-card> is deprecated. Renamed to "answers-name".',
+    );
+  });
+
+  it('flags a deprecated attribute value via const + deprecated branch', () => {
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: {
+        attributes: {
+          type: 'object',
+          properties: {
+            kind: {
+              oneOf: [
+                { const: 'new' },
+                {
+                  const: 'legacy',
+                  deprecated: true,
+                  description: 'Use "new".',
+                },
+              ],
+            },
+          },
+        },
+      },
+    };
+    const ok = linter
+      .lint('<pl-card kind="new"></pl-card>', {
+        customTags: [{ name: 'pl-card', schema }],
+      })
+      .filter((x) => x.ruleName === 'customTagDeprecations');
+    expect(ok).toEqual([]);
+
+    const bad = linter
+      .lint('<pl-card kind="legacy"></pl-card>', {
+        customTags: [{ name: 'pl-card', schema }],
+      })
+      .filter((x) => x.ruleName === 'customTagDeprecations');
+    expect(bad).toHaveLength(1);
+    expect(bad[0].message).toBe(
+      'Value "legacy" for attribute "kind" on <pl-card> is deprecated. Use "new".',
+    );
+  });
+
+  it('flags a deprecated child-tag combination', () => {
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: {
+        children: {
+          type: 'array',
+          items: {
+            oneOf: [
+              { type: 'object', properties: { tag: { const: 'pl-answer' } } },
+              {
+                type: 'object',
+                properties: { tag: { const: 'pl-answer-old' } },
+                deprecated: true,
+                description: 'Use <pl-answer>.',
+              },
+            ],
+          },
+        },
+      },
+    };
+    const d = linter
+      .lint(
+        '<pl-choice><pl-answer-old>x</pl-answer-old><pl-answer>y</pl-answer></pl-choice>',
+        { customTags: [{ name: 'pl-choice', schema }] },
+      )
+      .filter((x) => x.ruleName === 'customTagDeprecations');
+    expect(d).toHaveLength(1);
+    expect(d[0].message).toBe(
+      '<pl-answer-old> as a child of <pl-choice> is deprecated. Use <pl-answer>.',
+    );
+  });
+
+  it('skips value-level deprecation when the value is a mustache interpolation', () => {
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      properties: {
+        attributes: {
+          type: 'object',
+          properties: {
+            kind: {
+              oneOf: [{ const: 'new' }, { const: 'legacy', deprecated: true }],
+            },
+          },
+        },
+      },
+    };
+    const d = linter
+      .lint('<pl-card kind="{{value}}"></pl-card>', {
+        customTags: [{ name: 'pl-card', schema }],
+      })
+      .filter((x) => x.ruleName === 'customTagDeprecations');
+    expect(d).toEqual([]);
+  });
+
+  it('is off by setting `customTagDeprecations: "off"`', () => {
+    const schema = {
+      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      type: 'object',
+      deprecated: true,
+    };
+    const d = linter
+      .lint('<pl-legacy></pl-legacy>', {
+        rules: { customTagDeprecations: 'off' },
+        customTags: [{ name: 'pl-legacy', schema }],
+      })
+      .filter((x) => x.ruleName === 'customTagDeprecations');
+    expect(d).toEqual([]);
   });
 });
 

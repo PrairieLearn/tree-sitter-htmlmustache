@@ -31,6 +31,7 @@ import type {
   ConfigLoadError,
 } from '../shared/customTagSchemaLoader.js';
 import { checkCustomTagSchemas } from './customTagSchemaChecker.js';
+import { checkDeprecations } from './deprecationChecker.js';
 
 // Parsing a selector is non-trivial (runs parsel-js) and lint() is called
 // per-keystroke in browsers, so cache by raw selector string. `null` cached
@@ -292,6 +293,10 @@ export function collectErrors(
     {
       rule: 'customTagSchema',
       errors: () => checkCustomTagSchemas(tree.rootNode, schemaRegistry),
+    },
+    {
+      rule: 'customTagDeprecations',
+      errors: () => checkDeprecations(tree.rootNode, schemaRegistry),
     },
   ];
 

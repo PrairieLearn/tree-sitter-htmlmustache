@@ -63,6 +63,12 @@ export const RULES: RuleDefinition[] = [
     description:
       'Validates configured custom tags against their JSON Schema contracts',
   },
+  {
+    name: 'customTagDeprecations',
+    defaultSeverity: 'warning',
+    description:
+      "Surfaces JSON Schema `deprecated: true` annotations on a custom tag, its attributes, an attribute's value, or a child-tag combination",
+  },
 ];
 
 /** Set of all known rule names (for config validation). */
