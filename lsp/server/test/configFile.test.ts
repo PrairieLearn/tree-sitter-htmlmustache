@@ -241,14 +241,17 @@ describe('validateConfig', () => {
     });
   });
 
-  it('ignores unknown rule names', () => {
+  it('accepts syntactically valid plugin rule names', () => {
     const result = validateConfig({
       rules: {
         preferMustacheComments: 'warning',
         nonExistentRule: 'error',
       },
     });
-    expect(result.rules).toEqual({ preferMustacheComments: 'warning' });
+    expect(result.rules).toEqual({
+      preferMustacheComments: 'warning',
+      nonExistentRule: 'error',
+    });
   });
 
   it('ignores invalid rule severity values', () => {
@@ -262,14 +265,17 @@ describe('validateConfig', () => {
     expect(result.rules).toEqual({ duplicateAttributes: 'error' });
   });
 
-  it('omits rules when all entries are invalid', () => {
+  it('accepts plugin rule names when all entries are syntactically valid', () => {
     const result = validateConfig({
       rules: {
         unknownRule: 'error',
         anotherUnknown: 'warning',
       },
     });
-    expect(result.rules).toBeUndefined();
+    expect(result.rules).toEqual({
+      unknownRule: 'error',
+      anotherUnknown: 'warning',
+    });
   });
 
   it('ignores non-object rules', () => {
@@ -561,31 +567,28 @@ describe('loadConfigFileForPath', () => {
     }
   });
 
-  it('loads an ajvModule referenced from the config', async () => {
+  it('loads a pluginModule referenced from the config', async () => {
     const fmTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lsp-fm-'));
     try {
       fs.writeFileSync(
-        path.join(fmTempDir, 'pl-ajv.mjs'),
+        path.join(fmTempDir, 'htmlmustache-plugin.mjs'),
         'export const formats = { "pl-boolean": (v) => typeof v === "string" && /^(true|false)$/i.test(v) };',
       );
       fs.writeFileSync(
         path.join(fmTempDir, 'pl-card.schema.json'),
         JSON.stringify({
-          $schema: 'https://json-schema.org/draft/2020-12/schema',
+          $schema: 'http://json-schema.org/draft-06/schema#',
           type: 'object',
           properties: {
-            attributes: {
-              type: 'object',
-              properties: { live: { type: 'string', format: 'pl-boolean' } },
-              required: ['live'],
-            },
+            live: { type: 'string', format: 'pl-boolean' },
           },
+          required: ['live'],
         }),
       );
       fs.writeFileSync(
         path.join(fmTempDir, '.htmlmustache.jsonc'),
         JSON.stringify({
-          ajvModule: './pl-ajv.mjs',
+          pluginModule: './htmlmustache-plugin.mjs',
           customTags: [{ name: 'pl-card', schema: './pl-card.schema.json' }],
         }),
       );
@@ -596,20 +599,12 @@ describe('loadConfigFileForPath', () => {
       expect(compiled).toBeDefined();
       expect(
         compiled.validate({
-          tag: 'pl-card',
-          attributes: { live: 'True' },
-          text: '',
-          innerHtml: '',
-          children: [],
+          live: 'True',
         }),
       ).toBe(true);
       expect(
         compiled.validate({
-          tag: 'pl-card',
-          attributes: { live: 'maybe' },
-          text: '',
-          innerHtml: '',
-          children: [],
+          live: 'maybe',
         }),
       ).toBe(false);
     } finally {

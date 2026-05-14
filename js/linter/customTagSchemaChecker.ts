@@ -3,40 +3,22 @@ import localizeEn from 'ajv-i18n/localize/en/index.js';
 import type { BalanceNode } from './htmlBalanceChecker.js';
 import type { FixableError } from './mustacheChecks.js';
 import type {
-  SchemaRegistry,
   CompiledTagSchema,
+  SchemaRegistry,
 } from '../shared/customTagSchemaLoader.js';
-import {
-  getTagName,
-  isHtmlElementType,
-  isMustacheSection,
-} from '../shared/nodeHelpers.js';
+import { getTagName, isHtmlElementType } from '../shared/nodeHelpers.js';
 
-interface ElementJson {
-  tag: string;
-  attributes: Record<string, unknown>;
-  text: string;
-  innerHtml: string;
-  children: ChildJson[];
-}
-
-interface ChildJson {
-  tag: string;
-  attributes: Record<string, unknown>;
-  text: string;
-  innerHtml: string;
+interface AttributeInfo {
+  attrNode: BalanceNode;
+  valueNode: BalanceNode | null;
+  value: string | true;
+  dynamic: boolean;
 }
 
 interface ElementContext {
-  element: BalanceNode;
   startTag: BalanceNode;
-  attributesByName: Map<
-    string,
-    { attrNode: BalanceNode; valueNode: BalanceNode | null }
-  >;
-  children: Array<{ element: BalanceNode; startTag: BalanceNode }>;
-  mustacheAttributes: Set<string>;
-  mustacheAttributePaths: Set<string>;
+  attributesByName: Map<string, AttributeInfo>;
+  dynamicAttributes: Set<string>;
 }
 
 function stripQuotes(text: string): string {
@@ -57,65 +39,14 @@ function findStartTag(node: BalanceNode): BalanceNode | null {
   );
 }
 
-function findEndTag(node: BalanceNode): BalanceNode | null {
-  return (
-    node.children.find(
-      (c) => c.type === 'html_end_tag' || c.type === 'html_forced_end_tag',
-    ) ?? null
-  );
+function containsMustache(node: BalanceNode | null): boolean {
+  if (!node) return false;
+  if (node.type.startsWith('mustache_')) return true;
+  return node.children.some(containsMustache);
 }
 
-function appendDescendantText(node: BalanceNode, out: string[]): void {
-  switch (node.type) {
-    case 'text':
-    case 'html_entity':
-    case 'html_raw_text':
-    case 'mustache_interpolation':
-    case 'mustache_triple':
-      out.push(node.text);
-      return;
-    case 'html_start_tag':
-    case 'html_end_tag':
-    case 'html_self_closing_tag':
-    case 'html_forced_end_tag':
-    case 'html_erroneous_end_tag':
-    case 'html_doctype':
-    case 'mustache_comment':
-    case 'mustache_partial':
-      return;
-  }
-  for (const child of node.children) {
-    appendDescendantText(child, out);
-  }
-}
-
-function buildElementText(element: BalanceNode): string {
-  const parts: string[] = [];
-  for (const child of element.children) {
-    appendDescendantText(child, parts);
-  }
-  return parts.join('').trim();
-}
-
-function buildElementInnerHtml(element: BalanceNode): string {
-  const startTag = findStartTag(element);
-  if (!startTag || startTag.type === 'html_self_closing_tag') return '';
-  const endTag = findEndTag(element);
-  const innerStart = startTag.endIndex - element.startIndex;
-  const innerEnd = endTag
-    ? endTag.startIndex - element.startIndex
-    : element.text.length;
-  if (innerEnd <= innerStart) return '';
-  return element.text.slice(innerStart, innerEnd);
-}
-
-function readAttributes(
-  startTag: BalanceNode,
-): ElementContext['attributesByName'] {
-  const attributes = new Map<
-    string,
-    { attrNode: BalanceNode; valueNode: BalanceNode | null }
-  >();
+function readAttributes(startTag: BalanceNode): Map<string, AttributeInfo> {
+  const attributes = new Map<string, AttributeInfo>();
   for (const child of startTag.children) {
     if (child.type !== 'html_attribute') continue;
     const nameNode = child.children.find(
@@ -128,230 +59,31 @@ function readAttributes(
           c.type === 'html_attribute_value' ||
           c.type === 'html_quoted_attribute_value',
       ) ?? null;
-    attributes.set(nameNode.text.toLowerCase(), { attrNode: child, valueNode });
+    const name = nameNode.text.toLowerCase();
+    const value = valueNode ? stripQuotes(valueNode.text) : true;
+    attributes.set(name, {
+      attrNode: child,
+      valueNode,
+      value,
+      dynamic: containsMustache(child),
+    });
   }
   return attributes;
 }
 
-function findAttributeSchema(
-  schema: Record<string, unknown>,
-  attrName: string,
-): Record<string, unknown> | null {
-  const rootProperties = schema.properties;
-  if (
-    !rootProperties ||
-    typeof rootProperties !== 'object' ||
-    Array.isArray(rootProperties)
-  ) {
-    return null;
-  }
-  const attributesSchema = (rootProperties as Record<string, unknown>)
-    .attributes;
-  if (
-    !attributesSchema ||
-    typeof attributesSchema !== 'object' ||
-    Array.isArray(attributesSchema)
-  ) {
-    return null;
-  }
-  const properties = (attributesSchema as Record<string, unknown>).properties;
-  if (
-    !properties ||
-    typeof properties !== 'object' ||
-    Array.isArray(properties)
-  ) {
-    return null;
-  }
-  const attrSchema = (properties as Record<string, unknown>)[attrName];
-  return attrSchema &&
-    typeof attrSchema === 'object' &&
-    !Array.isArray(attrSchema)
-    ? (attrSchema as Record<string, unknown>)
-    : null;
-}
-
-function findChildAttributeSchema(
-  schema: Record<string, unknown>,
-  attrName: string,
-): Record<string, unknown> | null {
-  const properties = schema.properties;
-  if (
-    !properties ||
-    typeof properties !== 'object' ||
-    Array.isArray(properties)
-  ) {
-    return null;
-  }
-  const children = (properties as Record<string, unknown>).children;
-  if (!children || typeof children !== 'object' || Array.isArray(children)) {
-    return null;
-  }
-  const items = (children as Record<string, unknown>).items;
-  if (!items || typeof items !== 'object' || Array.isArray(items)) return null;
-  return findAttributeSchema(items as Record<string, unknown>, attrName);
-}
-
-function schemaType(schema: Record<string, unknown>): string | null {
-  if (typeof schema.type === 'string') return schema.type;
-  if (Array.isArray(schema.type)) {
-    return (
-      (schema.type.find((t) => typeof t === 'string') as string | undefined) ??
-      null
-    );
-  }
-  for (const key of ['anyOf', 'oneOf', 'allOf'] as const) {
-    const branches = schema[key];
-    if (Array.isArray(branches)) {
-      for (const branch of branches) {
-        if (branch && typeof branch === 'object' && !Array.isArray(branch)) {
-          const type = schemaType(branch as Record<string, unknown>);
-          if (type) return type;
-        }
-      }
-    }
-  }
-  return null;
-}
-
-function sentinelFor(
-  schema: Record<string, unknown> | null,
-  original: string,
-): unknown {
-  if (!schema) return original;
-  if (Array.isArray(schema.enum) && schema.enum.length > 0) {
-    return schema.enum[0];
-  }
-  const type = schemaType(schema);
-  if (type === 'boolean') return true;
-  if (type === 'integer' || type === 'number') {
-    return typeof schema.minimum === 'number' && schema.minimum > 0
-      ? schema.minimum
-      : 0;
-  }
-  if (type === 'string') return '';
-  return original;
-}
-
-function literalValueFor(
-  schema: Record<string, unknown> | null,
-  rawValue: string,
-  hasValue: boolean,
-): unknown {
-  if (!hasValue && schemaType(schema ?? {}) === 'boolean') return true;
-  return rawValue;
-}
-
-function readAttributeJson(
-  startTag: BalanceNode,
-  compiled: CompiledTagSchema,
-): {
-  attributes: Record<string, unknown>;
-  attributesByName: ElementContext['attributesByName'];
-  mustacheAttributes: Set<string>;
-} {
-  const attributesByName = readAttributes(startTag);
-  const attributes: Record<string, unknown> = {};
-  const mustacheAttributes = new Set<string>();
-  for (const [name, nodes] of attributesByName) {
-    const rawValue = nodes.valueNode ? stripQuotes(nodes.valueNode.text) : '';
-    if (rawValue.includes('{{')) {
-      mustacheAttributes.add(name);
-      attributes[name] = sentinelFor(
-        findAttributeSchema(compiled.schema, name),
-        rawValue,
-      );
-    } else {
-      attributes[name] = literalValueFor(
-        findAttributeSchema(compiled.schema, name),
-        rawValue,
-        nodes.valueNode !== null,
-      );
-    }
-  }
-  return { attributes, attributesByName, mustacheAttributes };
-}
-
-function collectDirectHtmlChildren(
-  node: BalanceNode,
-  out: Array<{ element: BalanceNode; startTag: BalanceNode }>,
-): void {
-  for (const child of node.children) {
-    if (isHtmlElementType(child)) {
-      const startTag = findStartTag(child);
-      if (startTag) out.push({ element: child, startTag });
-      continue;
-    }
-    if (isMustacheSection(child)) {
-      collectDirectHtmlChildren(child, out);
-    }
-  }
-}
-
-function buildChildJson(
-  child: BalanceNode,
-  compiled: CompiledTagSchema,
-  childIndex: number,
-  mustacheAttributePaths: Set<string>,
-): ChildJson | null {
-  const tag = getTagName(child)?.toLowerCase();
-  const startTag = findStartTag(child);
-  if (!tag || !startTag) return null;
-  const attributes: Record<string, unknown> = {};
-  for (const [name, nodes] of readAttributes(startTag)) {
-    const rawValue = nodes.valueNode ? stripQuotes(nodes.valueNode.text) : '';
-    const schema = findChildAttributeSchema(compiled.schema, name);
-    if (rawValue.includes('{{')) {
-      mustacheAttributePaths.add(`/children/${childIndex}/attributes/${name}`);
-      attributes[name] = sentinelFor(schema, rawValue);
-    } else {
-      attributes[name] = literalValueFor(
-        schema,
-        rawValue,
-        nodes.valueNode !== null,
-      );
-    }
-  }
-  return {
-    tag,
-    attributes,
-    text: buildElementText(child),
-    innerHtml: buildElementInnerHtml(child),
-  };
-}
-
-function buildElementJson(
+function buildAttributeObject(
   element: BalanceNode,
-  compiled: CompiledTagSchema,
-): { json: ElementJson; context: ElementContext } | null {
-  const tag = getTagName(element)?.toLowerCase();
+): { data: Record<string, unknown>; context: ElementContext } | null {
   const startTag = findStartTag(element);
-  if (!tag || !startTag) return null;
-  const { attributes, attributesByName, mustacheAttributes } =
-    readAttributeJson(startTag, compiled);
-  const childNodes: ElementContext['children'] = [];
-  collectDirectHtmlChildren(element, childNodes);
-  const mustacheAttributePaths = new Set<string>();
-  return {
-    json: {
-      tag,
-      attributes,
-      text: buildElementText(element),
-      innerHtml: buildElementInnerHtml(element),
-      children: childNodes
-        .map((c, i) =>
-          buildChildJson(c.element, compiled, i, mustacheAttributePaths),
-        )
-        .filter((c): c is ChildJson => c !== null),
-    },
-    context: {
-      element,
-      startTag,
-      attributesByName,
-      children: childNodes,
-      mustacheAttributes,
-      mustacheAttributePaths,
-    },
-  };
+  if (!startTag) return null;
+  const attributesByName = readAttributes(startTag);
+  const dynamicAttributes = new Set<string>();
+  const data: Record<string, unknown> = {};
+  for (const [name, info] of attributesByName) {
+    if (info.dynamic) dynamicAttributes.add(name);
+    data[name] = info.value;
+  }
+  return { data, context: { startTag, attributesByName, dynamicAttributes } };
 }
 
 function pathSegments(instancePath: string): string[] {
@@ -394,12 +126,10 @@ function collectMentionedAttributes(
       if (typeof name === 'string') out.add(name);
     }
   }
-  if (
-    obj.properties &&
-    typeof obj.properties === 'object' &&
-    !Array.isArray(obj.properties)
-  ) {
-    for (const name of Object.keys(obj.properties)) out.add(name);
+  if (obj.properties && typeof obj.properties === 'object') {
+    for (const name of Object.keys(obj.properties)) {
+      out.add(name);
+    }
   }
   for (const value of Object.values(obj)) {
     collectMentionedAttributes(value, out);
@@ -407,39 +137,15 @@ function collectMentionedAttributes(
   return out;
 }
 
-function childMustacheAttributeNames(
-  paths: Set<string>,
-  childIndex?: number,
-): Set<string> {
-  const names = new Set<string>();
-  for (const attrPath of paths) {
-    const segments = pathSegments(attrPath);
-    if (
-      childIndex !== undefined &&
-      segments[0] === 'children' &&
-      Number(segments[1]) !== childIndex
-    ) {
-      continue;
-    }
-    const attributesAt = segments.indexOf('attributes');
-    if (attributesAt >= 0 && segments[attributesAt + 1]) {
-      names.add(segments[attributesAt + 1]);
-    }
-  }
-  return names;
-}
-
 function intersects(a: Set<string>, b: Set<string>): boolean {
-  for (const item of a) {
-    if (b.has(item)) return true;
-  }
+  for (const item of a) if (b.has(item)) return true;
   return false;
 }
 
-function conditionalAncestorMentionsMustache(
+function conditionalAncestorMentionsDynamic(
   schema: Record<string, unknown>,
   schemaPath: string,
-  mustacheNames: Set<string>,
+  dynamicAttributes: Set<string>,
 ): boolean {
   const segments = schemaPathSegments(schemaPath);
   for (let i = segments.length - 1; i >= 0; i--) {
@@ -448,32 +154,22 @@ function conditionalAncestorMentionsMustache(
       schema,
       `#/${segments.slice(0, i).join('/')}`,
     );
-    if (intersects(collectMentionedAttributes(ancestor), mustacheNames)) {
+    if (intersects(collectMentionedAttributes(ancestor), dynamicAttributes)) {
       return true;
     }
   }
   return false;
 }
 
-function mentionsMustacheAttribute(
+function mentionsDynamicAttribute(
   error: ErrorObject,
   context: ElementContext,
   schema: Record<string, unknown>,
 ): boolean {
-  const { mustacheAttributes, mustacheAttributePaths } = context;
-  if (mustacheAttributes.size === 0 && mustacheAttributePaths.size === 0) {
-    return false;
-  }
-  const instancePath = error.instancePath;
-  for (const attrPath of mustacheAttributePaths) {
-    if (instancePath === attrPath || instancePath.startsWith(`${attrPath}/`)) {
-      return true;
-    }
-  }
+  const { dynamicAttributes } = context;
+  if (dynamicAttributes.size === 0) return false;
   const segments = pathSegments(error.instancePath);
-  for (const attr of mustacheAttributes) {
-    if (segments[0] === 'attributes' && segments[1] === attr) return true;
-  }
+  if (segments[0] && dynamicAttributes.has(segments[0])) return true;
   const mentioned = collectMentionedAttributes(
     schemaAtPath(schema, error.schemaPath),
   );
@@ -481,52 +177,16 @@ function mentionsMustacheAttribute(
     error.keyword,
   );
   if (
-    isCompositionError &&
-    (segments.length === 0 || segments[0] === 'attributes') &&
-    intersects(mentioned, mustacheAttributes)
+    (isCompositionError || segments.length === 0) &&
+    intersects(mentioned, dynamicAttributes)
   ) {
     return true;
   }
-  if (
-    (segments.length === 0 || segments[0] === 'attributes') &&
-    conditionalAncestorMentionsMustache(
-      schema,
-      error.schemaPath,
-      mustacheAttributes,
-    )
-  ) {
-    return true;
-  }
-  if (segments[0] === 'children') {
-    const childIndex = Number(segments[1]);
-    const sameChildMustache = childMustacheAttributeNames(
-      mustacheAttributePaths,
-      Number.isInteger(childIndex) ? childIndex : undefined,
-    );
-    if (isCompositionError && intersects(mentioned, sameChildMustache)) {
-      return true;
-    }
-    if (
-      conditionalAncestorMentionsMustache(
-        schema,
-        error.schemaPath,
-        sameChildMustache,
-      )
-    ) {
-      return true;
-    }
-  }
-  return false;
-}
-
-function childIndexFromError(error: ErrorObject): number | null {
-  const segments = pathSegments(error.instancePath);
-  const childrenAt = segments.indexOf('children');
-  if (childrenAt >= 0) {
-    const maybeIndex = Number(segments[childrenAt + 1]);
-    if (Number.isInteger(maybeIndex)) return maybeIndex;
-  }
-  return null;
+  return conditionalAncestorMentionsDynamic(
+    schema,
+    error.schemaPath,
+    dynamicAttributes,
+  );
 }
 
 function formatValueList(values: unknown): string | null {
@@ -538,15 +198,6 @@ function formatType(type: unknown): string {
   return Array.isArray(type) ? type.join(' or ') : String(type);
 }
 
-function pluralCharacters(limit: unknown): string {
-  return `${String(limit)} character${limit === 1 ? '' : 's'}`;
-}
-
-/**
- * Just the post-"must" phrase for a leaf keyword failure (no prefix, no
- * period). Used both directly by `messageForError` and by `mergeErrors` to
- * join `anyOf` branches with "or".
- */
 function constraintPhrase(error: ErrorObject): string | null {
   switch (error.keyword) {
     case 'type':
@@ -561,108 +212,48 @@ function constraintPhrase(error: ErrorObject): string | null {
       return `be >= ${String(error.params.limit)}`;
     case 'maximum':
       return `be <= ${String(error.params.limit)}`;
-    case 'exclusiveMinimum':
-      return `be > ${String(error.params.limit)}`;
-    case 'exclusiveMaximum':
-      return `be < ${String(error.params.limit)}`;
     case 'format':
       return `match format ${JSON.stringify(error.params.format)}`;
     case 'pattern':
       return `match pattern ${JSON.stringify(error.params.pattern)}`;
-    case 'minLength':
-      return `be at least ${pluralCharacters(error.params.limit)} long`;
-    case 'maxLength':
-      return `be at most ${pluralCharacters(error.params.limit)} long`;
   }
   return null;
 }
 
-/**
- * Returns the "Attribute X on <tag>" / "Attribute X on <child> child of
- * <tag>" framing for an instancePath, or `null` when the path lands somewhere
- * a stock prefix doesn't make sense (root, `children/N/text`, etc.).
- */
-function attributePrefix(segments: string[], json: ElementJson): string | null {
-  if (segments[0] === 'attributes') {
-    const attrName = segments[1];
-    if (!attrName) return null;
-    return `Attribute "${attrName}" on <${json.tag}>`;
+function attributeNameForError(error: ErrorObject): string | null {
+  if (
+    error.keyword === 'required' &&
+    typeof error.params.missingProperty === 'string'
+  ) {
+    return error.params.missingProperty;
   }
-  if (segments[0] === 'children') {
-    const childIndex = Number(segments[1]);
-    const child = Number.isInteger(childIndex)
-      ? json.children[childIndex]
-      : undefined;
-    if (!child) return null;
-    if (segments[2] === 'attributes') {
-      const attrName = segments[3];
-      if (!attrName) return null;
-      return `Attribute "${attrName}" on <${child.tag}> child of <${json.tag}>`;
-    }
+  if (
+    error.keyword === 'additionalProperties' &&
+    typeof error.params.additionalProperty === 'string'
+  ) {
+    return error.params.additionalProperty;
   }
-  return null;
+  return pathSegments(error.instancePath)[0] ?? null;
 }
 
-function messageForError(
-  error: ErrorObject,
-  json: ElementJson,
-  customKeywords: Set<string>,
-): string {
-  if (customKeywords.has(error.keyword)) {
-    // ajv emits a stock "must pass \"<keyword>\" keyword validation" message
-    // when the consumer's validator doesn't supply its own. Treat that as "no
-    // consumer message" and fall through to the named-keyword phrase.
-    const ajvDefault = `must pass "${error.keyword}" keyword validation`;
-    if (error.message && error.message !== ajvDefault) return error.message;
-    const path = error.instancePath || '/';
-    return `<${json.tag}>: validation ${error.keyword} failed on ${path}.`;
+function messageForError(error: ErrorObject, tag: string): string {
+  if (
+    error.keyword === 'required' &&
+    typeof error.params.missingProperty === 'string'
+  ) {
+    return `<${tag}> is missing required attribute "${error.params.missingProperty}".`;
   }
-  const segments = pathSegments(error.instancePath);
-  const tag = json.tag;
-
-  if (segments[0] === 'attributes') {
-    if (
-      error.keyword === 'required' &&
-      typeof error.params.missingProperty === 'string'
-    ) {
-      return `<${tag}> is missing required attribute "${error.params.missingProperty}".`;
-    }
-    if (
-      error.keyword === 'additionalProperties' &&
-      typeof error.params.additionalProperty === 'string'
-    ) {
-      return `Unknown attribute "${error.params.additionalProperty}" on <${tag}>.`;
-    }
+  if (
+    error.keyword === 'additionalProperties' &&
+    typeof error.params.additionalProperty === 'string'
+  ) {
+    return `Unknown attribute "${error.params.additionalProperty}" on <${tag}>.`;
   }
-
-  if (segments[0] === 'children') {
-    const childIndex = Number(segments[1]);
-    const child = Number.isInteger(childIndex)
-      ? json.children[childIndex]
-      : undefined;
-    if (child && segments[2] === 'tag' && error.keyword === 'const') {
-      return `<${tag}> only allows <${String(error.params.allowedValue)}> children; found <${child.tag}>.`;
-    }
-    if (child && segments[2] === 'attributes') {
-      if (
-        error.keyword === 'required' &&
-        typeof error.params.missingProperty === 'string'
-      ) {
-        return `<${child.tag}> child of <${tag}> is missing required attribute "${error.params.missingProperty}".`;
-      }
-      if (
-        error.keyword === 'additionalProperties' &&
-        typeof error.params.additionalProperty === 'string'
-      ) {
-        return `Unknown attribute "${error.params.additionalProperty}" on <${child.tag}> child of <${tag}>.`;
-      }
-    }
-  }
-
-  const prefix = attributePrefix(segments, json);
+  const attrName = attributeNameForError(error);
   const phrase = constraintPhrase(error);
-  if (prefix && phrase) return `${prefix} must ${phrase}.`;
-
+  if (attrName && phrase) {
+    return `Attribute "${attrName}" on <${tag}> must ${phrase}.`;
+  }
   return error.message ?? 'does not satisfy custom tag schema';
 }
 
@@ -670,24 +261,20 @@ function nodeForError(
   error: ErrorObject,
   context: ElementContext,
 ): BalanceNode {
-  const segments = pathSegments(error.instancePath);
-  if (segments[0] === 'attributes') {
-    const attrName =
-      typeof error.params.additionalProperty === 'string'
-        ? error.params.additionalProperty
-        : segments[1];
-    const attr = attrName ? context.attributesByName.get(attrName) : undefined;
-    if (error.keyword === 'additionalProperties') {
-      return attr?.attrNode ?? context.startTag;
-    }
-    if (attr) return attr.valueNode ?? attr.attrNode;
-    return context.startTag;
-  }
-  const childIndex = childIndexFromError(error);
-  if (childIndex !== null) {
-    return context.children[childIndex]?.startTag ?? context.startTag;
+  const attrName = attributeNameForError(error);
+  const attr = attrName ? context.attributesByName.get(attrName) : undefined;
+  if (error.keyword === 'required') return context.startTag;
+  if (attr) {
+    return error.keyword === 'additionalProperties'
+      ? attr.attrNode
+      : (attr.valueNode ?? attr.attrNode);
   }
   return context.startTag;
+}
+
+interface MergedError {
+  error: ErrorObject;
+  message: string;
 }
 
 function isBranchOf(child: ErrorObject, wrapper: ErrorObject): boolean {
@@ -697,23 +284,7 @@ function isBranchOf(child: ErrorObject, wrapper: ErrorObject): boolean {
   );
 }
 
-interface MergedError {
-  error: ErrorObject;
-  message: string;
-}
-
-/**
- * Collapses AJV's "every failing branch + the composition wrapper" noise into
- * one diagnostic per `instancePath`. Branch error messages are joined with
- * "or" for `anyOf`/`oneOf`; `if`/`allOf` wrappers (which carry no information
- * beyond their branches) are dropped; `not` translates to a generic phrase;
- * `errorMessage` from ajv-errors wins over anything else at the same path.
- */
-function mergeErrors(
-  errors: ErrorObject[],
-  json: ElementJson,
-  customKeywords: Set<string>,
-): MergedError[] {
+function mergeErrors(errors: ErrorObject[], tag: string): MergedError[] {
   const byPath = new Map<string, ErrorObject[]>();
   for (const error of errors) {
     const list = byPath.get(error.instancePath);
@@ -721,16 +292,9 @@ function mergeErrors(
     else byPath.set(error.instancePath, [error]);
   }
 
-  const translate = (error: ErrorObject): MergedError => ({
-    error,
-    message: messageForError(error, json, customKeywords),
-  });
-
   const result: MergedError[] = [];
   for (const [path, group] of byPath) {
-    const segments = pathSegments(path);
-    const prefix = attributePrefix(segments, json);
-
+    const attrName = pathSegments(path)[0] ?? null;
     const override = group.find((e) => e.keyword === 'errorMessage');
     if (override) {
       result.push({
@@ -739,63 +303,31 @@ function mergeErrors(
       });
       continue;
     }
-
     const altWrapper = group.find(
       (e) => e.keyword === 'anyOf' || e.keyword === 'oneOf',
     );
     if (altWrapper) {
-      const branches = group.filter((e) => isBranchOf(e, altWrapper));
       const phrases = Array.from(
         new Set(
-          branches
+          group
+            .filter((e) => isBranchOf(e, altWrapper))
             .map((e) => constraintPhrase(e))
             .filter((p): p is string => p !== null),
         ),
       );
-      if (prefix && phrases.length > 0) {
+      if (attrName && phrases.length > 0) {
         result.push({
           error: altWrapper,
-          message: `${prefix} must ${phrases.join(' or ')}.`,
+          message: `Attribute "${attrName}" on <${tag}> must ${phrases.join(' or ')}.`,
         });
         continue;
       }
-      // Otherwise emit the wrapper alone — AJV's raw "must match a schema in
-      // anyOf" is exactly the noise this merger was written to suppress.
-      result.push({
-        error: altWrapper,
-        message: `${prefix ?? `<${json.tag}>`} does not match any of the allowed schemas.`,
-      });
-      continue;
     }
-
-    // `if` is pure bookkeeping ("matched then-schema, then failed") — its
-    // message says nothing the branch errors don't already say.
-    const ifWrapper = group.find((e) => e.keyword === 'if');
-    if (ifWrapper) {
-      for (const e of group) if (e !== ifWrapper) result.push(translate(e));
-      continue;
+    const wrappers = new Set(['if', 'allOf']);
+    for (const error of group) {
+      if (wrappers.has(error.keyword) && group.length > 1) continue;
+      result.push({ error, message: messageForError(error, tag) });
     }
-
-    // `not` has no sub-errors by definition; translate generically. Any other
-    // errors at this path (rare) get their own translated diagnostics.
-    const notWrapper = group.find((e) => e.keyword === 'not');
-    if (notWrapper) {
-      result.push({
-        error: notWrapper,
-        message: `${prefix ?? `<${json.tag}>`} must not match the disallowed schema.`,
-      });
-      for (const e of group) if (e !== notWrapper) result.push(translate(e));
-      continue;
-    }
-
-    // `allOf` is redundant — every failing branch already reports itself.
-    const allOfWrapper = group.find((e) => e.keyword === 'allOf');
-    if (allOfWrapper) {
-      for (const e of group) if (e !== allOfWrapper) result.push(translate(e));
-      continue;
-    }
-
-    for (const e of group) result.push(translate(e));
   }
   return result;
 }
@@ -803,31 +335,21 @@ function mergeErrors(
 function validateElement(
   compiled: CompiledTagSchema,
   element: BalanceNode,
-  customKeywords: Set<string>,
 ): FixableError[] {
-  const built = buildElementJson(element, compiled);
+  const tag = getTagName(element)?.toLowerCase();
+  if (!tag) return [];
+  const built = buildAttributeObject(element);
   if (!built) return [];
-  const valid = compiled.validate(built.json);
+  const valid = compiled.validate(built.data);
   if (valid || !compiled.validate.errors) return [];
   const errors = compiled.validate.errors.filter(
-    (error) =>
-      !mentionsMustacheAttribute(error, built.context, compiled.schema),
+    (error) => !mentionsDynamicAttribute(error, built.context, compiled.schema),
   );
-  // `localizeEn` rewrites *every* error's message — including unknown keywords,
-  // which it stomps with `must pass "<keyword>" keyword validation`. Run it
-  // only on built-in errors so consumer-supplied messages survive. Excludes
-  // ajv-errors' `errorMessage` keyword too, whose entire purpose is to carry
-  // a custom string that would otherwise get clobbered.
-  const builtIn = errors.filter(
-    (e) => !customKeywords.has(e.keyword) && e.keyword !== 'errorMessage',
-  );
-  localizeEn(builtIn);
-  return mergeErrors(errors, built.json, customKeywords).map(
-    ({ error, message }) => ({
-      node: nodeForError(error, built.context),
-      message,
-    }),
-  );
+  localizeEn(errors.filter((error) => error.keyword !== 'errorMessage'));
+  return mergeErrors(errors, tag).map(({ error, message }) => ({
+    node: nodeForError(error, built.context),
+    message,
+  }));
 }
 
 export function checkCustomTagSchemas(
@@ -837,15 +359,12 @@ export function checkCustomTagSchemas(
   if (!registry || registry.schemas.size === 0) return [];
   const errors: FixableError[] = [];
   const schemas = registry.schemas;
-  const customKeywords = registry.customKeywords;
 
   function visit(node: BalanceNode): void {
     if (isHtmlElementType(node)) {
       const tag = getTagName(node)?.toLowerCase();
       const compiled = tag ? schemas.get(tag) : undefined;
-      if (compiled) {
-        errors.push(...validateElement(compiled, node, customKeywords));
-      }
+      if (compiled) errors.push(...validateElement(compiled, node));
     }
     for (const child of node.children) visit(child);
   }

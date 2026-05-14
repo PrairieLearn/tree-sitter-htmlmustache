@@ -33,6 +33,7 @@ import type { CustomCodeTagConfig } from '../../../js/shared/customCodeTags.js';
 import { loadConfigFile } from '../../../js/shared/configFile.js';
 import type { HtmlMustacheConfig, NoBreakDelimiter } from '../../../js/shared/configSchema.js';
 import type { ConfigLoadError, SchemaRegistry } from '../../../js/shared/customTagSchemaLoader.js';
+import type { TagValidator } from '../../../js/shared/tagValidators.js';
 import { filterCustomRulesForPath } from '../../../js/linter/customRuleFilter.js';
 
 // Create connection and document manager
@@ -61,6 +62,7 @@ async function resolveConfig(uri: string): Promise<{
   noBreakDelimiters: NoBreakDelimiter[] | undefined;
   schemaRegistry: SchemaRegistry | undefined;
   schemaLoadErrors: ConfigLoadError[] | undefined;
+  validators: TagValidator[];
 }> {
   const loaded = await loadConfigFile(uri);
   const config = loaded?.config ?? null;
@@ -73,6 +75,7 @@ async function resolveConfig(uri: string): Promise<{
     noBreakDelimiters: config?.noBreakDelimiters,
     schemaRegistry: loaded?.schemaRegistry,
     schemaLoadErrors: loaded?.schemaLoadErrors,
+    validators: loaded?.validators ?? [],
   };
 }
 
@@ -211,10 +214,10 @@ documents.onDidOpen(async (event) => {
   connection.console.log(`Document opened: ${event.document.uri} (language: ${event.document.languageId})`);
   const tree = parseAndCacheDocument(event.document);
   if (tree) {
-    const { config, configDir, schemaRegistry, schemaLoadErrors } = await resolveConfig(event.document.uri);
+    const { config, configDir, schemaRegistry, schemaLoadErrors, validators } = await resolveConfig(event.document.uri);
     const customTagNames = config?.customTags?.map(t => t.name);
     const customRules = applicableCustomRules(event.document.uri, config, configDir);
-    connection.sendDiagnostics({ uri: event.document.uri, diagnostics: getDiagnostics(tree, config?.rules, customTagNames, customRules, schemaRegistry, schemaLoadErrors) });
+    connection.sendDiagnostics({ uri: event.document.uri, diagnostics: getDiagnostics(tree, config?.rules, customTagNames, customRules, { schemaRegistry, schemaLoadErrors, validators }) });
   }
 });
 
@@ -222,10 +225,10 @@ documents.onDidOpen(async (event) => {
 documents.onDidChangeContent(async (change) => {
   const tree = parseAndCacheDocument(change.document);
   if (tree) {
-    const { config, configDir, schemaRegistry, schemaLoadErrors } = await resolveConfig(change.document.uri);
+    const { config, configDir, schemaRegistry, schemaLoadErrors, validators } = await resolveConfig(change.document.uri);
     const customTagNames = config?.customTags?.map(t => t.name);
     const customRules = applicableCustomRules(change.document.uri, config, configDir);
-    connection.sendDiagnostics({ uri: change.document.uri, diagnostics: getDiagnostics(tree, config?.rules, customTagNames, customRules, schemaRegistry, schemaLoadErrors) });
+    connection.sendDiagnostics({ uri: change.document.uri, diagnostics: getDiagnostics(tree, config?.rules, customTagNames, customRules, { schemaRegistry, schemaLoadErrors, validators }) });
   }
 });
 

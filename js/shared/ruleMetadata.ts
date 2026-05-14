@@ -69,6 +69,12 @@ export const RULES: RuleDefinition[] = [
     description:
       "Surfaces JSON Schema `deprecated: true` annotations on a custom tag, its attributes, an attribute's value, or a child-tag combination",
   },
+  {
+    name: 'pluginModule',
+    defaultSeverity: 'error',
+    description:
+      'Reports plugin module load and export-shape failures for custom formats and validators',
+  },
 ];
 
 /** Set of all known rule names (for config validation). */

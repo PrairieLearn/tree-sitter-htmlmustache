@@ -338,12 +338,14 @@ Additionally, the following rules are configurable. Set their severities (`"erro
 | `unrecognizedHtmlTags`         | `error`   | Flags HTML tags that are not standard HTML elements or valid custom elements  |
 | `elementContentTooLong`        | `off`     | Flags configured elements whose inner content exceeds a byte-length threshold |
 | `customTagSchema`              | `error`   | Validates configured custom tags against their JSON Schema contracts          |
+| `customTagDeprecations`        | `warning` | Surfaces `deprecated: true` annotations in custom tag schemas                 |
+| `pluginModule`                 | `error`   | Reports plugin module load and export-shape failures                          |
 
 <!-- RULES_TABLE_END -->
 
 ### Tag Schemas
 
-Custom tags can declare a JSON Schema draft 2020-12 contract. The schema may be inline or a path resolved relative to `.htmlmustache.jsonc`:
+Custom tags can declare a JSON Schema draft-06 contract. The schema may be inline or a path resolved relative to `.htmlmustache.jsonc`:
 
 ```jsonc
 {
@@ -359,69 +361,49 @@ Custom tags can declare a JSON Schema draft 2020-12 contract. The schema may be 
 }
 ```
 
-Schemas validate this value shape:
+Schemas validate the tag's flat attribute object. The tag name is implicit from `customTags[].name`:
 
 ```jsonc
 {
-  "tag": "pl-multiple-choice",
-  "attributes": { "answers-name": "q1", "weight": "2" },
-  "text": "Pick one",
-  "innerHtml": "Pick one <pl-answer correct=\"true\">A</pl-answer>",
-  "children": [
-    {
-      "tag": "pl-answer",
-      "attributes": { "correct": "true" },
-      "text": "A",
-      "innerHtml": "A",
-    },
-  ],
+  "answers-name": "q1",
+  "weight": "2",
+  "disabled": true,
 }
 ```
 
-Attribute values are coerced by JSON Schema (`"2"` can satisfy an integer, boolean attributes become `true`). Attribute values containing mustache are treated as unknown runtime values, so value-dependent schema errors are waived while presence and unknown-attribute checks still run. Mustache sections are flattened when building `children`, so children inside `{{#section}}...{{/section}}` count as reachable; timeline-aware child counts are not modeled yet.
+Attribute values are coerced by JSON Schema (`"2"` can satisfy an integer, valueless attributes become `true`). Attribute values containing mustache are treated as unknown runtime values, so value-dependent schema errors are waived while presence and unknown-attribute checks still run.
 
-`text` and `innerHtml` make content-shaped rules expressible directly in the schema:
-
-- **`text`** — descendant text content concatenated. HTML tags are stripped (`<b>foo</b>` contributes `"foo"`); mustache interpolations are kept verbatim (`{{name}}` stays in the string). Surrounding whitespace is trimmed; interior whitespace is preserved. Matches `Node.textContent` with one trim concession. Use this for "must be non-empty", "no duplicate inner text across children" (with `uniqueItems`), or pattern matches.
-- **`innerHtml`** — raw source between the open and close tags, byte-for-byte. No trimming, no tag stripping, no mustache rewriting. Empty string for self-closing or void elements. Use this when you actually need the markup (length caps, forbidden substrings).
-
-Set `"htmlGlobalAttributes": true` on an `attributes` sub-schema to permit the WHATWG HTML global attributes (sourced from [`html-element-attributes`](https://github.com/wooorm/html-element-attributes) — `class`, `id`, `style`, `hidden`, `slot`, `inert`, `popover`, `contenteditable`, `spellcheck`, etc.), every `aria-*` attribute and `role` (from [`aria-attributes`](https://github.com/wooorm/aria-attributes)), and the `data-*` pattern, alongside whichever properties the schema explicitly declares:
+Example schema:
 
 ```jsonc
 {
+  "$schema": "http://json-schema.org/draft-06/schema#",
   "type": "object",
   "properties": {
-    "tag": { "const": "pl-card" },
-    "attributes": {
-      "type": "object",
-      "htmlGlobalAttributes": true, // ← here, on the attributes sub-schema
-      "properties": {
-        "kind": { "enum": ["info", "warning"] },
-      },
-      "required": ["kind"],
-      "additionalProperties": false,
-    },
+    "answers-name": { "type": "string" },
+    "weight": { "type": "number", "minimum": 0 },
+    "disabled": { "type": "boolean" },
   },
+  "required": ["answers-name"],
+  "additionalProperties": false,
 }
 ```
 
-Schema authors can still tighten any single attribute by redeclaring it under `properties` — the explicit declaration wins. Without this flag, `additionalProperties: false` would reject `<pl-card class="...">` because `class` isn't declared.
+Schemas must declare draft-06 using `http://json-schema.org/draft-06/schema#` (the `https` form and missing trailing `#` are also accepted). `htmlGlobalAttributes`, custom AJV keywords, and schema access to `tag`, `text`, `innerHtml`, or `children` are intentionally not supported; use tag validators for content or relationship checks.
 
 #### Diagnostics
 
 Schema diagnostics are phrased in HTML/element terms rather than JSON-Schema vocabulary, so template authors aren't asked to translate `instancePath` and `additionalProperty` back into the markup they wrote. Examples:
 
-| Schema constraint                              | Diagnostic                                                                           |
-| ---------------------------------------------- | ------------------------------------------------------------------------------------ |
-| `attributes.required: ["answers-name"]`        | `<pl-multiple-choice> is missing required attribute "answers-name".`                 |
-| `attributes.additionalProperties: false`       | `Unknown attribute "extra" on <pl-multiple-choice>.`                                 |
-| `attributes.display.enum: ["block", "inline"]` | `Attribute "display" on <pl-multiple-choice> must be one of: "block", "inline".`     |
-| `attributes.size.type: "integer"`              | `Attribute "size" on <pl-multiple-choice> must be integer.`                          |
-| `attributes.weight.minimum: 0`                 | `Attribute "weight" on <pl-multiple-choice> must be >= 0.`                           |
-| `children[].tag.const: "pl-answer"`            | `<pl-multiple-choice> only allows <pl-answer> children; found <p>.`                  |
-| child `attributes.required: ["correct"]`       | `<pl-answer> child of <pl-multiple-choice> is missing required attribute "correct".` |
+| Schema constraint                 | Diagnostic                                                                       |
+| --------------------------------- | -------------------------------------------------------------------------------- |
+| `required: ["answers-name"]`      | `<pl-multiple-choice> is missing required attribute "answers-name".`             |
+| `additionalProperties: false`     | `Unknown attribute "extra" on <pl-multiple-choice>.`                             |
+| `properties.display.enum`         | `Attribute "display" on <pl-multiple-choice> must be one of: "block", "inline".` |
+| `properties.size.type: "integer"` | `Attribute "size" on <pl-multiple-choice> must be integer.`                      |
+| `properties.weight.minimum: 0`    | `Attribute "weight" on <pl-multiple-choice> must be >= 0.`                       |
 
-Constraints without a rewriter (typically `not`, `allOf`, `if`/`then`, custom keywords) fall through to ajv's localized text. Every diagnostic carries `ruleName: "customTagSchema"` and points at the element, the attribute, or the offending child — see [Disabling Lint Rules](#disabling-lint-rules) to silence them per-region.
+Constraints without a rewriter fall through to ajv's localized text. Every diagnostic carries `ruleName: "customTagSchema"` and points at the element or attribute — see [Disabling Lint Rules](#disabling-lint-rules) to silence them per-region.
 
 #### Custom error messages
 
@@ -453,65 +435,42 @@ Override individual diagnostics with JSON Schema's [`errorMessage` keyword](http
 
 ajv-errors substitutes the original ajv error with one whose message is your string; the rewriter sees `keyword: "errorMessage"`, doesn't recognise it, and passes the string through. Use this when the default phrasing doesn't say enough about your domain (e.g. linking authors to a runbook URL, naming a specific config the attribute drives).
 
-#### Parent-conditional child constraints
+#### Tag validators
 
-Because the validated value includes direct children's `tag` and `attributes` (see the [Element shape](#tag-schemas) above), JSON Schema 2020-12's `if`/`then`/`else` is enough to express rules that depend on parent state. No extension keywords or cross-schema composition required.
+Use synchronous JavaScript validators for checks that need children, content, ordering, or cross-element relationships. Validators run only for tags that are also declared in `customTags[]`; the plugin does not make undeclared tags known by itself.
 
-For example: when `<pl-multiple-choice builtin-grading="false">`, its `<pl-answer>` children must not carry `score` or `feedback`:
+```js
+// scripts/htmlmustache-plugin.mjs
+export const validators = [
+  {
+    id: 'pl/order-blocks-children',
+    tags: ['pl-order-blocks'],
+    severity: 'error',
+    options: { includeInnerHtml: true },
+    validate(element, context) {
+      const names = element.children.map((child) => child.tag);
+      if (names.some((name) => name !== 'pl-answer')) {
+        context.report({
+          element,
+          message: '<pl-order-blocks> only allows <pl-answer> children.',
+        });
+      }
+    },
+  },
+];
+```
+
+`element.children` contains one level of direct child HTML elements. Mustache sections are transparent, so children inside `{{#section}}...{{/section}}` are included. Child facades expose their tag and attributes, but their own `children` arrays are empty. `element.innerHtml` is present only when the validator opts into `options.includeInnerHtml`.
+
+Validator ids are rule ids. Configure severity and inline disables the same way as built-in rules:
 
 ```jsonc
 {
-  "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "type": "object",
-  "properties": {
-    "attributes": {
-      "type": "object",
-      "properties": {
-        "builtin-grading": { "type": "string" },
-      },
-    },
-  },
-  "if": {
-    "properties": {
-      "attributes": {
-        "properties": { "builtin-grading": { "const": "false" } },
-        "required": ["builtin-grading"],
-      },
-    },
-  },
-  "then": {
-    "properties": {
-      "children": {
-        "type": "array",
-        "items": {
-          "if": {
-            "properties": { "tag": { "const": "pl-answer" } },
-            "required": ["tag"],
-          },
-          "then": {
-            "properties": {
-              "attributes": {
-                "allOf": [
-                  { "not": { "required": ["score"] } },
-                  { "not": { "required": ["feedback"] } },
-                ],
-              },
-            },
-          },
-        },
-      },
-    },
+  "rules": {
+    "pl/order-blocks-children": "warning",
   },
 }
 ```
-
-The error path is `/children/<i>/attributes/<name>`, which the diagnostic rewriter resolves to a child-anchored message. Combine with `errorMessage` to phrase it in domain terms (`<pl-answer> can't carry "score" when its <pl-multiple-choice> parent has builtin-grading="false"`).
-
-Limits worth knowing:
-
-- The validated value carries **direct children only**. A schema can't reach grandchildren — for that, the grandparent's own schema is the wrong layer, and PrairieLearn-style rules typically split the responsibility across the relevant parent schemas.
-- Parent and child schemas validate **independently**: the parent's `then` clause adds constraints on top of whatever the child's own schema says, it doesn't replace it.
-- `if`/`then` is one of the keywords without an HTML-shaped diagnostic rewriter, so a failure falls through to ajv's localized text unless you supply `errorMessage`.
 
 #### Custom formats
 
@@ -550,18 +509,15 @@ A schema then references it like any built-in format:
 
 ```jsonc
 {
+  "$schema": "http://json-schema.org/draft-06/schema#",
   "type": "object",
   "properties": {
-    "attributes": {
-      "properties": {
-        "fixed-order": { "type": "string", "format": "pl-boolean" },
-      },
-    },
+    "fixed-order": { "type": "string", "format": "pl-boolean" },
   },
 }
 ```
 
-Formats are functions (or `RegExp`, or ajv [`FormatDefinition`](https://ajv.js.org/options.html#formats) objects), so they can't live directly in `.htmlmustache.jsonc`. For the CLI and the VS Code extension (which both load `.htmlmustache.jsonc`), supply them through an `ajvModule` field pointing at a relative JS/TS file that exports a `formats` record (and/or a `keywords` record — see [Custom keywords](#custom-keywords)):
+Formats are functions (or `RegExp`, or ajv [`FormatDefinition`](https://ajv.js.org/options.html#formats) objects), so they can't live directly in `.htmlmustache.jsonc`. For the CLI and the VS Code extension (which both load `.htmlmustache.jsonc`), supply them through a `pluginModule` field pointing at a relative JS/TS file that exports a `formats` record:
 
 ```jsonc
 // .htmlmustache.jsonc
@@ -572,13 +528,13 @@ Formats are functions (or `RegExp`, or ajv [`FormatDefinition`](https://ajv.js.o
       "schema": "elements/pl-multiple-choice/pl-multiple-choice.schema.json",
     },
   ],
-  "ajvModule": "./scripts/htmlmustache-ajv.mjs",
+  "pluginModule": "./scripts/htmlmustache-plugin.mjs",
   "rules": { "customTagSchema": "error" },
 }
 ```
 
 ```js
-// scripts/htmlmustache-ajv.mjs
+// scripts/htmlmustache-plugin.mjs
 const BOOLEAN_STRINGS = new Set([
   'true',
   't',
@@ -600,80 +556,9 @@ export const formats = {
 };
 ```
 
-The CLI and the language server dynamically import this file once per process (cached by absolute path) and register the exports on the schema validator before any tag schema compiles. Note the trust implication: pointing `ajvModule` at a path means running that code in-process when the CLI lints or the VS Code extension opens a document — treat it like a build script in your repo.
+The CLI and the language server dynamically import this file once per process (cached by absolute path) and register the exports before linting. Note the trust implication: pointing `pluginModule` at a path means running that code in-process when the CLI lints or the VS Code extension opens a document — treat it like a build script in your repo.
 
-If the file can't be loaded, or its export shape is wrong, you'll see a `customTagSchema`-rule diagnostic naming the path in the failure message; tag schemas that reference an unregistered format will then fail at compile time with the standard ajv "unknown format" error.
-
-#### Custom keywords
-
-JSON Schema 2020-12 + ajv's built-in vocabulary covers most rules, but domain-specific ones — "these children must have unique text", "this attribute is one of several truthy synonyms", "the value parsed as an integer must be ≤ count of children matching X" — don't always fit. Register custom keywords programmatically:
-
-```ts
-import {
-  createLinter,
-  type SchemaKeyword,
-} from '@reteps/tree-sitter-htmlmustache/linter';
-
-const uniqueChildText: SchemaKeyword = {
-  type: 'array',
-  errors: true,
-  validate: function uniqueChildText(_schema, data) {
-    if (!Array.isArray(data)) return true;
-    const seen = new Set<string>();
-    for (const child of data) {
-      const text =
-        child && typeof child === 'object'
-          ? (child as { text?: unknown }).text
-          : undefined;
-      if (typeof text !== 'string') continue;
-      if (seen.has(text)) {
-        uniqueChildText.errors = [
-          {
-            keyword: 'unique-child-text',
-            message: `duplicate child text "${text}"`,
-          },
-        ];
-        return false;
-      }
-      seen.add(text);
-    }
-    return true;
-  },
-};
-
-const linter = await createLinter({
-  locateWasm,
-  keywords: { 'unique-child-text': uniqueChildText },
-});
-```
-
-A schema then references it like any built-in keyword:
-
-```jsonc
-{
-  "type": "object",
-  "properties": {
-    "children": { "unique-child-text": true },
-  },
-}
-```
-
-For CLI / VS Code usage, expose the same record as a named `keywords` export from your `ajvModule` (either alongside `formats` or on its own):
-
-```js
-// scripts/htmlmustache-ajv.mjs
-export const formats = {
-  /* ... */
-};
-
-export const keywords = {
-  'unique-child-text': {
-    /* ajv KeywordDefinition, sans `keyword` */
-  },
-};
-```
-
-Diagnostics from consumer-defined keywords skip the HTML-vocabulary rewriter. If the validator sets a `message` on its error (the same path ajv-errors uses for `errorMessage` overrides), it flows through unchanged. Otherwise the diagnostic falls back to a generic `<tag>: validation <keyword> failed on <path>.`
+If the file can't be loaded, or its export shape is wrong, you'll see a `pluginModule`-rule diagnostic naming the path in the failure message; tag schemas that reference an unregistered format will then fail at compile time with the standard ajv "unknown format" error.
 
 ### Custom Rules
 

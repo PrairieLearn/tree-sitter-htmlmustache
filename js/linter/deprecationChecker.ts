@@ -7,8 +7,6 @@
  *   3. A literal attribute value's subschema (only `const`-keyed branches —
  *      we can't run AJV to match `type`/`format`/`pattern` against the data
  *      from here, so value-level deprecation requires a constant match).
- *   4. A `children.items` branch keyed by `properties.tag.const` (the child
- *      tag is deprecated when used as a child of this parent tag).
  *
  * AJV ignores `deprecated` — it's an annotation, not a validator — so this
  * runs independently of the schema diagnostic pass. Sibling `description`
@@ -18,11 +16,7 @@
 import type { BalanceNode } from './htmlBalanceChecker.js';
 import type { FixableError } from './mustacheChecks.js';
 import type { SchemaRegistry } from '../shared/customTagSchemaLoader.js';
-import {
-  getTagName,
-  isHtmlElementType,
-  isMustacheSection,
-} from '../shared/nodeHelpers.js';
+import { getTagName, isHtmlElementType } from '../shared/nodeHelpers.js';
 
 type JSONSchema = Record<string, unknown>;
 
@@ -116,20 +110,6 @@ function readAttributes(startTag: BalanceNode): AttributeOnTag[] {
   return out;
 }
 
-function collectDirectHtmlChildren(
-  node: BalanceNode,
-  out: BalanceNode[] = [],
-): BalanceNode[] {
-  for (const child of node.children) {
-    if (isHtmlElementType(child)) {
-      out.push(child);
-    } else if (isMustacheSection(child)) {
-      collectDirectHtmlChildren(child, out);
-    }
-  }
-  return out;
-}
-
 function description(schema: JSONSchema): string | undefined {
   return typeof schema.description === 'string' && schema.description.length > 0
     ? schema.description
@@ -154,8 +134,8 @@ function structuralDeprecation(schema: JSONSchema): DeprecationHit | null {
 }
 
 /**
- * Visit every property schema named `attrName` across the root schema's
- *  branches' `properties.attributes.properties`.
+ * Visit every property schema named `attrName` across the flat attribute
+ * schema's branches' `properties`.
  */
 function visitAttributeSchemas(
   rootSchema: JSONSchema,
@@ -164,13 +144,9 @@ function visitAttributeSchemas(
 ): void {
   visitBranches(rootSchema, (s) => {
     const props = s.properties;
-    if (!isObject(props) || !isObject(props.attributes)) return;
-    visitBranches(props.attributes, (attrsSchema) => {
-      const ap = attrsSchema.properties;
-      if (!isObject(ap)) return;
-      const sub = ap[attrName];
-      if (isObject(sub)) visit(sub);
-    });
+    if (!isObject(props)) return;
+    const sub = props[attrName];
+    if (isObject(sub)) visit(sub);
   });
 }
 
@@ -197,37 +173,6 @@ function findAttributeValueDeprecation(
       if (hit || s.deprecated !== true) return;
       if (s.const !== undefined && String(s.const) === rawValue) {
         hit = { description: description(s) };
-      }
-    });
-  });
-  return hit;
-}
-
-/**
- * Look through `properties.children.items` branches for one that
- *  - is `deprecated: true`, AND
- *  - has `properties.tag.const === <childTag>`.
- */
-function findChildTagDeprecation(
-  rootSchema: JSONSchema,
-  childTag: string,
-): DeprecationHit | null {
-  let hit: DeprecationHit | null = null;
-  visitBranches(rootSchema, (s) => {
-    if (hit) return;
-    const props = s.properties;
-    if (!isObject(props) || !isObject(props.children)) return;
-    const items = (props.children as JSONSchema).items;
-    if (!isObject(items)) return;
-    visitBranches(items, (itemSchema) => {
-      if (hit || itemSchema.deprecated !== true) return;
-      const itemProps = itemSchema.properties;
-      if (!isObject(itemProps) || !isObject(itemProps.tag)) return;
-      if (
-        typeof itemProps.tag.const === 'string' &&
-        itemProps.tag.const === childTag
-      ) {
-        hit = { description: description(itemSchema) };
       }
     });
   });
@@ -287,22 +232,6 @@ export function checkDeprecations(
               });
             }
           }
-        }
-
-        for (const child of collectDirectHtmlChildren(node)) {
-          const childTag = getTagName(child)?.toLowerCase();
-          if (!childTag) continue;
-          const childHit = findChildTagDeprecation(compiled.schema, childTag);
-          if (!childHit) continue;
-          const childStartTag = findStartTag(child);
-          if (!childStartTag) continue;
-          errors.push({
-            node: childStartTag,
-            message: withReason(
-              `<${childTag}> as a child of <${tag}> is deprecated.`,
-              childHit.description,
-            ),
-          });
         }
       }
     }

@@ -5,32 +5,25 @@ import { getCompletions } from '../src/completion.js';
 import { loadSchemaRegistry } from '../../../js/shared/customTagSchemaLoader.js';
 import type { SchemaRegistry } from '../../../js/shared/customTagSchemaLoader.js';
 
-const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
+const DRAFT = 'http://json-schema.org/draft-06/schema#';
 
 const PL_MC_SCHEMA = {
   $schema: DRAFT,
   type: 'object',
   properties: {
-    tag: { const: 'pl-multiple-choice' },
-    attributes: {
-      type: 'object',
-      properties: {
-        'answers-name': { type: 'string' },
-        weight: { type: 'string', format: 'pl-integer' },
-        order: { enum: ['random', 'ascend', 'descend', 'fixed'] },
-        display: { enum: ['block', 'inline', 'dropdown'] },
-        'fixed-order': {
-          anyOf: [
-            { type: 'boolean' },
-            { type: 'string', format: 'pl-boolean', examples: ['true', 'false'] },
-          ],
-        },
-      },
-      required: ['answers-name'],
-      additionalProperties: false,
+    'answers-name': { type: 'string' },
+    weight: { type: 'string', format: 'pl-integer' },
+    order: { enum: ['random', 'ascend', 'descend', 'fixed'] },
+    display: { enum: ['block', 'inline', 'dropdown'] },
+    'fixed-order': {
+      anyOf: [
+        { type: 'boolean' },
+        { type: 'string', format: 'pl-boolean', examples: ['true', 'false'] },
+      ],
     },
   },
-  required: ['attributes'],
+  required: ['answers-name'],
+  additionalProperties: false,
 } as const;
 
 let registry: SchemaRegistry;
@@ -38,7 +31,12 @@ let registry: SchemaRegistry;
 beforeAll(() => {
   const { registry: r, loadErrors } = loadSchemaRegistry([
     { name: 'pl-multiple-choice', schema: PL_MC_SCHEMA },
-  ]);
+  ], {
+    formats: {
+      'pl-integer': () => true,
+      'pl-boolean': () => true,
+    },
+  });
   expect(loadErrors).toEqual([]);
   registry = r;
 });

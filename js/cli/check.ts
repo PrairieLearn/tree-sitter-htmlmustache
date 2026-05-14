@@ -5,7 +5,7 @@ import path from 'node:path';
 import chalk from 'chalk';
 import type { Tree } from './wasm';
 import { initializeParser, parseDocument } from './wasm';
-import { findConfigFile, loadAjvModule } from '../shared/configFile.js';
+import { findConfigFile, loadPluginModule } from '../shared/configFile.js';
 import { parseJsonc, validateConfig } from '../shared/configSchema.js';
 import type {
   HtmlMustacheConfig,
@@ -22,6 +22,7 @@ import type {
   ConfigLoadError,
   SchemaRegistry,
 } from '../shared/customTagSchemaLoader.js';
+import type { TagValidator } from '../shared/tagValidators.js';
 
 // ── Types ──
 
@@ -38,6 +39,7 @@ export interface CheckResult {
 interface SchemaCheckOptions {
   registry?: SchemaRegistry;
   loadErrors?: ConfigLoadError[];
+  validators?: TagValidator[];
 }
 
 // ── Error collection ──
@@ -55,8 +57,11 @@ export function collectErrors(
     rules,
     customTagNames,
     customRules,
-    schemaOptions?.registry,
-    schemaOptions?.loadErrors,
+    {
+      schemaRegistry: schemaOptions?.registry,
+      schemaLoadErrors: schemaOptions?.loadErrors,
+      validators: schemaOptions?.validators,
+    },
   );
   return errors.map((error) => ({
     file,
@@ -189,6 +194,7 @@ export async function resolveFiles(cliPatterns: string[]): Promise<{
   configDir: string | null;
   schemaRegistry?: SchemaRegistry;
   schemaLoadErrors?: ConfigLoadError[];
+  validators?: TagValidator[];
 }> {
   // Load config from cwd
   const configPath = findConfigFile(process.cwd());
@@ -204,9 +210,9 @@ export async function resolveFiles(cliPatterns: string[]): Promise<{
     }
   }
 
-  const ajvModuleResult =
-    config?.ajvModule && configDir
-      ? await loadAjvModule(configDir, config.ajvModule)
+  const pluginModuleResult =
+    config?.pluginModule && configDir
+      ? await loadPluginModule(configDir, config.pluginModule)
       : undefined;
 
   const schemaResult = config
@@ -216,13 +222,12 @@ export async function resolveFiles(cliPatterns: string[]): Promise<{
           parseJsonc(
             fs.readFileSync(path.resolve(baseDir, schemaPath), 'utf-8'),
           ),
-        formats: ajvModuleResult?.formats,
-        keywords: ajvModuleResult?.keywords,
+        formats: pluginModuleResult?.formats,
       })
     : undefined;
 
   const schemaLoadErrors = [
-    ...(ajvModuleResult?.error ? [ajvModuleResult.error] : []),
+    ...(pluginModuleResult?.errors ?? []),
     ...(schemaResult?.loadErrors ?? []),
   ];
 
@@ -239,6 +244,7 @@ export async function resolveFiles(cliPatterns: string[]): Promise<{
       configDir,
       schemaRegistry: schemaResult?.registry,
       schemaLoadErrors,
+      validators: pluginModuleResult?.validators,
     };
   }
 
@@ -272,6 +278,7 @@ export async function resolveFiles(cliPatterns: string[]): Promise<{
     configDir,
     schemaRegistry: schemaResult?.registry,
     schemaLoadErrors,
+    validators: pluginModuleResult?.validators,
   };
 }
 
@@ -343,8 +350,14 @@ export async function run(args: string[]): Promise<number> {
   const fixMode = args.includes('--fix');
   const patterns = args.filter((a) => a !== '--fix');
 
-  const { files, config, configDir, schemaRegistry, schemaLoadErrors } =
-    await resolveFiles(patterns);
+  const {
+    files,
+    config,
+    configDir,
+    schemaRegistry,
+    schemaLoadErrors,
+    validators,
+  } = await resolveFiles(patterns);
 
   if (files.length === 0) {
     if (
@@ -396,7 +409,7 @@ export async function run(args: string[]): Promise<number> {
         rules,
         customTagNames,
         applicableCustomRules,
-        { registry: schemaRegistry, loadErrors: schemaLoadErrors },
+        { registry: schemaRegistry, loadErrors: schemaLoadErrors, validators },
       );
       const fixed = applyFixes(source, errors);
       if (fixed !== source) {
@@ -412,7 +425,7 @@ export async function run(args: string[]): Promise<number> {
       rules,
       customTagNames,
       applicableCustomRules,
-      { registry: schemaRegistry, loadErrors: schemaLoadErrors },
+      { registry: schemaRegistry, loadErrors: schemaLoadErrors, validators },
     );
 
     const fileErrors = errors.filter((e) => e.severity !== 'warning');

@@ -89,7 +89,7 @@ Dropped behavior:
 
 ```jsonc
 {
-  "pluginModule": "./scripts/htmlmustache-plugin.mjs"
+  "pluginModule": "./scripts/htmlmustache-plugin.mjs",
 }
 ```
 
@@ -201,8 +201,8 @@ Validator ids are first-class rule ids. They can be configured in the existing `
 {
   "rules": {
     "pl/order-blocks-children": "warning",
-    "pl/float-range": "off"
-  }
+    "pl/float-range": "off",
+  },
 }
 ```
 

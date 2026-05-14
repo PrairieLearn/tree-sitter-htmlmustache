@@ -11,6 +11,7 @@ import type {
 } from './customCodeTags.js';
 import type { CSSDisplay } from './cssDisplay.js';
 import { KNOWN_RULE_NAMES } from './ruleMetadata.js';
+import { isSyntacticRuleId } from './tagValidators.js';
 
 const VALID_CSS_DISPLAY_VALUES = new Set<string>([
   'block',
@@ -44,6 +45,7 @@ export type RuleEntryWithOptions<TOptions> =
   | ({ severity: RuleSeverity } & TOptions);
 
 export interface RulesConfig {
+  [ruleName: string]: RuleEntry | RuleEntryWithOptions<unknown> | undefined;
   nestedDuplicateSections?: RuleEntry;
   unquotedMustacheAttributes?: RuleEntry;
   consecutiveDuplicateSections?: RuleEntry;
@@ -55,6 +57,7 @@ export interface RulesConfig {
   elementContentTooLong?: RuleEntryWithOptions<ElementContentTooLongOptions>;
   customTagSchema?: RuleEntry;
   customTagDeprecations?: RuleEntry;
+  pluginModule?: RuleEntry;
 }
 
 const VALID_RULE_SEVERITIES = new Set<string>(['error', 'warning', 'off']);
@@ -141,16 +144,10 @@ export interface HtmlMustacheConfig {
   customRules?: CustomRule[];
   /**
    * Path (relative to the config file) to an ESM/CJS module that supplies
-   * ajv extensions for the schema validator. The module must expose at least
-   * one of these named exports:
-   *   - `formats: Record<string, SchemaFormat>` — registered via
-   *     `ajv.addFormat`; schemas reference them as `"format": "..."`.
-   *   - `keywords: Record<string, SchemaKeyword>` — registered via
-   *     `ajv.addKeyword`; schemas reference them as `"<name>": value`.
-   * The CLI and LSP dynamically import the module and apply both before any
-   * tag schema compiles.
+   * htmlmustache plugin extensions. Supported exports are `formats` for AJV
+   * schema formats and `validators` for synchronous custom-tag validators.
    */
-  ajvModule?: string;
+  pluginModule?: string;
 }
 
 /**
@@ -329,7 +326,7 @@ export function validateConfig(raw: unknown): HtmlMustacheConfig {
     const rules: RulesConfig = {};
     let hasRules = false;
     for (const [key, value] of Object.entries(rawRules)) {
-      if (!KNOWN_RULE_NAMES.has(key)) continue;
+      if (!KNOWN_RULE_NAMES.has(key) && !isSyntacticRuleId(key)) continue;
       const entry = parseRuleEntry(key as keyof RulesConfig, value);
       if (entry === null) continue;
       (rules as Record<string, unknown>)[key] = entry;
@@ -338,8 +335,8 @@ export function validateConfig(raw: unknown): HtmlMustacheConfig {
     if (hasRules) config.rules = rules;
   }
 
-  if (typeof obj.ajvModule === 'string' && obj.ajvModule.length > 0) {
-    config.ajvModule = obj.ajvModule;
+  if (typeof obj.pluginModule === 'string' && obj.pluginModule.length > 0) {
+    config.pluginModule = obj.pluginModule;
   }
 
   if (Array.isArray(obj.customRules)) {

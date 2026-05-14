@@ -113,22 +113,6 @@ describe('lint', () => {
     expect(d.some((x) => x.ruleName === 'no-script')).toBe(true);
   });
 
-  it('rejects per-rule include/exclude at the type level', () => {
-    linter.lint('<script>x</script>', {
-      customRules: [
-        {
-          id: 'no-script',
-          selector: 'script',
-          message: 'Bare <script> is disallowed',
-          // @ts-expect-error include is stripped from the linter CustomRule type
-          include: ['questions/**'],
-          // @ts-expect-error exclude is stripped from the linter CustomRule type
-          exclude: ['**/legacy/**'],
-        },
-      ],
-    });
-  });
-
   it('honors <!-- htmlmustache-disable ruleName --> directives', () => {
     const src =
       '<!-- htmlmustache-disable duplicateAttributes -->\n<p id="a" id="b"></p>';
@@ -181,7 +165,7 @@ describe('createLinter formats hook', () => {
   ]);
   const isBooleanString = (v: string) => BOOLEAN_STRINGS.has(v.toLowerCase());
 
-  it('lets a registered format gate schema diagnostics', async () => {
+  it('lets a registered format gate draft-06 flat attribute schema diagnostics', async () => {
     const handle = await createLinter({
       locateWasm: (name) => {
         if (name === GRAMMAR_WASM_FILENAME) return GRAMMAR_WASM_PATH;
@@ -191,17 +175,12 @@ describe('createLinter formats hook', () => {
     });
 
     const schema = {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $schema: 'http://json-schema.org/draft-06/schema#',
       type: 'object',
       properties: {
-        attributes: {
-          type: 'object',
-          properties: {
-            answers: { type: 'string', format: 'pl-boolean' },
-          },
-          required: ['answers'],
-        },
+        answers: { type: 'string', format: 'pl-boolean' },
       },
+      required: ['answers'],
     };
 
     const ok = handle.lint('<pl-card answers="Yes"></pl-card>', {
@@ -218,250 +197,124 @@ describe('createLinter formats hook', () => {
   });
 });
 
-describe('createLinter keywords hook', () => {
-  it('exposes a consumer-registered keyword to schemas', async () => {
-    interface ErroringValidator {
-      (schema: unknown, data: unknown): boolean;
-      errors?: Array<{
-        keyword: string;
-        message: string;
-        instancePath?: string;
-      }>;
-    }
-
-    const uniqueChildText: ErroringValidator = function uniqueChildText(
-      _schema,
-      data,
-    ) {
-      if (!Array.isArray(data)) return true;
-      const seen = new Set<string>();
-      for (const child of data) {
-        const text =
-          child && typeof child === 'object'
-            ? (child as { text?: unknown }).text
-            : undefined;
-        if (typeof text !== 'string') continue;
-        if (seen.has(text)) {
-          uniqueChildText.errors = [
-            {
-              keyword: 'unique-child-text',
-              message: `duplicate child text "${text}"`,
-            },
-          ];
-          return false;
-        }
-        seen.add(text);
-      }
-      return true;
-    };
-
-    const handle = await createLinter({
-      locateWasm: (name) => {
-        if (name === GRAMMAR_WASM_FILENAME) return GRAMMAR_WASM_PATH;
-        return path.resolve(REPO_ROOT, 'node_modules', 'web-tree-sitter', name);
-      },
-      keywords: {
-        'unique-child-text': {
-          type: 'array',
-          errors: true,
-          validate: uniqueChildText,
-        },
-      },
-    });
-
+describe('draft-06 flat custom tag schemas', () => {
+  it('validates flat attributes without an envelope', () => {
     const schema = {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $schema: 'http://json-schema.org/draft-06/schema#',
       type: 'object',
-      properties: { children: { 'unique-child-text': true } },
+      properties: { kind: { enum: ['primary', 'secondary'] } },
+      required: ['kind'],
+      additionalProperties: false,
     };
 
-    const ok = handle.lint('<pl-list><li>a</li><li>b</li></pl-list>', {
+    const ok = linter.lint('<pl-card kind="primary"></pl-card>', {
       rules: { customTagSchema: 'error' },
-      customTags: [{ name: 'pl-list', schema }],
+      customTags: [{ name: 'pl-card', schema }],
     });
     expect(ok.filter((d) => d.ruleName === 'customTagSchema')).toEqual([]);
 
-    const bad = handle.lint('<pl-list><li>a</li><li>a</li></pl-list>', {
+    const missing = linter.lint('<pl-card></pl-card>', {
       rules: { customTagSchema: 'error' },
-      customTags: [{ name: 'pl-list', schema }],
+      customTags: [{ name: 'pl-card', schema }],
     });
-    const diag = bad.find((d) => d.ruleName === 'customTagSchema');
-    expect(diag).toBeDefined();
-    expect(diag!.message).toContain('duplicate child text "a"');
-  });
+    expect(missing.find((d) => d.ruleName === 'customTagSchema')!.message).toBe(
+      '<pl-card> is missing required attribute "kind".',
+    );
 
-  it('falls back to a generic phrase when the keyword leaves no message', async () => {
-    const handle = await createLinter({
-      locateWasm: (name) => {
-        if (name === GRAMMAR_WASM_FILENAME) return GRAMMAR_WASM_PATH;
-        return path.resolve(REPO_ROOT, 'node_modules', 'web-tree-sitter', name);
+    const unknown = linter.lint(
+      '<pl-card kind="primary" extra="x"></pl-card>',
+      {
+        rules: { customTagSchema: 'error' },
+        customTags: [{ name: 'pl-card', schema }],
       },
-      keywords: {
-        'always-fails': {
-          errors: false,
-          validate: () => false,
-        },
-      },
-    });
-
-    const schema = {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
-      type: 'object',
-      'always-fails': true,
-    };
-
-    const d = handle.lint('<x-card></x-card>', {
-      rules: { customTagSchema: 'error' },
-      customTags: [{ name: 'x-card', schema }],
-    });
-    const diag = d.find((x) => x.ruleName === 'customTagSchema');
-    expect(diag).toBeDefined();
-    expect(diag!.message).toBe(
-      '<x-card>: validation always-fails failed on /.',
+    );
+    expect(unknown.find((d) => d.ruleName === 'customTagSchema')!.message).toBe(
+      'Unknown attribute "extra" on <pl-card>.',
     );
   });
-});
 
-describe('per-element envelope exposes text and innerHtml', () => {
-  it('rejects empty text content via minLength', () => {
+  it('anchors attribute diagnostics to the offending attribute value or name', () => {
     const schema = {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $schema: 'http://json-schema.org/draft-06/schema#',
       type: 'object',
-      properties: { text: { type: 'string', minLength: 1 } },
+      properties: { count: { type: 'integer' } },
+      additionalProperties: false,
     };
-    const ok = linter.lint('<pl-note>hi</pl-note>', {
-      rules: { customTagSchema: 'error' },
-      customTags: [{ name: 'pl-note', schema }],
-    });
-    expect(ok.filter((d) => d.ruleName === 'customTagSchema')).toEqual([]);
+    const d = linter
+      .lint('<pl-card count="many"\n  extra="x"></pl-card>', {
+        rules: { customTagSchema: 'error' },
+        customTags: [{ name: 'pl-card', schema }],
+      })
+      .filter((x) => x.ruleName === 'customTagSchema');
 
-    const bad = linter.lint('<pl-note>   </pl-note>', {
-      rules: { customTagSchema: 'error' },
-      customTags: [{ name: 'pl-note', schema }],
-    });
-    expect(bad.some((d) => d.ruleName === 'customTagSchema')).toBe(true);
+    const count = d.find((x) => x.message.includes('count'));
+    const extra = d.find((x) => x.message.includes('extra'));
+    expect(count).toBeDefined();
+    expect(count!.line).toBe(1);
+    expect(count!.column).toBeGreaterThan(10);
+    expect(extra).toBeDefined();
+    expect(extra!.line).toBe(2);
+    expect(extra!.column).toBe(3);
   });
 
-  it('preserves mustache interpolations verbatim in text', () => {
+  it('waives dynamic mustache attributes but keeps literal sibling failures', () => {
     const schema = {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
-      type: 'object',
-      properties: { text: { type: 'string', pattern: '\\{\\{name\\}\\}' } },
-    };
-    const ok = linter.lint('<pl-note>Hello {{name}}!</pl-note>', {
-      rules: { customTagSchema: 'error' },
-      customTags: [{ name: 'pl-note', schema }],
-    });
-    expect(ok.filter((d) => d.ruleName === 'customTagSchema')).toEqual([]);
-  });
-
-  it('strips HTML tags from text but keeps inner content', () => {
-    const schema = {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
-      type: 'object',
-      properties: { text: { const: 'foo' } },
-    };
-    const d = linter.lint('<pl-note><b>foo</b></pl-note>', {
-      rules: { customTagSchema: 'error' },
-      customTags: [{ name: 'pl-note', schema }],
-    });
-    expect(d.filter((x) => x.ruleName === 'customTagSchema')).toEqual([]);
-  });
-
-  it('exposes innerHtml as raw source between open and close tags', () => {
-    const schema = {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
-      type: 'object',
-      properties: { innerHtml: { const: '<b>foo</b>' } },
-    };
-    const ok = linter.lint('<pl-note><b>foo</b></pl-note>', {
-      rules: { customTagSchema: 'error' },
-      customTags: [{ name: 'pl-note', schema }],
-    });
-    expect(ok.filter((d) => d.ruleName === 'customTagSchema')).toEqual([]);
-  });
-
-  it('reports innerHtml as empty for self-closing elements', () => {
-    const schema = {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
-      type: 'object',
-      properties: { innerHtml: { const: '' }, text: { const: '' } },
-    };
-    const ok = linter.lint('<pl-icon />', {
-      rules: { customTagSchema: 'error' },
-      customTags: [{ name: 'pl-icon', schema }],
-    });
-    expect(ok.filter((d) => d.ruleName === 'customTagSchema')).toEqual([]);
-  });
-
-  it('detects duplicate inner text across children via uniqueItems', () => {
-    const schema = {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $schema: 'http://json-schema.org/draft-06/schema#',
       type: 'object',
       properties: {
-        children: {
-          type: 'array',
-          uniqueItems: true,
-          items: { type: 'object', properties: { text: { type: 'string' } } },
-        },
+        variant: { enum: ['primary', 'secondary'] },
+        count: { type: 'number' },
       },
+      additionalProperties: false,
     };
-    const ok = linter.lint('<pl-list><li>a</li><li>b</li></pl-list>', {
-      rules: { customTagSchema: 'error' },
-      customTags: [{ name: 'pl-list', schema }],
-    });
-    expect(ok.filter((d) => d.ruleName === 'customTagSchema')).toEqual([]);
+    const d = linter
+      .lint(
+        '<pl-card variant="{{variant}}" count="many" mystery="x"></pl-card>',
+        {
+          rules: { customTagSchema: 'error' },
+          customTags: [{ name: 'pl-card', schema }],
+        },
+      )
+      .filter((x) => x.ruleName === 'customTagSchema');
 
-    const bad = linter.lint('<pl-list><li>a</li><li>a</li></pl-list>', {
-      rules: { customTagSchema: 'error' },
-      customTags: [{ name: 'pl-list', schema }],
-    });
-    expect(bad.some((d) => d.ruleName === 'customTagSchema')).toBe(true);
+    expect(d.some((x) => x.message.includes('variant'))).toBe(false);
+    expect(d.some((x) => x.message.includes('count'))).toBe(true);
+    expect(d.some((x) => x.message.includes('mystery'))).toBe(true);
   });
-});
 
-describe('schema diagnostic merging', () => {
-  const BOOLEAN_STRINGS = new Set([
-    'true',
-    'false',
-    'yes',
-    'no',
-    'on',
-    'off',
-    '1',
-    '0',
-  ]);
-  const isBooleanString = (v: string) => BOOLEAN_STRINGS.has(v.toLowerCase());
-
-  let handle: Linter;
-  beforeAll(async () => {
-    handle = await createLinter({
+  it('merges anyOf branch failures for flat attribute schemas', async () => {
+    const BOOLEAN_STRINGS = new Set([
+      'true',
+      'false',
+      'yes',
+      'no',
+      'on',
+      'off',
+      '1',
+      '0',
+    ]);
+    const handle = await createLinter({
       locateWasm: (name) => {
         if (name === GRAMMAR_WASM_FILENAME) return GRAMMAR_WASM_PATH;
         return path.resolve(REPO_ROOT, 'node_modules', 'web-tree-sitter', name);
       },
-      formats: { 'pl-boolean': isBooleanString },
+      formats: {
+        'pl-boolean': (v: string) => BOOLEAN_STRINGS.has(v.toLowerCase()),
+      },
     });
-  });
-
-  it('collapses anyOf wrapper + branch errors into one "or" diagnostic', async () => {
     const schema = {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $schema: 'http://json-schema.org/draft-06/schema#',
       type: 'object',
       properties: {
-        attributes: {
-          type: 'object',
-          properties: {
-            correct: {
-              anyOf: [
-                { type: 'boolean' },
-                { type: 'string', format: 'pl-boolean' },
-              ],
-            },
-          },
+        correct: {
+          anyOf: [
+            { type: 'boolean' },
+            { type: 'string', format: 'pl-boolean' },
+          ],
         },
       },
     };
+
     const d = handle
       .lint('<pl-answer correct="trsue"></pl-answer>', {
         rules: { customTagSchema: 'error' },
@@ -473,92 +326,242 @@ describe('schema diagnostic merging', () => {
       'Attribute "correct" on <pl-answer> must be boolean or match format "pl-boolean".',
     );
   });
+});
 
-  it('lets a schema-level errorMessage override the merged diagnostic', async () => {
-    const schema = {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
-      type: 'object',
-      properties: {
-        attributes: {
-          type: 'object',
-          properties: {
-            correct: {
-              anyOf: [
-                { type: 'boolean' },
-                { type: 'string', format: 'pl-boolean' },
-              ],
-              errorMessage: 'must be true/false (or yes/no, on/off, 1/0)',
-            },
+describe('createLinter validators hook', () => {
+  it('runs validators for matching declared custom tags only', async () => {
+    const handle = await createLinter({
+      locateWasm: GRAMMAR_WASM_PATH,
+      validators: [
+        {
+          id: 'pl-card-kind',
+          tags: ['pl-card'],
+          validate(element, context) {
+            if (element.attributes.kind !== 'allowed') {
+              context.report({
+                element,
+                attribute: 'kind',
+                message: 'Invalid card kind',
+              });
+            }
           },
         },
+      ],
+    });
+    const d = handle.lint(
+      '<pl-card kind="bad"></pl-card><x-card kind="bad"></x-card>',
+      {
+        customTags: [{ name: 'pl-card' }, { name: 'x-card' }],
       },
-    };
-    const d = handle
-      .lint('<pl-answer correct="trsue"></pl-answer>', {
-        rules: { customTagSchema: 'error' },
-        customTags: [{ name: 'pl-answer', schema }],
-      })
-      .filter((x) => x.ruleName === 'customTagSchema');
-    expect(d).toHaveLength(1);
-    expect(d[0].message).toBe('must be true/false (or yes/no, on/off, 1/0)');
-  });
-
-  it('drops the if-wrapper and keeps the translated then-branch failure', async () => {
-    const schema = {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
-      type: 'object',
-      properties: {
-        attributes: {
-          type: 'object',
-          properties: {
-            kind: { enum: ['count', 'free'] },
-            max: { type: 'string' },
-          },
-          if: { properties: { kind: { const: 'count' } } },
-          then: { properties: { max: { type: 'integer' } } },
-        },
-      },
-    };
-    const d = handle
-      .lint('<pl-card kind="count" max="abc"></pl-card>', {
-        rules: { customTagSchema: 'error' },
-        customTags: [{ name: 'pl-card', schema }],
-      })
-      .filter((x) => x.ruleName === 'customTagSchema');
-    expect(d).toHaveLength(1);
-    expect(d[0].message).toBe('Attribute "max" on <pl-card> must be integer.');
-  });
-
-  it('translates a plain format failure with attribute context', async () => {
-    const schema = {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
-      type: 'object',
-      properties: {
-        attributes: {
-          type: 'object',
-          properties: {
-            answers: { type: 'string', format: 'pl-boolean' },
-          },
-        },
-      },
-    };
-    const d = handle
-      .lint('<pl-card answers="maybe"></pl-card>', {
-        rules: { customTagSchema: 'error' },
-        customTags: [{ name: 'pl-card', schema }],
-      })
-      .filter((x) => x.ruleName === 'customTagSchema');
-    expect(d).toHaveLength(1);
-    expect(d[0].message).toBe(
-      'Attribute "answers" on <pl-card> must match format "pl-boolean".',
     );
+    expect(d.filter((x) => x.ruleName === 'pl-card-kind')).toHaveLength(1);
+  });
+
+  it('runs multiple validators on one tag', async () => {
+    const handle = await createLinter({
+      locateWasm: GRAMMAR_WASM_PATH,
+      validators: [
+        {
+          id: 'needs-kind',
+          tags: ['pl-card'],
+          validate(element, context) {
+            if (!('kind' in element.attributes)) {
+              context.report({ element, message: 'Missing kind' });
+            }
+          },
+        },
+        {
+          id: 'needs-label',
+          tags: ['pl-card'],
+          validate(element, context) {
+            if (!('label' in element.attributes)) {
+              context.report({ element, message: 'Missing label' });
+            }
+          },
+        },
+      ],
+    });
+    const d = handle.lint('<pl-card></pl-card>', {
+      customTags: [{ name: 'pl-card' }],
+    });
+    expect(d.map((x) => x.ruleName)).toEqual(
+      expect.arrayContaining(['needs-kind', 'needs-label']),
+    );
+  });
+
+  it('runs one validator for multiple tags', async () => {
+    const handle = await createLinter({
+      locateWasm: GRAMMAR_WASM_PATH,
+      validators: [
+        {
+          id: 'needs-name',
+          tags: ['pl-card', 'pl-panel'],
+          validate(element, context) {
+            if (!('name' in element.attributes)) {
+              context.report({
+                element,
+                message: `Missing name on ${element.tag}`,
+              });
+            }
+          },
+        },
+      ],
+    });
+    const d = handle.lint('<pl-card></pl-card><pl-panel></pl-panel>', {
+      customTags: [{ name: 'pl-card' }, { name: 'pl-panel' }],
+    });
+    expect(d.filter((x) => x.ruleName === 'needs-name')).toHaveLength(2);
+  });
+
+  it('honors severity overrides via rules and inline disable', async () => {
+    const handle = await createLinter({
+      locateWasm: GRAMMAR_WASM_PATH,
+      validators: [
+        {
+          id: 'no-pl-card',
+          tags: ['pl-card'],
+          severity: 'error',
+          validate(element, context) {
+            context.report({ element, message: 'No card' });
+          },
+        },
+      ],
+    });
+    const warning = handle.lint('<pl-card></pl-card>', {
+      rules: { 'no-pl-card': 'warning' },
+      customTags: [{ name: 'pl-card' }],
+    });
+    expect(warning.find((x) => x.ruleName === 'no-pl-card')!.severity).toBe(
+      'warning',
+    );
+
+    const disabled = handle.lint(
+      '{{! htmlmustache-disable no-pl-card }}\n<pl-card></pl-card>',
+      {
+        rules: { 'no-pl-card': 'warning' },
+        customTags: [{ name: 'pl-card' }],
+      },
+    );
+    expect(disabled.some((x) => x.ruleName === 'no-pl-card')).toBe(false);
+  });
+
+  it('exposes one-level child facades with mustache-section flattening', async () => {
+    const handle = await createLinter({
+      locateWasm: GRAMMAR_WASM_PATH,
+      validators: [
+        {
+          id: 'child-tags',
+          tags: ['pl-list'],
+          validate(element, context) {
+            const tags = element.children.map((child) => child.tag).join(',');
+            if (tags !== 'pl-item,pl-extra') {
+              context.report({ element, message: `children:${tags}` });
+            }
+            if (element.children[0]?.children.length !== 0) {
+              context.report({
+                element,
+                message: 'children should be one-level',
+              });
+            }
+          },
+        },
+      ],
+    });
+    const d = handle.lint(
+      '<pl-list>{{#items}}<pl-item><span></span></pl-item>{{/items}}<pl-extra></pl-extra></pl-list>',
+      {
+        customTags: [
+          { name: 'pl-list' },
+          { name: 'pl-item' },
+          { name: 'pl-extra' },
+        ],
+      },
+    );
+    expect(d.filter((x) => x.ruleName === 'child-tags')).toEqual([]);
+  });
+
+  it('exposes innerHtml only when includeInnerHtml is set', async () => {
+    const handle = await createLinter({
+      locateWasm: GRAMMAR_WASM_PATH,
+      validators: [
+        {
+          id: 'needs-inner-html',
+          tags: ['pl-card'],
+          options: { includeInnerHtml: true },
+          validate(element, context) {
+            if (element.innerHtml !== '<b>Hi</b>') {
+              context.report({
+                element,
+                message: `inner:${element.innerHtml ?? 'missing'}`,
+              });
+            }
+          },
+        },
+      ],
+    });
+    const d = handle.lint('<pl-card><b>Hi</b></pl-card>', {
+      customTags: [{ name: 'pl-card' }],
+    });
+    expect(d.filter((x) => x.ruleName === 'needs-inner-html')).toEqual([]);
+  });
+
+  it('anchors attribute reports and exposes dynamic attribute checks', async () => {
+    const handle = await createLinter({
+      locateWasm: GRAMMAR_WASM_PATH,
+      validators: [
+        {
+          id: 'literal-size',
+          tags: ['pl-card'],
+          validate(element, context) {
+            if (element.hasDynamicAttribute('size')) return;
+            context.report({
+              element,
+              attribute: 'size',
+              message: 'Size must be dynamic',
+            });
+          },
+        },
+      ],
+    });
+    const d = handle.lint(
+      '<pl-card\n  size="4"></pl-card><pl-card size="{{n}}"></pl-card>',
+      {
+        customTags: [{ name: 'pl-card' }],
+      },
+    );
+    const diag = d.find((x) => x.ruleName === 'literal-size');
+    expect(diag).toBeDefined();
+    expect(diag!.line).toBe(2);
+    expect(diag!.column).toBe(3);
+  });
+
+  it('turns validator exceptions into diagnostics', async () => {
+    const handle = await createLinter({
+      locateWasm: GRAMMAR_WASM_PATH,
+      validators: [
+        {
+          id: 'throws-validator',
+          tags: ['pl-card'],
+          validate() {
+            throw new Error('boom');
+          },
+        },
+      ],
+    });
+    const d = handle.lint('<pl-card></pl-card>', {
+      customTags: [{ name: 'pl-card' }],
+    });
+    const diag = d.find((x) => x.ruleName === 'throws-validator');
+    expect(diag).toBeDefined();
+    expect(diag!.message).toBe('Validator "throws-validator" failed: boom');
+    expect(diag!.severity).toBe('error');
   });
 });
 
 describe('customTagDeprecations rule', () => {
   it('flags a deprecated tag at the start tag with description as reason', () => {
     const schema = {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $schema: 'http://json-schema.org/draft-06/schema#',
       type: 'object',
       deprecated: true,
       description: 'Use <pl-question-panel> instead.',
@@ -577,18 +580,13 @@ describe('customTagDeprecations rule', () => {
 
   it('flags a deprecated attribute and skips a value-level check for it', () => {
     const schema = {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $schema: 'http://json-schema.org/draft-06/schema#',
       type: 'object',
       properties: {
-        attributes: {
-          type: 'object',
-          properties: {
-            'old-name': {
-              deprecated: true,
-              description: 'Renamed to "answers-name".',
-              oneOf: [{ const: 'a', deprecated: true }, { const: 'b' }],
-            },
-          },
+        'old-name': {
+          deprecated: true,
+          description: 'Renamed to "answers-name".',
+          oneOf: [{ const: 'a', deprecated: true }, { const: 'b' }],
         },
       },
     };
@@ -605,23 +603,18 @@ describe('customTagDeprecations rule', () => {
 
   it('flags a deprecated attribute value via const + deprecated branch', () => {
     const schema = {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $schema: 'http://json-schema.org/draft-06/schema#',
       type: 'object',
       properties: {
-        attributes: {
-          type: 'object',
-          properties: {
-            kind: {
-              oneOf: [
-                { const: 'new' },
-                {
-                  const: 'legacy',
-                  deprecated: true,
-                  description: 'Use "new".',
-                },
-              ],
+        kind: {
+          oneOf: [
+            { const: 'new' },
+            {
+              const: 'legacy',
+              deprecated: true,
+              description: 'Use "new".',
             },
-          },
+          ],
         },
       },
     };
@@ -643,51 +636,13 @@ describe('customTagDeprecations rule', () => {
     );
   });
 
-  it('flags a deprecated child-tag combination', () => {
-    const schema = {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
-      type: 'object',
-      properties: {
-        children: {
-          type: 'array',
-          items: {
-            oneOf: [
-              { type: 'object', properties: { tag: { const: 'pl-answer' } } },
-              {
-                type: 'object',
-                properties: { tag: { const: 'pl-answer-old' } },
-                deprecated: true,
-                description: 'Use <pl-answer>.',
-              },
-            ],
-          },
-        },
-      },
-    };
-    const d = linter
-      .lint(
-        '<pl-choice><pl-answer-old>x</pl-answer-old><pl-answer>y</pl-answer></pl-choice>',
-        { customTags: [{ name: 'pl-choice', schema }] },
-      )
-      .filter((x) => x.ruleName === 'customTagDeprecations');
-    expect(d).toHaveLength(1);
-    expect(d[0].message).toBe(
-      '<pl-answer-old> as a child of <pl-choice> is deprecated. Use <pl-answer>.',
-    );
-  });
-
   it('skips value-level deprecation when the value is a mustache interpolation', () => {
     const schema = {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $schema: 'http://json-schema.org/draft-06/schema#',
       type: 'object',
       properties: {
-        attributes: {
-          type: 'object',
-          properties: {
-            kind: {
-              oneOf: [{ const: 'new' }, { const: 'legacy', deprecated: true }],
-            },
-          },
+        kind: {
+          oneOf: [{ const: 'new' }, { const: 'legacy', deprecated: true }],
         },
       },
     };
@@ -701,7 +656,7 @@ describe('customTagDeprecations rule', () => {
 
   it('is off by setting `customTagDeprecations: "off"`', () => {
     const schema = {
-      $schema: 'https://json-schema.org/draft/2020-12/schema',
+      $schema: 'http://json-schema.org/draft-06/schema#',
       type: 'object',
       deprecated: true,
     };

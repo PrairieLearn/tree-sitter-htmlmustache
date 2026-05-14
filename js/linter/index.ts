@@ -15,11 +15,10 @@ import { toDiagnostic } from './diagnostic.js';
 import type { Diagnostic } from './diagnostic.js';
 import { GRAMMAR_WASM_FILENAME } from '../shared/grammar.js';
 import { loadSchemaRegistry } from '../shared/customTagSchemaLoader.js';
-import type {
-  SchemaFormat,
-  SchemaKeyword,
-} from '../shared/customTagSchemaLoader.js';
+import type { SchemaFormat } from '../shared/customTagSchemaLoader.js';
 import { RULE_DEFAULTS } from '../shared/ruleMetadata.js';
+import { KNOWN_RULE_NAMES } from '../shared/ruleMetadata.js';
+import type { ConfigLoadError } from '../shared/customTagSchemaLoader.js';
 import type {
   HtmlMustacheConfig,
   RulesConfig,
@@ -27,6 +26,12 @@ import type {
   CustomRule as CustomRuleType,
 } from '../shared/configSchema.js';
 import type { CustomCodeTagConfig } from '../shared/customCodeTags.js';
+import type {
+  TagElement,
+  TagValidator,
+  ValidatorContext,
+} from '../shared/tagValidators.js';
+import { isSyntacticRuleId } from '../shared/tagValidators.js';
 
 /**
  * `include`/`exclude` on custom rules are stripped from the in-memory API
@@ -45,7 +50,9 @@ export type {
   RuleSeverity,
   Diagnostic,
   SchemaFormat,
-  SchemaKeyword,
+  TagElement,
+  TagValidator,
+  ValidatorContext,
 };
 
 export type LocateWasm = string | ((filename: string) => string);
@@ -65,13 +72,10 @@ export interface CreateLinterOptions {
    */
   formats?: Record<string, SchemaFormat>;
   /**
-   * ajv keywords registered on the schema validator. Thin pass-through to
-   * `ajv.addKeyword` — the registration key becomes the keyword name. Use
-   * when JSON Schema's built-in vocabulary can't express a domain-specific
-   * rule. Errors that carry a `message` flow through unchanged; errors with
-   * no message get a generic `<tag>: validation <keyword> failed on <path>.`
+   * Synchronous custom-tag validators. They run for matching tags that are
+   * also declared in `customTags`.
    */
-  keywords?: Record<string, SchemaKeyword>;
+  validators?: TagValidator[];
 }
 
 export interface Linter {
@@ -95,12 +99,51 @@ function resolveGrammarUrl(locateWasm: LocateWasm): string {
     : locateWasm(GRAMMAR_WASM_FILENAME);
 }
 
+function normalizeValidators(validators: TagValidator[] | undefined): {
+  validators: TagValidator[] | undefined;
+  loadErrors: ConfigLoadError[];
+} {
+  if (!validators) return { validators, loadErrors: [] };
+  const loadErrors: ConfigLoadError[] = [];
+  const valid = validators.filter((validator, index) => {
+    if (!isSyntacticRuleId(validator.id)) {
+      loadErrors.push({
+        ruleName: 'pluginModule',
+        message: `Invalid validator descriptor at validators[${index}].`,
+      });
+      return false;
+    }
+    return true;
+  });
+  const counts = new Map<string, number>();
+  for (const validator of valid) {
+    counts.set(validator.id, (counts.get(validator.id) ?? 0) + 1);
+  }
+  const conflicting = new Set<string>();
+  for (const [id, count] of counts) {
+    if (count > 1 || KNOWN_RULE_NAMES.has(id)) {
+      conflicting.add(id);
+      loadErrors.push({
+        ruleName: 'pluginModule',
+        message: KNOWN_RULE_NAMES.has(id)
+          ? `Validator id "${id}" conflicts with a built-in rule name.`
+          : `Duplicate validator id "${id}".`,
+      });
+    }
+  }
+  return {
+    validators: valid.filter((validator) => !conflicting.has(validator.id)),
+    loadErrors,
+  };
+}
+
 /**
  * Create a linter handle. Consumers should cache the result — each call
  * reloads the grammar WASM.
  */
 export async function createLinter(opts: CreateLinterOptions): Promise<Linter> {
-  const { locateWasm, formats, keywords } = opts;
+  const { locateWasm, formats, validators } = opts;
+  const validatorResult = normalizeValidators(validators);
   const locateFile = toLocateFile(locateWasm);
   // `Parser.init` is idempotent (Emscripten caches the runtime globally), so
   // repeated calls are safe — the first locateFile wins.
@@ -120,15 +163,20 @@ export async function createLinter(opts: CreateLinterOptions): Promise<Linter> {
         );
         const schemaResult = loadSchemaRegistry(inlineSchemaTags, {
           formats,
-          keywords,
         });
         const errors = collectErrors(
           tree as unknown as WalkableTree,
           config?.rules,
           customTagNames,
           config?.customRules,
-          schemaResult.registry,
-          schemaResult.loadErrors,
+          {
+            schemaRegistry: schemaResult.registry,
+            schemaLoadErrors: [
+              ...schemaResult.loadErrors,
+              ...validatorResult.loadErrors,
+            ],
+            validators: validatorResult.validators,
+          },
         );
         return errors.map(toDiagnostic);
       } finally {

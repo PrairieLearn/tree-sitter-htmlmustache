@@ -5,7 +5,7 @@ import {
   type JSONSchema,
 } from '../src/schemaWalker.js';
 
-const DRAFT = 'https://json-schema.org/draft/2020-12/schema';
+const DRAFT = 'http://json-schema.org/draft-06/schema#';
 
 function attrSchema(properties: Record<string, JSONSchema>, required: string[] = []): JSONSchema {
   return {
@@ -20,7 +20,9 @@ function rootWith(attributes: JSONSchema, extras: Partial<JSONSchema> = {}): JSO
   return {
     $schema: DRAFT,
     type: 'object',
-    properties: { attributes },
+    properties: attributes.properties,
+    required: attributes.required,
+    additionalProperties: attributes.additionalProperties,
     ...extras,
   };
 }
@@ -46,9 +48,7 @@ describe('collectAttributeNames', () => {
     const schema = rootWith(attrSchema({ a: { type: 'string' } }), {
       allOf: [
         {
-          properties: {
-            attributes: { properties: { b: { type: 'string' } } },
-          },
+          properties: { b: { type: 'string' } },
         },
       ],
     });
@@ -62,14 +62,10 @@ describe('collectAttributeNames', () => {
     const schema = rootWith(attrSchema({ size: { type: 'string' } }), {
       allOf: [
         {
-          if: { properties: { attributes: { required: ['size'] } } },
+          if: { required: ['size'] },
           then: {
-            properties: {
-              attributes: {
-                properties: { display: { const: 'dropdown' } },
-                required: ['display'],
-              },
-            },
+            properties: { display: { const: 'dropdown' } },
+            required: ['display'],
           },
         },
       ],
@@ -86,11 +82,7 @@ describe('collectAttributeNames', () => {
     const schema = rootWith(attrSchema({ display: { enum: ['a', 'b'] } }), {
       allOf: [
         {
-          properties: {
-            attributes: {
-              properties: { display: { enum: ['z'] } },
-            },
-          },
+          properties: { display: { enum: ['z'] } },
         },
       ],
     });

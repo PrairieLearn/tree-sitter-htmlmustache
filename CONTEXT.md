@@ -40,8 +40,8 @@ An attribute whose parsed value contains a mustache construct and therefore may 
 
 The rule that attribute values containing `{{...}}` (or other mustache constructs) cannot be statically value-checked by a tag schema. Implementation:
 
-1. **Sentinel substitution** while building the attribute shape: dynamic attributes become a sentinel that satisfies the attribute's own value rules.
-2. **Post-filter** after ajv runs: any error whose `instancePath` traverses a dynamic attribute is suppressed.
+1. The original raw attribute value is passed into the flat attribute object.
+2. **Post-filter** after ajv runs: any value-dependent error whose `instancePath` traverses a dynamic attribute, or whose conditional branch depends on one, is suppressed.
 
 Effect: presence and structural rules (`required`, `additionalProperties:false`) still fire on mustache-bearing attributes; value-dependent rules are waived.
 

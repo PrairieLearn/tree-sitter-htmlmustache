@@ -32,6 +32,9 @@ import type {
 } from '../shared/customTagSchemaLoader.js';
 import { checkCustomTagSchemas } from './customTagSchemaChecker.js';
 import { checkDeprecations } from './deprecationChecker.js';
+import { checkTagValidators } from './tagValidatorRunner.js';
+import type { TagValidator } from '../shared/tagValidators.js';
+import { isSyntacticRuleId } from '../shared/tagValidators.js';
 
 // Parsing a selector is non-trivial (runs parsel-js) and lint() is called
 // per-keystroke in browsers, so cache by raw selector string. `null` cached
@@ -69,6 +72,12 @@ export interface CheckError {
   fix?: TextReplacement[];
   fixDescription?: string;
   ruleName?: string;
+}
+
+export interface ValidationOptions {
+  schemaRegistry?: SchemaRegistry;
+  schemaLoadErrors?: ConfigLoadError[];
+  validators?: TagValidator[];
 }
 
 const ERROR_NODE_TYPES = new Set([
@@ -122,6 +131,16 @@ function resolveRuleConfig<K extends keyof RulesConfig>(
   return { severity, entry: entry as RulesConfig[K] };
 }
 
+function resolveAnyRuleSeverity(
+  rules: RulesConfig | undefined,
+  ruleName: string,
+): RuleSeverity {
+  const entry = rules?.[ruleName];
+  if (typeof entry === 'string') return entry;
+  if (entry && typeof entry === 'object') return entry.severity;
+  return RULE_DEFAULTS[ruleName] ?? 'off';
+}
+
 function parseDisableDirective(
   node: BalanceNode,
   customRuleIds?: Set<string>,
@@ -143,6 +162,7 @@ function parseDisableDirective(
   const ruleName = inner.slice(prefix.length).trim();
   if (KNOWN_RULE_NAMES.has(ruleName)) return ruleName;
   if (customRuleIds?.has(ruleName)) return ruleName;
+  if (isSyntacticRuleId(ruleName)) return ruleName;
   return null;
 }
 
@@ -172,8 +192,7 @@ export function collectErrors(
   rules?: RulesConfig,
   customTagNames?: string[],
   customRules?: CustomRule[],
-  schemaRegistry?: SchemaRegistry,
-  schemaLoadErrors?: ConfigLoadError[],
+  validation?: ValidationOptions,
 ): CheckError[] {
   const errors: CheckError[] = [];
   const cursor = tree.walk() as unknown as TreeCursor;
@@ -215,26 +234,27 @@ export function collectErrors(
   }
 
   // Collect inline disable directives and merge into effective rules
-  const customRuleIds = customRules
-    ? new Set(customRules.map((r) => r.id))
-    : undefined;
+  const customRuleIds = new Set([
+    ...(customRules?.map((r) => r.id) ?? []),
+    ...(validation?.validators?.map((v) => v.id) ?? []),
+  ]);
   const disabledRules = collectDisabledRules(tree.rootNode, customRuleIds);
   const effectiveRules = { ...rules };
   for (const rule of disabledRules) {
     (effectiveRules as Record<string, string>)[rule] = 'off';
   }
 
-  const { severity: schemaSeverity } = resolveRuleConfig(
-    effectiveRules,
-    'customTagSchema',
-  );
-  if (schemaSeverity !== 'off') {
-    for (const loadError of schemaLoadErrors ?? []) {
+  for (const ruleName of ['customTagSchema', 'pluginModule']) {
+    const severity = resolveAnyRuleSeverity(effectiveRules, ruleName);
+    if (severity === 'off') continue;
+    for (const loadError of validation?.schemaLoadErrors ?? []) {
+      const errorRule = loadError.ruleName ?? 'customTagSchema';
+      if (errorRule !== ruleName) continue;
       errors.push({
         node: configDiagnosticNode(tree.rootNode),
         message: loadError.message,
-        severity: schemaSeverity === 'warning' ? 'warning' : 'error',
-        ruleName: 'customTagSchema',
+        severity: severity === 'warning' ? 'warning' : 'error',
+        ruleName,
       });
     }
   }
@@ -285,18 +305,20 @@ export function collectErrors(
       errors: (entry) => {
         const elements =
           (entry && typeof entry === 'object'
-            ? (entry as ElementContentTooLongOptions).elements
+            ? (entry as unknown as ElementContentTooLongOptions).elements
             : undefined) ?? [];
         return checkElementContentTooLong(tree.rootNode, elements);
       },
     },
     {
       rule: 'customTagSchema',
-      errors: () => checkCustomTagSchemas(tree.rootNode, schemaRegistry),
+      errors: () =>
+        checkCustomTagSchemas(tree.rootNode, validation?.schemaRegistry),
     },
     {
       rule: 'customTagDeprecations',
-      errors: () => checkDeprecations(tree.rootNode, schemaRegistry),
+      errors: () =>
+        checkDeprecations(tree.rootNode, validation?.schemaRegistry),
     },
   ];
 
@@ -311,10 +333,22 @@ export function collectErrors(
         severity,
         fix: error.fix,
         fixDescription: error.fixDescription,
-        ruleName: rule,
+        ruleName: rule as string,
       });
     }
   }
+
+  const customTagNameSet = new Set(
+    customTagNames?.map((name) => name.toLowerCase()) ?? [],
+  );
+  errors.push(
+    ...checkTagValidators(
+      tree.rootNode,
+      validation?.validators,
+      customTagNameSet,
+      effectiveRules,
+    ),
+  );
 
   // Custom selector-based rules
   if (customRules) {
