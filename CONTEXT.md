@@ -4,43 +4,59 @@ Terms with project-specific meaning. Implementation-level vocabulary lives in co
 
 ## Tag schema
 
-A JSON Schema (draft 2020-12) bound to a custom tag via `customTags[].schema` in `.htmlmustache.jsonc`. Describes the tag's attributes (required, value rules, combinations) and its direct children (allowed tags, counts, parent-context conditional rules). Validated by the linter; produces diagnostics under the `customTagSchema` rule.
+A JSON Schema (draft-06) bound to a custom tag via `customTags[].schema` in `.htmlmustache.jsonc`. Describes the tag's flat attribute object only: required attributes, value rules, combinations, and unknown-attribute policy. Validated by the linter; produces diagnostics under the `customTagSchema` rule.
 
 Schemas can be either a path (resolved against the config file's directory) or an inline object. Browser embeddings accept inline only.
 
-## Element shape
+## Attribute shape
 
-The JSON value that a tag schema validates against. Built from each occurrence of the custom tag in the source. Shape:
+The JSON value that a tag schema validates against. Built from the attributes on each occurrence of the custom tag in the source. Shape:
 
 ```json
 {
-  "tag": "<lowercased tag name>",
-  "attributes": { "<name>": "<value>", ... },
-  "children": [ { "tag": "...", "attributes": { ... } }, ... ]
+  "<attribute-name>": "<attribute-value>"
 }
 ```
 
-One level of children only — child elements appear with `tag` + `attributes` but no further descent. Mustache interpolations, sections, partials, comments, raw text, and HTML whitespace/comments are dropped from `children`; the inner elements of `{{#…}}`/`{{^…}}` sections are _included_ as if the section weren't there (kind-transparent / max-set semantics).
+Valueless attributes are represented as `true`. The tag name is implicit from the `customTags[].name` entry that owns the schema.
 
-Both the parent tag's schema and each schema'd child's own schema validate independently — by convention authors keep them disjoint (parent describes children only insofar as a rule depends on parent state).
+## Tag validator
+
+Project-provided JavaScript that runs for configured custom tag names and reports lint diagnostics for checks that cannot be expressed as an attribute schema.
+
+## Plugin module
+
+Executable project code loaded from `.htmlmustache.jsonc` that extends htmlmustache with schema formats and tag validators.
+
+## Tag element
+
+One parsed HTML element occurrence in a template, exposed to tag validators with its tag name, raw attributes, dynamic-attribute helper, and direct child tag elements.
+
+## Dynamic attribute
+
+An attribute whose parsed value contains a mustache construct and therefore may not have a statically knowable runtime value.
 
 ## Mustache waiver
 
-The rule that attribute values containing `{{...}}` (or other mustache constructs) cannot be statically value-checked. Implementation:
+The rule that attribute values containing `{{...}}` (or other mustache constructs) cannot be statically value-checked by a tag schema. Implementation:
 
-1. **Sentinel substitution** while building the element shape: mustache-bearing values become a sentinel that satisfies the attribute's own value rules.
-2. **Post-filter** after ajv runs: any error whose `instancePath` traverses a mustache-bearing attribute is suppressed.
+1. **Sentinel substitution** while building the attribute shape: dynamic attributes become a sentinel that satisfies the attribute's own value rules.
+2. **Post-filter** after ajv runs: any error whose `instancePath` traverses a dynamic attribute is suppressed.
 
-Effect: presence and structural rules (required, additionalProperties:false, child counts) still fire on mustache-bearing attributes; value-dependent rules — including cross-attribute conditionals (`if/then` on a value) — are waived.
+Effect: presence and structural rules (`required`, `additionalProperties:false`) still fire on mustache-bearing attributes; value-dependent rules are waived.
 
 ## Max-set semantics
 
-The linter's canonical treatment of mustache sections when reasoning about template structure: walk through `{{#…}}`/`{{^…}}` as if the section were always present. A schema diagnostic fires when a violation appears in _some_ possible runtime timeline; a "missing required X" diagnostic fires only when X appears in _no_ timeline (the max-set). This is consistent with selector rules' kind-transparent matching. The trade-off: min-count rules can be silently bypassed by wrapping the only matches in a section — accepted as a known limitation, with full timeline enumeration deferred as a follow-up.
+The linter's canonical treatment of mustache sections when reasoning about template structure: walk through `{{#…}}`/`{{^…}}` as if the section were always present. This applies to selector rules and to tag validator child traversal.
 
 ## Custom tag
 
-A tag declared in `customTags[]` of `.htmlmustache.jsonc`. Until this work, custom tags only carried code-tag highlighting / formatting metadata (`languageAttribute`, `display`, etc.). The `schema` field adds attribute/child validation. The same `customTags` entry may set both, may set neither, or may set just one — `schema` is independent of the code-tag fields.
+A tag declared in `customTags[]` of `.htmlmustache.jsonc`. Custom tags may carry code-tag highlighting / formatting metadata (`languageAttribute`, `display`, etc.), a tag schema for attribute validation, or both.
 
 ## Schema diagnostic phrasing
 
-The rule that `customTagSchema` diagnostics surface in HTML/element terms, not in JSON-Schema vocabulary. A template author should never see `instancePath`, `additionalProperty`, `must NOT have unevaluated`, or `must match constant`; they see `Unknown attribute "extra" on <pl-multiple-choice>`, `<pl-card> is missing required attribute "kind"`, `Attribute "size" must be one of: "sm", "md"`. Implemented by `messageForError` in `js/linter/customTagSchemaChecker.ts`, which walks `error.instancePath` to recover the element/attribute/child context and rewrites the common ajv keywords (`required`, `additionalProperties`, `enum`, `const`, `type`, `minimum`, `maximum`) at element and child-of-element scope. Constraints without a rewriter fall through to ajv's localized text — by design: covering every keyword would balloon the rewriter without serving the common case.
+The rule that `customTagSchema` diagnostics surface in HTML/element terms, not in JSON-Schema vocabulary. A template author should never see `instancePath`, `additionalProperty`, or `must match constant`; they see `Unknown attribute "extra" on <pl-multiple-choice>`, `<pl-card> is missing required attribute "kind"`, `Attribute "size" must be one of: "sm", "md"`. Implemented by `messageForError` in `js/linter/customTagSchemaChecker.ts`, which walks `error.instancePath` to recover attribute context and rewrites the common ajv keywords (`required`, `additionalProperties`, `enum`, `const`, `type`, `minimum`, `maximum`, `pattern`, `format`). Constraints without a rewriter fall through to ajv's localized text — by design: covering every keyword would balloon the rewriter without serving the common case.
+
+## Deprecation annotation
+
+The htmlmustache-specific use of `deprecated: true` inside a tag schema to produce `customTagDeprecations` diagnostics; draft-06 validation itself does not define this keyword.
