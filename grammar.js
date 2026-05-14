@@ -24,6 +24,7 @@ module.exports = grammar({
     $._html_implicit_end_tag,
     $.html_raw_text,
     $.html_comment,
+    $._html_text_less_than,
     // Mustache externals
     $._mustache_start_tag_name,
     $._mustache_end_tag_name,
@@ -53,6 +54,7 @@ module.exports = grammar({
         $.text,
         alias($._text_brace, $.text),
         alias($._text_ampersand, $.text),
+        alias($._html_text_less_than, $.text),
       ),
 
     _mustache_node: ($) =>

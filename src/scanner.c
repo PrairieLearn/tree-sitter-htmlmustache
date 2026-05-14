@@ -34,6 +34,7 @@ enum TokenType {
     HTML_IMPLICIT_END_TAG,
     HTML_RAW_TEXT,
     HTML_COMMENT,
+    HTML_TEXT_LESS_THAN,
     // Mustache tokens
     MUSTACHE_START_TAG_NAME,
     MUSTACHE_END_TAG_NAME,
@@ -230,6 +231,10 @@ static bool scan_html_comment(TSLexer *lexer) {
         advance(lexer);
     }
     return false;
+}
+
+static bool is_ascii_alpha(int32_t c) {
+    return (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z');
 }
 
 static bool scan_raw_text(Scanner *scanner, TSLexer *lexer) {
@@ -514,10 +519,11 @@ static bool scan(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
         return scan_raw_text(scanner, lexer);
     }
 
+    bool skipped_whitespace = false;
     while (iswspace(lexer->lookahead)) {
         skip(lexer);
+        skipped_whitespace = true;
     }
-
 
     if (valid_symbols[MUSTACHE_START_TAG_NAME]) {
         return scan_mustache_start_tag_name(scanner, lexer);
@@ -555,8 +561,22 @@ static bool scan(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
                 return scan_html_comment(lexer);
             }
 
-            if (valid_symbols[HTML_IMPLICIT_END_TAG]) {
+            if (
+                valid_symbols[HTML_IMPLICIT_END_TAG] &&
+                (lexer->lookahead == '/' || is_ascii_alpha(lexer->lookahead) || lexer->eof(lexer))
+            ) {
                 return scan_implicit_end_tag(scanner, lexer);
+            }
+
+            if (
+                valid_symbols[HTML_TEXT_LESS_THAN] &&
+                !is_ascii_alpha(lexer->lookahead) &&
+                lexer->lookahead != '!' &&
+                lexer->lookahead != '/'
+            ) {
+                lexer->mark_end(lexer);
+                lexer->result_symbol = HTML_TEXT_LESS_THAN;
+                return true;
             }
             break;
 
@@ -574,9 +594,15 @@ static bool scan(Scanner *scanner, TSLexer *lexer, const bool *valid_symbols) {
 
         default:
             if ((valid_symbols[HTML_START_TAG_NAME] || valid_symbols[HTML_END_TAG_NAME]) && !valid_symbols[HTML_RAW_TEXT]) {
+                if (skipped_whitespace) {
+                    return false;
+                }
                 return valid_symbols[HTML_START_TAG_NAME] ? scan_start_tag_name(scanner, lexer)
                                                      : scan_end_tag_name(scanner, lexer);
             } else if (valid_symbols[HTML_ERRONEOUS_END_TAG_NAME]) {
+                if (skipped_whitespace) {
+                    return false;
+                }
                 return scan_end_tag_name(scanner, lexer);
             }
     }

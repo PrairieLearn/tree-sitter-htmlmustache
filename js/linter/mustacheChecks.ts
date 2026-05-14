@@ -318,27 +318,33 @@ export function checkUnescapedEntities(rootNode: BalanceNode): FixableError[] {
         return;
       }
 
-      // > characters in text (from the text rule which allows >)
-      if (node.text.includes('>')) {
+      // < and > characters in text should be escaped as entities.
+      const entity = node.text.includes('<')
+        ? { char: '<', escaped: '&lt;' }
+        : node.text.includes('>')
+          ? { char: '>', escaped: '&gt;' }
+          : null;
+
+      if (entity) {
         const fixes: TextReplacement[] = [];
         let searchFrom = 0;
         const text = node.text;
         while (true) {
-          const idx = text.indexOf('>', searchFrom);
+          const idx = text.indexOf(entity.char, searchFrom);
           if (idx === -1) break;
           fixes.push({
             startIndex: node.startIndex + idx,
             endIndex: node.startIndex + idx + 1,
-            newText: '&gt;',
+            newText: entity.escaped,
           });
           searchFrom = idx + 1;
         }
         errors.push({
           node,
-          message: 'Unescaped ">" in text content — use &gt; instead',
+          message: `Unescaped "${entity.char}" in text content — use ${entity.escaped} instead`,
           severity: 'warning',
           fix: fixes,
-          fixDescription: 'Replace > with &gt;',
+          fixDescription: `Replace ${entity.char} with ${entity.escaped}`,
         });
         return;
       }

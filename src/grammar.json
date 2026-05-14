@@ -104,6 +104,15 @@
           },
           "named": true,
           "value": "text"
+        },
+        {
+          "type": "ALIAS",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_html_text_less_than"
+          },
+          "named": true,
+          "value": "text"
         }
       ]
     },
@@ -1409,6 +1418,10 @@
     {
       "type": "SYMBOL",
       "name": "html_comment"
+    },
+    {
+      "type": "SYMBOL",
+      "name": "_html_text_less_than"
     },
     {
       "type": "SYMBOL",

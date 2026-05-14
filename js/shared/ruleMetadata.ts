@@ -38,7 +38,7 @@ export const RULES: RuleDefinition[] = [
   {
     name: 'unescapedEntities',
     defaultSeverity: 'warning',
-    description: 'Flags unescaped `&` and `>` characters in text content',
+    description: 'Flags unescaped `&`, `<`, and `>` characters in text content',
   },
   {
     name: 'preferMustacheComments',

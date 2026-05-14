@@ -333,7 +333,7 @@ Additionally, the following rules are configurable. Set their severities (`"erro
 | `consecutiveDuplicateSections` | `warning` | Warns when adjacent same-name sections can be merged                          |
 | `selfClosingNonVoidTags`       | `error`   | Disallows self-closing syntax on non-void HTML elements (e.g. `<div/>`)       |
 | `duplicateAttributes`          | `error`   | Detects duplicate HTML attributes on the same element                         |
-| `unescapedEntities`            | `warning` | Flags unescaped `&` and `>` characters in text content                        |
+| `unescapedEntities`            | `warning` | Flags unescaped `&`, `<`, and `>` characters in text content                  |
 | `preferMustacheComments`       | `off`     | Suggests replacing HTML comments with mustache comments                       |
 | `unrecognizedHtmlTags`         | `error`   | Flags HTML tags that are not standard HTML elements or valid custom elements  |
 | `elementContentTooLong`        | `off`     | Flags configured elements whose inner content exceeds a byte-length threshold |

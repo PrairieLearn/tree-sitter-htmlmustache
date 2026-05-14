@@ -3297,6 +3297,44 @@ Greater-than and braces in text content
       (html_tag_name))))
 
 ===
+Less-than in text content
+===
+<p> 1 < 2 is true </p>
+---
+
+(document
+  (html_element
+    (html_start_tag
+      (html_tag_name))
+    (text)
+    (text)
+    (text)
+    (html_end_tag
+      (html_tag_name))))
+
+===
+Literal less-than before real tag
+===
+<p> <3 and <<span>x</span> </p>
+---
+
+(document
+  (html_element
+    (html_start_tag
+      (html_tag_name))
+    (text)
+    (text)
+    (text)
+    (html_element
+      (html_start_tag
+        (html_tag_name))
+      (text)
+      (html_end_tag
+        (html_tag_name)))
+    (html_end_tag
+      (html_tag_name))))
+
+===
 Triple mustache in double-quoted attribute value
 ===
 <button opts="{{{ options }}}">click</button>

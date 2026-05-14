@@ -40,8 +40,8 @@ Error recovery: broken tag between valid elements
     (text)
     (html_end_tag
       (html_tag_name)))
-  (ERROR
-    (UNEXPECTED 's'))
+  (text)
+  (text)
   (html_element
     (html_start_tag
       (html_tag_name))
@@ -70,8 +70,8 @@ Error recovery: broken tag inside mustache section
       (text)
       (html_end_tag
         (html_tag_name)))
-    (ERROR
-      (UNEXPECTED 'b'))
+    (text)
+    (text)
     (html_element
       (html_start_tag
         (html_tag_name))
@@ -119,8 +119,8 @@ Error recovery: error between custom element blocks
         (html_tag_name)))
     (html_end_tag
       (html_tag_name)))
-  (ERROR
-    (UNEXPECTED 'e'))
+  (text)
+  (text)
   (html_element
     (html_start_tag
       (html_tag_name)
@@ -159,8 +159,8 @@ Error recovery: error inside nested mustache and HTML
     (html_element
       (html_start_tag
         (html_tag_name))
-      (ERROR
-        (UNEXPECTED 'e'))
+      (text)
+      (text)
       (html_element
         (html_start_tag
           (html_tag_name))
