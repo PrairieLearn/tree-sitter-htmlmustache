@@ -127,8 +127,26 @@ function buildFacade(
     node,
     startTag,
     attributesByName,
-    hasDynamicAttribute(name: string): boolean {
+    hasAttribute(name: string): boolean {
+      return attributesByName.has(name.toLowerCase());
+    },
+    getAttribute(name: string): string | true | undefined {
+      return attributesByName.get(name.toLowerCase())?.value;
+    },
+    getLiteralAttribute(name: string): string | true | undefined {
+      const attribute = attributesByName.get(name.toLowerCase());
+      return attribute && !attribute.dynamic ? attribute.value : undefined;
+    },
+    isAttributeDynamic(name: string): boolean {
       return attributesByName.get(name.toLowerCase())?.dynamic ?? false;
+    },
+    childrenWithTag(tagName: string): readonly TagElement[] {
+      const normalized = tagName.toLowerCase();
+      return children.filter((child) => child.tag === normalized);
+    },
+    childrenWithoutTag(tagName: string): readonly TagElement[] {
+      const normalized = tagName.toLowerCase();
+      return children.filter((child) => child.tag !== normalized);
     },
   };
 }
@@ -191,14 +209,25 @@ export function checkTagValidators(
           );
           if (!element) continue;
           try {
+            const report = (diagnostic: {
+              element: TagElement;
+              attribute?: string;
+              message: string;
+            }): void => {
+              errors.push({
+                node: reportNode(diagnostic.element, diagnostic.attribute),
+                message: diagnostic.message,
+                severity: severity === 'warning' ? 'warning' : 'error',
+                ruleName: validator.id,
+              });
+            };
             validator.validate(element, {
-              report(diagnostic) {
-                errors.push({
-                  node: reportNode(diagnostic.element, diagnostic.attribute),
-                  message: diagnostic.message,
-                  severity: severity === 'warning' ? 'warning' : 'error',
-                  ruleName: validator.id,
-                });
+              report,
+              reportElement(target, message) {
+                report({ element: target, message });
+              },
+              reportAttribute(target, attribute, message) {
+                report({ element: target, attribute, message });
               },
             });
           } catch (error) {

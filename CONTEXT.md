@@ -24,13 +24,15 @@ Valueless attributes are represented as `true`. The tag name is implicit from th
 
 Project-provided JavaScript that runs for configured custom tag names and reports lint diagnostics for checks that cannot be expressed as an attribute schema.
 
+`defineTagValidators(tagOrTags, rules)` is the ergonomic authoring helper for tag-scoped validator sets. It expands a map of independent rule ids into ordinary validators while keeping the map keys as rule ids.
+
 ## Plugin module
 
 Executable project code loaded from `.htmlmustache.jsonc` that extends htmlmustache with schema formats and tag validators.
 
 ## Tag element
 
-One parsed HTML element occurrence in a template, exposed to tag validators with its tag name, raw attributes, dynamic-attribute helper, direct child tag elements, and optional raw inner HTML.
+One parsed HTML element occurrence in a template, exposed to tag validators with its tag name, raw attributes, attribute helpers, direct child tag helpers, and optional raw inner HTML.
 
 ## Dynamic attribute
 

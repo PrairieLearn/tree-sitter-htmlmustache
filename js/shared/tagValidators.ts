@@ -5,7 +5,12 @@ export interface TagElement {
   readonly attributes: Readonly<Record<string, string | true>>;
   readonly children: readonly TagElement[];
   readonly innerHtml?: string;
-  hasDynamicAttribute(name: string): boolean;
+  hasAttribute(name: string): boolean;
+  getAttribute(name: string): string | true | undefined;
+  getLiteralAttribute(name: string): string | true | undefined;
+  isAttributeDynamic(name: string): boolean;
+  childrenWithTag(tag: string): readonly TagElement[];
+  childrenWithoutTag(tag: string): readonly TagElement[];
 }
 
 export interface ValidatorContext {
@@ -14,6 +19,12 @@ export interface ValidatorContext {
     attribute?: string;
     message: string;
   }): void;
+  reportElement(element: TagElement, message: string): void;
+  reportAttribute(
+    element: TagElement,
+    attribute: string,
+    message: string,
+  ): void;
 }
 
 export interface TagValidator {
@@ -24,6 +35,51 @@ export interface TagValidator {
     includeInnerHtml?: boolean;
   };
   validate(element: TagElement, context: ValidatorContext): void;
+}
+
+export type TagValidatorFn = (
+  element: TagElement,
+  context: ValidatorContext,
+) => void;
+
+export interface TagValidatorRule {
+  severity?: RuleSeverity;
+  options?: TagValidator['options'];
+  validate: TagValidatorFn;
+}
+
+export type TagValidatorRuleEntry = TagValidatorFn | TagValidatorRule;
+
+function normalizeTagInput(tag: string): string {
+  if (tag.length === 0) {
+    throw new TypeError('Tag validator tags must be non-empty strings.');
+  }
+  return tag.toLowerCase();
+}
+
+export function defineTagValidators(
+  tagOrTags: string | readonly string[],
+  rules: Readonly<Record<string, TagValidatorRuleEntry>>,
+): TagValidator[] {
+  const tags = (Array.isArray(tagOrTags) ? tagOrTags : [tagOrTags]).map(
+    normalizeTagInput,
+  );
+  if (tags.length === 0) {
+    throw new TypeError('defineTagValidators requires at least one tag.');
+  }
+
+  return Object.entries(rules).map(([id, rule]) => {
+    if (typeof rule === 'function') {
+      return { id, tags: [...tags], validate: rule };
+    }
+    return {
+      id,
+      tags: [...tags],
+      ...(rule.severity !== undefined ? { severity: rule.severity } : {}),
+      ...(rule.options !== undefined ? { options: rule.options } : {}),
+      validate: rule.validate,
+    };
+  });
 }
 
 export function isSyntacticRuleId(id: string): boolean {

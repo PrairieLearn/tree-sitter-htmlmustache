@@ -28,10 +28,16 @@ import type {
 import type { CustomCodeTagConfig } from '../shared/customCodeTags.js';
 import type {
   TagElement,
+  TagValidatorFn,
+  TagValidatorRule,
+  TagValidatorRuleEntry,
   TagValidator,
   ValidatorContext,
 } from '../shared/tagValidators.js';
-import { isSyntacticRuleId } from '../shared/tagValidators.js';
+import {
+  defineTagValidators,
+  isSyntacticRuleId,
+} from '../shared/tagValidators.js';
 
 /**
  * `include`/`exclude` on custom rules are stripped from the in-memory API
@@ -51,9 +57,13 @@ export type {
   Diagnostic,
   SchemaFormat,
   TagElement,
+  TagValidatorFn,
+  TagValidatorRule,
+  TagValidatorRuleEntry,
   TagValidator,
   ValidatorContext,
 };
+export { defineTagValidators };
 
 export type LocateWasm = string | ((filename: string) => string);
 

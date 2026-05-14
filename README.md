@@ -441,26 +441,25 @@ Use synchronous JavaScript validators for checks that need children, content, or
 
 ```js
 // scripts/htmlmustache-plugin.mjs
-export const validators = [
-  {
-    id: 'pl/order-blocks-children',
-    tags: ['pl-order-blocks'],
-    severity: 'error',
-    options: { includeInnerHtml: true },
-    validate(element, context) {
-      const names = element.children.map((child) => child.tag);
-      if (names.some((name) => name !== 'pl-answer')) {
-        context.report({
-          element,
-          message: '<pl-order-blocks> only allows <pl-answer> children.',
-        });
-      }
-    },
+import { defineTagValidators } from '@reteps/tree-sitter-htmlmustache/linter';
+
+export const validators = defineTagValidators('pl-order-blocks', {
+  'pl/order-blocks-children'(element, context) {
+    for (const child of element.childrenWithoutTag('pl-answer')) {
+      context.reportElement(
+        child,
+        '<pl-order-blocks> only allows <pl-answer> children.',
+      );
+    }
   },
-];
+});
 ```
 
 `element.children` contains one level of direct child HTML elements. Mustache sections are transparent, so children inside `{{#section}}...{{/section}}` are included. Child facades expose their tag and attributes, but their own `children` arrays are empty. `element.innerHtml` is present only when the validator opts into `options.includeInnerHtml`.
+
+`defineTagValidators(tagOrTags, rules)` is optional sugar for plugin authors. It lowercases the target tag or tags and expands each rule-map entry into an independent validator; rule-map keys are the exact rule ids used by `rules` config and inline disable comments. A rule can be a bare validation function or an object with `validate`, `severity`, and `options`.
+
+`TagElement` helpers are case-insensitive where they accept names. Use `hasAttribute(name)` for presence, `getAttribute(name)` for the raw value, and `getLiteralAttribute(name)` when dynamic Mustache values should be treated as unknown. Use `childrenWithTag(tag)` and `childrenWithoutTag(tag)` for direct child tag checks. `ValidatorContext` also exposes `reportElement(element, message)` and `reportAttribute(element, name, message)` as shorthand for `report(...)`.
 
 Validator ids are rule ids. Configure severity and inline disables the same way as built-in rules:
 

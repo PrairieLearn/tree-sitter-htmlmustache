@@ -149,6 +149,41 @@ interface TagValidator {
 }
 ```
 
+The public linter entry also exports `defineTagValidators(tagOrTags, rules)`.
+This helper expands a tag-scoped map of independent rule ids into the ordinary
+`TagValidator[]` shape, normalizing tags to lowercase while preserving the map
+keys as the exact validator ids used by severity configuration and inline
+disable comments. Rule entries may be either bare validation functions or
+objects with `validate`, `severity`, and `options`.
+
+```ts
+export const validators = defineTagValidators('pl-multiple-choice', {
+  'child-tags'(element, ctx) {
+    for (const child of element.childrenWithoutTag('pl-answer')) {
+      ctx.reportElement(
+        child,
+        'pl-multiple-choice only allows <pl-answer> children.',
+      );
+    }
+  },
+
+  'requires-answer': {
+    severity: 'warning',
+    validate(element, ctx) {
+      if (
+        !element.hasAttribute('external-json') &&
+        element.childrenWithTag('pl-answer').length === 0
+      ) {
+        ctx.reportElement(
+          element,
+          'pl-multiple-choice element must have at least 1 answer choice.',
+        );
+      }
+    },
+  },
+});
+```
+
 `tags` is a required non-empty array of tag names that receive the validator. Tags are normalized to lowercase for matching. Multiple validators can target the same tag, and one validator can target multiple tags. There is no wildcard or document-wide validator in this iteration.
 
 Validators run only for matching tags that are also declared in `customTags[]`. `customTags[]` remains the project registry of known custom tags; the plugin does not activate validation for undeclared tags by itself.
@@ -165,13 +200,18 @@ interface TagElement {
   readonly attributes: Readonly<Record<string, string | true>>;
   readonly children: readonly TagElement[];
   readonly innerHtml?: string;
-  hasDynamicAttribute(name: string): boolean;
+  hasAttribute(name: string): boolean;
+  getAttribute(name: string): string | true | undefined;
+  getLiteralAttribute(name: string): string | true | undefined;
+  isAttributeDynamic(name: string): boolean;
+  childrenWithTag(tag: string): readonly TagElement[];
+  childrenWithoutTag(tag: string): readonly TagElement[];
 }
 ```
 
 `children` contains all direct child HTML elements, including ordinary HTML tags and configured custom tags. Mustache sections are transparent for child collection, matching max-set semantics. The initial API is one level deep: child elements are useful diagnostic targets and expose their own tag and attributes, but their `children` arrays are empty.
 
-Attribute values are raw source values, except valueless attributes are represented as `true`. Dynamic attributes are not replaced with schema sentinels for validators. Validators that usually cannot reason about runtime values can call `element.hasDynamicAttribute(name)` and skip that check. `hasDynamicAttribute` is AST-based: it returns `true` when the parsed attribute value contains a mustache construct.
+Attribute values are raw source values, except valueless attributes are represented as `true`. Dynamic attributes are not replaced with schema sentinels for validators. Attribute helper names are case-insensitive. `hasAttribute` checks only presence. `getAttribute` returns the raw exposed value. `getLiteralAttribute` returns `undefined` for missing or dynamic attributes. Validators that need custom behavior can still call `element.isAttributeDynamic(name)` directly. `isAttributeDynamic` is AST-based: it returns `true` when the parsed attribute value contains a mustache construct. Child helper tag names are case-insensitive and operate on the one-level `children` facade.
 
 Validator options are opt-ins for data that is useful but not part of the minimal default facade. With `options.includeInnerHtml: true`, the current element and its one-level direct children include `innerHtml`, the raw source between the element's start and end tags. Self-closing and void elements receive `''`. Without this option, `innerHtml` is omitted. This supports checks such as "direct child HTML must be unique" without adding recursive children or raw parse-node access.
 
@@ -184,6 +224,12 @@ interface ValidatorContext {
     attribute?: string;
     message: string;
   }): void;
+  reportElement(element: TagElement, message: string): void;
+  reportAttribute(
+    element: TagElement,
+    attribute: string,
+    message: string,
+  ): void;
 }
 ```
 
@@ -266,6 +312,7 @@ The implementation should:
 - load `formats` and `validators` from `pluginModule`;
 - accept programmatic `validators` in `createLinter`;
 - export `TagValidator`, `TagElement`, and `ValidatorContext` types from `./linter`;
+- export `defineTagValidators` from `./linter`;
 - add a built-in `pluginModule` rule for plugin module load and export-shape failures;
 - switch schema compilation to draft-06;
 - keep `ajv-errors` only if it works cleanly with the draft-06 AJV instance; do not retain draft 2020-12 only for custom error message plumbing;
@@ -273,7 +320,7 @@ The implementation should:
 - remove `htmlGlobalAttributes` expansion;
 - build schema input as a flat attribute object;
 - remove schema construction of `tag`, `children`, `text`, and `innerHtml`;
-- use one AST-based dynamic-attribute detector for schema mustache waiver and `TagElement.hasDynamicAttribute`;
+- use one AST-based dynamic-attribute detector for schema mustache waiver and `TagElement.isAttributeDynamic`;
 - add a validator runner to the linter pipeline after built-in checks and schema validation;
 - support `options.includeInnerHtml` for validators that need raw inner HTML for the current element and direct children;
 - allow `rules` entries for plugin validator ids;
@@ -295,8 +342,10 @@ Add focused tests for:
 - severity overrides through `rules`;
 - inline disable by validator id;
 - one-level child facades, including mustache-section flattening;
+- `TagElement` attribute and child helper methods, including dynamic-safe literal attribute checks;
 - `options.includeInnerHtml` providing raw inner HTML for the current element and direct children;
 - validator reports anchored to an element or attribute;
+- reporter convenience helpers delegating to the same element and attribute anchors as `report`;
 - validator report severity coming only from rule-level severity resolution;
 - validator exceptions becoming element-anchored error diagnostics;
 - flat-schema deprecation behavior.

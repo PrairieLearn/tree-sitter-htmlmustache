@@ -7,7 +7,12 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { createLinter, DEFAULT_CONFIG, type Linter } from './index.js';
+import {
+  createLinter,
+  DEFAULT_CONFIG,
+  defineTagValidators,
+  type Linter,
+} from './index.js';
 import { GRAMMAR_WASM_FILENAME } from '../shared/grammar.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -329,6 +334,86 @@ describe('draft-06 flat custom tag schemas', () => {
 });
 
 describe('createLinter validators hook', () => {
+  it('defineTagValidators expands independent tag-scoped rules', async () => {
+    const handle = await createLinter({
+      locateWasm: GRAMMAR_WASM_PATH,
+      validators: defineTagValidators('PL-MULTIPLE-CHOICE', {
+        'child-tags'(element, context) {
+          for (const child of element.childrenWithoutTag('pl-answer')) {
+            context.reportElement(
+              child,
+              'pl-multiple-choice only allows pl-answer children',
+            );
+          }
+        },
+        'requires-answer': {
+          severity: 'warning',
+          validate(element, context) {
+            if (
+              !element.hasAttribute('external-json') &&
+              element.childrenWithTag('pl-answer').length === 0
+            ) {
+              context.reportElement(element, 'Missing answer choice');
+            }
+          },
+        },
+      }),
+    });
+    const d = handle.lint(
+      '<pl-multiple-choice><span></span></pl-multiple-choice>',
+      {
+        customTags: [{ name: 'pl-multiple-choice' }, { name: 'pl-answer' }],
+      },
+    );
+
+    expect(d.find((x) => x.ruleName === 'child-tags')?.severity).toBe('error');
+    expect(d.find((x) => x.ruleName === 'requires-answer')?.severity).toBe(
+      'warning',
+    );
+  });
+
+  it('exposes dynamic-safe attribute helpers and reporter helpers', async () => {
+    const handle = await createLinter({
+      locateWasm: GRAMMAR_WASM_PATH,
+      validators: defineTagValidators('pl-card', {
+        'attribute-helpers'(element, context) {
+          if (!element.hasAttribute('SIZE')) {
+            context.reportElement(element, 'Missing size');
+          }
+          if (element.getAttribute('size') !== '{{n}}') {
+            context.reportElement(element, 'Raw size mismatch');
+          }
+          if (element.getLiteralAttribute('size') !== undefined) {
+            context.reportElement(element, 'Dynamic size looked literal');
+          }
+          if (element.getLiteralAttribute('kind') !== 'allowed') {
+            context.reportAttribute(element, 'kind', 'Invalid kind');
+          }
+        },
+      }),
+    });
+
+    const clean = handle.lint(
+      '<pl-card size="{{n}}" kind="allowed"></pl-card>',
+      {
+        customTags: [{ name: 'pl-card' }],
+      },
+    );
+    expect(clean.filter((x) => x.ruleName === 'attribute-helpers')).toEqual([]);
+
+    const invalid = handle.lint(
+      '<pl-card\n  size="{{n}}"\n  kind="bad"></pl-card>',
+      {
+        customTags: [{ name: 'pl-card' }],
+      },
+    );
+    const diag = invalid.find((x) => x.ruleName === 'attribute-helpers');
+    expect(diag).toBeDefined();
+    expect(diag!.message).toBe('Invalid kind');
+    expect(diag!.line).toBe(3);
+    expect(diag!.column).toBe(3);
+  });
+
   it('runs validators for matching declared custom tags only', async () => {
     const handle = await createLinter({
       locateWasm: GRAMMAR_WASM_PATH,
@@ -513,7 +598,7 @@ describe('createLinter validators hook', () => {
           id: 'literal-size',
           tags: ['pl-card'],
           validate(element, context) {
-            if (element.hasDynamicAttribute('size')) return;
+            if (element.isAttributeDynamic('size')) return;
             context.report({
               element,
               attribute: 'size',
