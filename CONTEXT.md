@@ -30,7 +30,7 @@ Executable project code loaded from `.htmlmustache.jsonc` that extends htmlmusta
 
 ## Tag element
 
-One parsed HTML element occurrence in a template, exposed to tag validators with its tag name, raw attributes, dynamic-attribute helper, and direct child tag elements.
+One parsed HTML element occurrence in a template, exposed to tag validators with its tag name, raw attributes, dynamic-attribute helper, direct child tag elements, and optional raw inner HTML.
 
 ## Dynamic attribute
 

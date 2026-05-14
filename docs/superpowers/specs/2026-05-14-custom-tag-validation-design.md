@@ -28,6 +28,7 @@ This design is a hard breaking change. It does not preserve `ajvModule`, draft 2
 - No schema support for child elements, text content, or inner HTML.
 - No document-wide validator API in this iteration.
 - No asynchronous validators.
+- No recursive child traversal in this iteration.
 
 ## Schema Contract
 
@@ -141,6 +142,9 @@ interface TagValidator {
   id: string;
   tags: string[];
   severity?: 'error' | 'warning' | 'off';
+  options?: {
+    includeInnerHtml?: boolean;
+  };
   validate(element: TagElement, context: ValidatorContext): void;
 }
 ```
@@ -160,6 +164,7 @@ interface TagElement {
   readonly tag: string;
   readonly attributes: Readonly<Record<string, string | true>>;
   readonly children: readonly TagElement[];
+  readonly innerHtml?: string;
   hasDynamicAttribute(name: string): boolean;
 }
 ```
@@ -167,6 +172,8 @@ interface TagElement {
 `children` contains all direct child HTML elements, including ordinary HTML tags and configured custom tags. Mustache sections are transparent for child collection, matching max-set semantics. The initial API is one level deep: child elements are useful diagnostic targets and expose their own tag and attributes, but their `children` arrays are empty.
 
 Attribute values are raw source values, except valueless attributes are represented as `true`. Dynamic attributes are not replaced with schema sentinels for validators. Validators that usually cannot reason about runtime values can call `element.hasDynamicAttribute(name)` and skip that check. `hasDynamicAttribute` is AST-based: it returns `true` when the parsed attribute value contains a mustache construct.
+
+Validator options are opt-ins for data that is useful but not part of the minimal default facade. With `options.includeInnerHtml: true`, the current element and its one-level direct children include `innerHtml`, the raw source between the element's start and end tags. Self-closing and void elements receive `''`. Without this option, `innerHtml` is omitted. This supports checks such as "direct child HTML must be unique" without adding recursive children or raw parse-node access.
 
 The context exposes diagnostic reporting:
 
@@ -182,7 +189,7 @@ interface ValidatorContext {
 
 Diagnostics use the validator's effective severity. Reports anchor to the element start tag by default. If `attribute` is provided and that attribute exists on the element, the diagnostic anchors to that attribute; otherwise it falls back to the element start tag.
 
-The initial public API does not expose raw parse nodes, parent pointers, descendant traversal, text content, or inner HTML. Those can be added later if real validators need them.
+The initial public API does not expose raw parse nodes, parent pointers, descendant traversal, or text content. It exposes raw inner HTML only through the explicit `includeInnerHtml` validator option.
 
 If a validator throws, the linter converts the failure to one error diagnostic anchored to the current element and names the validator id. A plugin bug should be visible without crashing the whole lint operation. Other validators, and other invocations of the same validator on other elements, continue to run.
 
@@ -268,6 +275,7 @@ The implementation should:
 - remove schema construction of `tag`, `children`, `text`, and `innerHtml`;
 - use one AST-based dynamic-attribute detector for schema mustache waiver and `TagElement.hasDynamicAttribute`;
 - add a validator runner to the linter pipeline after built-in checks and schema validation;
+- support `options.includeInnerHtml` for validators that need raw inner HTML for the current element and direct children;
 - allow `rules` entries for plugin validator ids;
 - include validator ids in rule severity resolution and allow permissive inline disable recognition;
 - update `README.md`, `CONTEXT.md`, and tests for the new contract.
@@ -287,6 +295,7 @@ Add focused tests for:
 - severity overrides through `rules`;
 - inline disable by validator id;
 - one-level child facades, including mustache-section flattening;
+- `options.includeInnerHtml` providing raw inner HTML for the current element and direct children;
 - validator reports anchored to an element or attribute;
 - validator report severity coming only from rule-level severity resolution;
 - validator exceptions becoming element-anchored error diagnostics;
