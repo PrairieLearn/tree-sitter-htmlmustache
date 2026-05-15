@@ -295,6 +295,25 @@ function parseStringRecord(value: unknown): Record<string, string> | undefined {
   return parsed.success ? parsed.data : undefined;
 }
 
+function parseCustomTagDefaults(
+  value: unknown,
+): CustomTagDefaults | undefined {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) {
+    return undefined;
+  }
+  const raw = value as Record<string, unknown>;
+  const defaults: CustomTagDefaults = {};
+
+  const allowBooleanAttributes = z
+    .boolean()
+    .safeParse(raw.allowBooleanAttributes);
+  if (allowBooleanAttributes.success) {
+    defaults.allowBooleanAttributes = allowBooleanAttributes.data;
+  }
+
+  return Object.keys(defaults).length > 0 ? defaults : undefined;
+}
+
 function parseChildTags(value: unknown): ChildTagConfig[] | undefined {
   if (!Array.isArray(value)) return undefined;
   const tags: ChildTagConfig[] = [];
@@ -511,12 +530,8 @@ export function validateConfig(raw: unknown): HtmlMustacheConfig {
   );
   if (noBreakDelimiters) config.noBreakDelimiters = noBreakDelimiters;
 
-  const customTagDefaults = customTagDefaultsSchema.safeParse(
-    obj.customTagDefaults,
-  );
-  if (customTagDefaults.success) {
-    config.customTagDefaults = customTagDefaults.data;
-  }
+  const customTagDefaults = parseCustomTagDefaults(obj.customTagDefaults);
+  if (customTagDefaults) config.customTagDefaults = customTagDefaults;
 
   const include = parseStringArray(obj.include);
   if (include) config.include = include;

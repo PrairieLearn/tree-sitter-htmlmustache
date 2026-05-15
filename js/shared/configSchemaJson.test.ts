@@ -5,7 +5,7 @@ import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { z } from 'zod';
 
-import { htmlMustacheConfigSchema } from './configSchema.js';
+import { htmlMustacheConfigSchema, validateConfig } from './configSchema.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.resolve(path.dirname(__filename), '..', '..');
@@ -122,6 +122,30 @@ describe('htmlmustache config JSON Schema', () => {
         customTags: [{ name: 'pl-card', allowBooleanAttributes: 'no' }],
       }),
     ).toBe(false);
+  });
+
+  it('preserves valid custom tag defaults during lenient raw config parsing', () => {
+    expect(
+      validateConfig({
+        customTagDefaults: {
+          allowBooleanAttributes: false,
+          extra: true,
+        },
+      }),
+    ).toEqual({
+      customTagDefaults: {
+        allowBooleanAttributes: false,
+      },
+    });
+
+    expect(
+      validateConfig({
+        customTagDefaults: {
+          allowBooleanAttributes: 'no',
+          extra: true,
+        },
+      }),
+    ).toEqual({});
   });
 
   it('rejects misspelled top-level keys', () => {
