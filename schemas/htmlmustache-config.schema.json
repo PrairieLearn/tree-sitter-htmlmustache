@@ -30,10 +30,7 @@
             "minLength": 1
           }
         },
-        "required": [
-          "start",
-          "end"
-        ],
+        "required": ["start", "end"],
         "additionalProperties": false
       }
     },
@@ -85,11 +82,7 @@
           },
           "indent": {
             "type": "string",
-            "enum": [
-              "never",
-              "always",
-              "attribute"
-            ]
+            "enum": ["never", "always", "attribute"]
           },
           "indentAttribute": {
             "type": "string"
@@ -117,9 +110,7 @@
             "type": "boolean"
           }
         },
-        "required": [
-          "name"
-        ],
+        "required": ["name"],
         "additionalProperties": false
       }
     },
@@ -144,27 +135,17 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": [
-                "error",
-                "warning",
-                "off"
-              ]
+              "enum": ["error", "warning", "off"]
             },
             {
               "type": "object",
               "properties": {
                 "severity": {
                   "type": "string",
-                  "enum": [
-                    "error",
-                    "warning",
-                    "off"
-                  ]
+                  "enum": ["error", "warning", "off"]
                 }
               },
-              "required": [
-                "severity"
-              ],
+              "required": ["severity"],
               "additionalProperties": false
             }
           ]
@@ -173,27 +154,17 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": [
-                "error",
-                "warning",
-                "off"
-              ]
+              "enum": ["error", "warning", "off"]
             },
             {
               "type": "object",
               "properties": {
                 "severity": {
                   "type": "string",
-                  "enum": [
-                    "error",
-                    "warning",
-                    "off"
-                  ]
+                  "enum": ["error", "warning", "off"]
                 }
               },
-              "required": [
-                "severity"
-              ],
+              "required": ["severity"],
               "additionalProperties": false
             }
           ]
@@ -202,27 +173,17 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": [
-                "error",
-                "warning",
-                "off"
-              ]
+              "enum": ["error", "warning", "off"]
             },
             {
               "type": "object",
               "properties": {
                 "severity": {
                   "type": "string",
-                  "enum": [
-                    "error",
-                    "warning",
-                    "off"
-                  ]
+                  "enum": ["error", "warning", "off"]
                 }
               },
-              "required": [
-                "severity"
-              ],
+              "required": ["severity"],
               "additionalProperties": false
             }
           ]
@@ -231,27 +192,17 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": [
-                "error",
-                "warning",
-                "off"
-              ]
+              "enum": ["error", "warning", "off"]
             },
             {
               "type": "object",
               "properties": {
                 "severity": {
                   "type": "string",
-                  "enum": [
-                    "error",
-                    "warning",
-                    "off"
-                  ]
+                  "enum": ["error", "warning", "off"]
                 }
               },
-              "required": [
-                "severity"
-              ],
+              "required": ["severity"],
               "additionalProperties": false
             }
           ]
@@ -260,27 +211,17 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": [
-                "error",
-                "warning",
-                "off"
-              ]
+              "enum": ["error", "warning", "off"]
             },
             {
               "type": "object",
               "properties": {
                 "severity": {
                   "type": "string",
-                  "enum": [
-                    "error",
-                    "warning",
-                    "off"
-                  ]
+                  "enum": ["error", "warning", "off"]
                 }
               },
-              "required": [
-                "severity"
-              ],
+              "required": ["severity"],
               "additionalProperties": false
             }
           ]
@@ -289,27 +230,17 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": [
-                "error",
-                "warning",
-                "off"
-              ]
+              "enum": ["error", "warning", "off"]
             },
             {
               "type": "object",
               "properties": {
                 "severity": {
                   "type": "string",
-                  "enum": [
-                    "error",
-                    "warning",
-                    "off"
-                  ]
+                  "enum": ["error", "warning", "off"]
                 }
               },
-              "required": [
-                "severity"
-              ],
+              "required": ["severity"],
               "additionalProperties": false
             }
           ]
@@ -318,27 +249,17 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": [
-                "error",
-                "warning",
-                "off"
-              ]
+              "enum": ["error", "warning", "off"]
             },
             {
               "type": "object",
               "properties": {
                 "severity": {
                   "type": "string",
-                  "enum": [
-                    "error",
-                    "warning",
-                    "off"
-                  ]
+                  "enum": ["error", "warning", "off"]
                 }
               },
-              "required": [
-                "severity"
-              ],
+              "required": ["severity"],
               "additionalProperties": false
             }
           ]
@@ -347,27 +268,17 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": [
-                "error",
-                "warning",
-                "off"
-              ]
+              "enum": ["error", "warning", "off"]
             },
             {
               "type": "object",
               "properties": {
                 "severity": {
                   "type": "string",
-                  "enum": [
-                    "error",
-                    "warning",
-                    "off"
-                  ]
+                  "enum": ["error", "warning", "off"]
                 }
               },
-              "required": [
-                "severity"
-              ],
+              "required": ["severity"],
               "additionalProperties": false
             }
           ]
@@ -376,22 +287,14 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": [
-                "error",
-                "warning",
-                "off"
-              ]
+              "enum": ["error", "warning", "off"]
             },
             {
               "type": "object",
               "properties": {
                 "severity": {
                   "type": "string",
-                  "enum": [
-                    "error",
-                    "warning",
-                    "off"
-                  ]
+                  "enum": ["error", "warning", "off"]
                 },
                 "elements": {
                   "type": "array",
@@ -407,17 +310,12 @@
                         "minimum": 0
                       }
                     },
-                    "required": [
-                      "tag",
-                      "maxBytes"
-                    ],
+                    "required": ["tag", "maxBytes"],
                     "additionalProperties": false
                   }
                 }
               },
-              "required": [
-                "severity"
-              ],
+              "required": ["severity"],
               "additionalProperties": false
             }
           ]
@@ -426,27 +324,17 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": [
-                "error",
-                "warning",
-                "off"
-              ]
+              "enum": ["error", "warning", "off"]
             },
             {
               "type": "object",
               "properties": {
                 "severity": {
                   "type": "string",
-                  "enum": [
-                    "error",
-                    "warning",
-                    "off"
-                  ]
+                  "enum": ["error", "warning", "off"]
                 }
               },
-              "required": [
-                "severity"
-              ],
+              "required": ["severity"],
               "additionalProperties": false
             }
           ]
@@ -455,27 +343,17 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": [
-                "error",
-                "warning",
-                "off"
-              ]
+              "enum": ["error", "warning", "off"]
             },
             {
               "type": "object",
               "properties": {
                 "severity": {
                   "type": "string",
-                  "enum": [
-                    "error",
-                    "warning",
-                    "off"
-                  ]
+                  "enum": ["error", "warning", "off"]
                 }
               },
-              "required": [
-                "severity"
-              ],
+              "required": ["severity"],
               "additionalProperties": false
             }
           ]
@@ -484,27 +362,17 @@
           "anyOf": [
             {
               "type": "string",
-              "enum": [
-                "error",
-                "warning",
-                "off"
-              ]
+              "enum": ["error", "warning", "off"]
             },
             {
               "type": "object",
               "properties": {
                 "severity": {
                   "type": "string",
-                  "enum": [
-                    "error",
-                    "warning",
-                    "off"
-                  ]
+                  "enum": ["error", "warning", "off"]
                 }
               },
-              "required": [
-                "severity"
-              ],
+              "required": ["severity"],
               "additionalProperties": false
             }
           ]
@@ -514,27 +382,17 @@
         "anyOf": [
           {
             "type": "string",
-            "enum": [
-              "error",
-              "warning",
-              "off"
-            ]
+            "enum": ["error", "warning", "off"]
           },
           {
             "type": "object",
             "properties": {
               "severity": {
                 "type": "string",
-                "enum": [
-                  "error",
-                  "warning",
-                  "off"
-                ]
+                "enum": ["error", "warning", "off"]
               }
             },
-            "required": [
-              "severity"
-            ],
+            "required": ["severity"],
             "additionalProperties": false
           }
         ]
@@ -559,11 +417,7 @@
           },
           "severity": {
             "type": "string",
-            "enum": [
-              "error",
-              "warning",
-              "off"
-            ]
+            "enum": ["error", "warning", "off"]
           },
           "include": {
             "type": "array",
@@ -580,11 +434,7 @@
             }
           }
         },
-        "required": [
-          "id",
-          "selector",
-          "message"
-        ],
+        "required": ["id", "selector", "message"],
         "additionalProperties": false
       }
     },
@@ -625,9 +475,7 @@
           "type": "boolean"
         }
       },
-      "required": [
-        "name"
-      ],
+      "required": ["name"],
       "additionalProperties": false
     }
   },

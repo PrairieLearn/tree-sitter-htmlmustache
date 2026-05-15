@@ -2,17 +2,14 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+import { format } from 'prettier';
 import { z } from 'zod';
 
 import { htmlMustacheConfigSchema } from '../js/shared/configSchema.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const REPO_ROOT = path.resolve(path.dirname(__filename), '..');
-const OUT = path.join(
-  REPO_ROOT,
-  'schemas',
-  'htmlmustache-config.schema.json',
-);
+const OUT = path.join(REPO_ROOT, 'schemas', 'htmlmustache-config.schema.json');
 
 const schema = z.toJSONSchema(htmlMustacheConfigSchema, {
   target: 'draft-7',
@@ -23,6 +20,14 @@ schema.$id =
 schema.title = 'HTML Mustache configuration';
 schema.description = 'Configuration for .htmlmustache.jsonc files.';
 
-mkdirSync(path.dirname(OUT), { recursive: true });
-writeFileSync(OUT, `${JSON.stringify(schema, null, 2)}\n`, 'utf8');
-console.log(`Wrote ${OUT}`);
+async function main(): Promise<void> {
+  mkdirSync(path.dirname(OUT), { recursive: true });
+  writeFileSync(
+    OUT,
+    await format(JSON.stringify(schema, null, 2), { parser: 'json' }),
+    'utf8',
+  );
+  console.log(`Wrote ${OUT}`);
+}
+
+void main();
