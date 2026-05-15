@@ -28,6 +28,8 @@ import {
   type CustomCodeTagConfig,
 } from '../shared/customCodeTags.js';
 import type {
+  AttributeValue,
+  AttributeValueFor,
   TagElement,
   TagValidatorFn,
   TagValidatorRule,
@@ -61,6 +63,8 @@ export type {
   RuleSeverity,
   Diagnostic,
   SchemaFormat,
+  AttributeValue,
+  AttributeValueFor,
   TagElement,
   TagValidatorFn,
   TagValidatorRule,

@@ -1,6 +1,7 @@
 import { describe, expectTypeOf, it } from 'vitest';
 import { defineTagValidators } from './tagValidators.js';
 import type { TagElement } from './tagValidators.js';
+import type { AttributeValue, AttributeValueFor } from '../linter/index.js';
 
 describe('TagElement boolean attribute type narrowing', () => {
   it('keeps boolean attributes in the default public shape', () => {
@@ -25,6 +26,15 @@ describe('TagElement boolean attribute type narrowing', () => {
     expectTypeOf<
       ReturnType<TagElement<false>['getLiteralAttribute']>
     >().toEqualTypeOf<string | undefined>();
+    expectTypeOf<TagElement<false>['children'][number]>().toEqualTypeOf<
+      TagElement<false>
+    >();
+    expectTypeOf<
+      ReturnType<TagElement<false>['childrenWithTag']>[number]
+    >().toEqualTypeOf<TagElement<false>>();
+    expectTypeOf<
+      ReturnType<TagElement<false>['childrenWithoutTag']>[number]
+    >().toEqualTypeOf<TagElement<false>>();
   });
 
   it('allows validators to opt into the narrowed tag element shape', () => {
@@ -42,5 +52,11 @@ describe('TagElement boolean attribute type narrowing', () => {
         },
       },
     });
+  });
+
+  it('exports attribute value helper types from the public linter entry', () => {
+    expectTypeOf<AttributeValue>().toEqualTypeOf<string | true>();
+    expectTypeOf<AttributeValueFor<true>>().toEqualTypeOf<string | true>();
+    expectTypeOf<AttributeValueFor<false>>().toEqualTypeOf<string>();
   });
 });

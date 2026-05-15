@@ -10,7 +10,7 @@ export interface TagElement<TAllowBooleanAttributes extends boolean = true> {
   readonly attributes: Readonly<
     Record<string, AttributeValueFor<TAllowBooleanAttributes>>
   >;
-  readonly children: readonly TagElement[];
+  readonly children: readonly TagElement<TAllowBooleanAttributes>[];
   readonly innerHtml?: string;
   hasAttribute(name: string): boolean;
   getAttribute(
@@ -20,8 +20,10 @@ export interface TagElement<TAllowBooleanAttributes extends boolean = true> {
     name: string,
   ): AttributeValueFor<TAllowBooleanAttributes> | undefined;
   isAttributeDynamic(name: string): boolean;
-  childrenWithTag(tag: string): readonly TagElement[];
-  childrenWithoutTag(tag: string): readonly TagElement[];
+  childrenWithTag(tag: string): readonly TagElement<TAllowBooleanAttributes>[];
+  childrenWithoutTag(
+    tag: string,
+  ): readonly TagElement<TAllowBooleanAttributes>[];
 }
 
 export interface ValidatorContext {
