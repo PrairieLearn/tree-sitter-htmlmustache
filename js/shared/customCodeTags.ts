@@ -9,6 +9,7 @@ export interface ChildTagConfig {
   schema?: SchemaRef;
   children?: ChildTagConfig[];
   allowAdditionalChildren?: boolean;
+  allowBooleanAttributes?: boolean;
 }
 
 export interface CustomCodeTagConfig {
@@ -22,6 +23,7 @@ export interface CustomCodeTagConfig {
   schema?: SchemaRef;
   children?: ChildTagConfig[];
   allowAdditionalChildren?: boolean;
+  allowBooleanAttributes?: boolean;
 }
 
 /** Alias for CustomCodeTagConfig (unified name). */

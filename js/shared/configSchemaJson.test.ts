@@ -53,9 +53,13 @@ describe('htmlmustache config JSON Schema', () => {
         mustacheSpaces: true,
         noBreakDelimiters: [{ start: '$', end: '$' }],
         pluginModule: './scripts/htmlmustache-plugin.mjs',
+        customTagDefaults: {
+          allowBooleanAttributes: false,
+        },
         customTags: [
           {
             name: 'pl-multiple-choice',
+            allowBooleanAttributes: true,
             display: 'block',
             languageDefault: 'html',
             languageAttribute: 'language',
@@ -74,6 +78,7 @@ describe('htmlmustache config JSON Schema', () => {
             children: [
               {
                 name: 'pl-answer',
+                allowBooleanAttributes: false,
                 schema: 'elements/pl-answer.schema.json',
                 children: [{ name: 'pl-answer-feedback' }],
               },
@@ -101,6 +106,22 @@ describe('htmlmustache config JSON Schema', () => {
         ],
       }),
     ).toBe(true);
+  });
+
+  it('rejects non-boolean custom tag boolean-attribute options', () => {
+    const validate = compileConfigSchema();
+
+    expect(
+      validate({
+        customTagDefaults: { allowBooleanAttributes: 'no' },
+      }),
+    ).toBe(false);
+
+    expect(
+      validate({
+        customTags: [{ name: 'pl-card', allowBooleanAttributes: 'no' }],
+      }),
+    ).toBe(false);
   });
 
   it('rejects misspelled top-level keys', () => {

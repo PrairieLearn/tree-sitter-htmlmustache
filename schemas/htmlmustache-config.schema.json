@@ -34,6 +34,15 @@
         "additionalProperties": false
       }
     },
+    "customTagDefaults": {
+      "type": "object",
+      "properties": {
+        "allowBooleanAttributes": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
     "customTags": {
       "type": "array",
       "items": {
@@ -107,6 +116,9 @@
             }
           },
           "allowAdditionalChildren": {
+            "type": "boolean"
+          },
+          "allowBooleanAttributes": {
             "type": "boolean"
           }
         },
@@ -472,6 +484,9 @@
           }
         },
         "allowAdditionalChildren": {
+          "type": "boolean"
+        },
+        "allowBooleanAttributes": {
           "type": "boolean"
         }
       },

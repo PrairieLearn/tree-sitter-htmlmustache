@@ -130,6 +130,7 @@ export interface HtmlMustacheConfig {
   indentSize?: number;
   mustacheSpaces?: boolean;
   noBreakDelimiters?: NoBreakDelimiter[];
+  customTagDefaults?: CustomTagDefaults;
   customTags?: CustomCodeTagConfig[];
   include?: string[];
   exclude?: string[];
@@ -143,12 +144,22 @@ export interface HtmlMustacheConfig {
   pluginModule?: string;
 }
 
+export interface CustomTagDefaults {
+  allowBooleanAttributes?: boolean;
+}
+
 const nonEmptyStringSchema = z.string().min(1);
 const nonEmptyStringArraySchema = z.array(nonEmptyStringSchema);
 const schemaRefSchema: z.ZodType<SchemaRef> = z.union([
   nonEmptyStringSchema,
   z.object({}).catchall(z.unknown()),
 ]);
+
+const customTagDefaultsSchema = z
+  .object({
+    allowBooleanAttributes: z.boolean().optional(),
+  })
+  .strict();
 
 const childTagSchema: z.ZodType<ChildTagConfig> = z.lazy(() =>
   z
@@ -157,6 +168,7 @@ const childTagSchema: z.ZodType<ChildTagConfig> = z.lazy(() =>
       schema: schemaRefSchema.optional(),
       children: z.array(childTagSchema).optional(),
       allowAdditionalChildren: z.boolean().optional(),
+      allowBooleanAttributes: z.boolean().optional(),
     })
     .strict(),
 );
@@ -173,6 +185,7 @@ const customTagSchema: z.ZodType<CustomCodeTagConfig> = z
     schema: schemaRefSchema.optional(),
     children: z.array(childTagSchema).optional(),
     allowAdditionalChildren: z.boolean().optional(),
+    allowBooleanAttributes: z.boolean().optional(),
   })
   .strict();
 
@@ -201,6 +214,7 @@ export const htmlMustacheConfigSchema = z
     indentSize: z.number().positive().optional(),
     mustacheSpaces: z.boolean().optional(),
     noBreakDelimiters: z.array(noBreakDelimiterSchema).optional(),
+    customTagDefaults: customTagDefaultsSchema.optional(),
     customTags: z.array(customTagSchema).optional(),
     include: nonEmptyStringArraySchema.optional(),
     exclude: nonEmptyStringArraySchema.optional(),
@@ -304,6 +318,13 @@ function parseChildTags(value: unknown): ChildTagConfig[] | undefined {
       tag.allowAdditionalChildren = allowAdditionalChildren.data;
     }
 
+    const allowBooleanAttributes = z
+      .boolean()
+      .safeParse(e.allowBooleanAttributes);
+    if (allowBooleanAttributes.success) {
+      tag.allowBooleanAttributes = allowBooleanAttributes.data;
+    }
+
     tags.push(tag);
   }
   return tags.length > 0 ? tags : undefined;
@@ -356,6 +377,13 @@ function parseCustomTags(value: unknown): CustomCodeTagConfig[] | undefined {
       .safeParse(e.allowAdditionalChildren);
     if (allowAdditionalChildren.success) {
       tag.allowAdditionalChildren = allowAdditionalChildren.data;
+    }
+
+    const allowBooleanAttributes = z
+      .boolean()
+      .safeParse(e.allowBooleanAttributes);
+    if (allowBooleanAttributes.success) {
+      tag.allowBooleanAttributes = allowBooleanAttributes.data;
     }
 
     tags.push(tag);
@@ -482,6 +510,13 @@ export function validateConfig(raw: unknown): HtmlMustacheConfig {
     noBreakDelimiterSchema,
   );
   if (noBreakDelimiters) config.noBreakDelimiters = noBreakDelimiters;
+
+  const customTagDefaults = customTagDefaultsSchema.safeParse(
+    obj.customTagDefaults,
+  );
+  if (customTagDefaults.success) {
+    config.customTagDefaults = customTagDefaults.data;
+  }
 
   const include = parseStringArray(obj.include);
   if (include) config.include = include;
