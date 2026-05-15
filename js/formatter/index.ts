@@ -7,17 +7,23 @@
  * CLI wraps this with EditorConfig + .htmlmustache.jsonc loading.
  */
 
-import { Parser, Language } from 'web-tree-sitter';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 
 import { formatDocument } from './document.js';
 import type { FormattingOptions } from './document.js';
-import { mergeOptions } from './mergeOptions.js';
+import {
+  DEFAULT_FORMATTING_OPTIONS,
+  formatParamsFromConfig,
+  mergeOptions,
+} from './mergeOptions.js';
 import { formatEmbeddedRegions } from './embedded.js';
 import type { PrettierLike } from './embedded.js';
-import { GRAMMAR_WASM_FILENAME } from '../shared/grammar.js';
 import type { HtmlMustacheConfig } from '../shared/configSchema.js';
 import type { CustomCodeTagConfig } from '../shared/customCodeTags.js';
+import {
+  createTreeSitterRuntime,
+  type LocateWasm,
+} from '../shared/treeSitterRuntime.js';
 
 export type Config = Omit<
   HtmlMustacheConfig,
@@ -25,8 +31,6 @@ export type Config = Omit<
 >;
 export type CustomTag = CustomCodeTagConfig;
 export type { PrettierLike, FormattingOptions };
-
-export type LocateWasm = string | ((filename: string) => string);
 
 export interface CreateFormatterOptions {
   locateWasm: LocateWasm;
@@ -47,25 +51,6 @@ export interface Formatter {
   ): Promise<string>;
 }
 
-const DEFAULT_FORMATTING_OPTIONS: FormattingOptions = {
-  tabSize: 2,
-  insertSpaces: true,
-};
-
-function toLocateFile(
-  locateWasm: LocateWasm,
-): ((name: string) => string) | undefined {
-  return typeof locateWasm === 'function'
-    ? (name) => locateWasm(name)
-    : undefined;
-}
-
-function resolveGrammarUrl(locateWasm: LocateWasm): string {
-  return typeof locateWasm === 'string'
-    ? locateWasm
-    : locateWasm(GRAMMAR_WASM_FILENAME);
-}
-
 /**
  * Create a formatter handle. Consumers should cache the result — each call
  * reloads the grammar WASM.
@@ -74,11 +59,7 @@ export async function createFormatter(
   opts: CreateFormatterOptions,
 ): Promise<Formatter> {
   const { locateWasm, prettier: factoryPrettier } = opts;
-  const locateFile = toLocateFile(locateWasm);
-  await Parser.init(locateFile ? { locateFile } : undefined);
-  const parser = new Parser();
-  const language = await Language.load(resolveGrammarUrl(locateWasm));
-  parser.setLanguage(language);
+  const { parser } = await createTreeSitterRuntime({ locateWasm });
 
   return {
     async format(source, config, callOpts) {
@@ -99,10 +80,7 @@ export async function createFormatter(
           source,
         );
         const edits = formatDocument(tree, document, options, {
-          customTags: config?.customTags,
-          printWidth: config?.printWidth,
-          mustacheSpaces: config?.mustacheSpaces,
-          noBreakDelimiters: config?.noBreakDelimiters,
+          ...formatParamsFromConfig(config, {}),
           embeddedFormatted:
             embeddedFormatted.size > 0 ? embeddedFormatted : undefined,
         });

@@ -29,16 +29,10 @@ import { getCodeActions } from './codeActions.js';
 import { getCompletions } from './completion.js';
 import { initializeTextMateRegistry, isTextMateReady, tokenizeEmbeddedContent, setEmbeddedTokenizerLogger } from './embeddedTokenizer.js';
 import {
-  collectCustomTagNames,
   findCustomCodeTagContent,
   isCodeTag,
 } from '../../../js/shared/customCodeTags.js';
-import type { CustomCodeTagConfig } from '../../../js/shared/customCodeTags.js';
-import { loadConfigFile } from '../../../js/shared/configFile.js';
-import type { HtmlMustacheConfig, NoBreakDelimiter } from '../../../js/shared/configSchema.js';
-import type { ConfigLoadError, SchemaRegistry } from '../../../js/shared/customTagSchemaLoader.js';
-import type { TagValidator } from '../../../js/shared/tagValidators.js';
-import { filterCustomRulesForPath } from '../../../js/linter/customRuleFilter.js';
+import { resolveDocumentConfig } from './documentConfig.js';
 
 // Create connection and document manager
 const connection = createConnection(ProposedFeatures.all);
@@ -52,50 +46,6 @@ let highlightQuery: Query | null = null;
 
 // Raw text query for finding Mustache in script/style tags
 let rawTextQuery: Query | null = null;
-
-/**
- * Resolve config settings for a document URI.
- * Returns config file values with defaults applied.
- */
-async function resolveConfig(uri: string): Promise<{
-  config: HtmlMustacheConfig | null;
-  configDir: string | null;
-  customTags: CustomCodeTagConfig[];
-  printWidth: number;
-  mustacheSpaces: boolean | undefined;
-  noBreakDelimiters: NoBreakDelimiter[] | undefined;
-  schemaRegistry: SchemaRegistry | undefined;
-  schemaLoadErrors: ConfigLoadError[] | undefined;
-  validators: TagValidator[];
-}> {
-  const loaded = await loadConfigFile(uri);
-  const config = loaded?.config ?? null;
-  return {
-    config,
-    configDir: loaded?.configDir ?? null,
-    customTags: config?.customTags ?? [],
-    printWidth: config?.printWidth ?? 80,
-    mustacheSpaces: config?.mustacheSpaces,
-    noBreakDelimiters: config?.noBreakDelimiters,
-    schemaRegistry: loaded?.schemaRegistry,
-    schemaLoadErrors: loaded?.schemaLoadErrors,
-    validators: loaded?.validators ?? [],
-  };
-}
-
-/** Filter a config's customRules against the document URI (when path-known). */
-function applicableCustomRules(uri: string, config: HtmlMustacheConfig | null, configDir: string | null) {
-  if (!config?.customRules || !configDir || !uri.startsWith('file://')) {
-    return config?.customRules;
-  }
-  try {
-    const filePath = fileURLToPath(uri);
-    const rel = path.relative(configDir, filePath) || filePath;
-    return filterCustomRulesForPath(config.customRules, rel);
-  } catch {
-    return config.customRules;
-  }
-}
 
 connection.onInitialize(async (params: InitializeParams): Promise<InitializeResult> => {
   connection.console.log('onInitialize called');
@@ -218,10 +168,7 @@ documents.onDidOpen(async (event) => {
   connection.console.log(`Document opened: ${event.document.uri} (language: ${event.document.languageId})`);
   const tree = parseAndCacheDocument(event.document);
   if (tree) {
-    const { config, configDir, schemaRegistry, schemaLoadErrors, validators } = await resolveConfig(event.document.uri);
-    const customTagNames = collectCustomTagNames(config?.customTags);
-    const customRules = applicableCustomRules(event.document.uri, config, configDir);
-    connection.sendDiagnostics({ uri: event.document.uri, diagnostics: getDiagnostics(tree, config?.rules, customTagNames, customRules, { schemaRegistry, schemaLoadErrors, validators }) });
+    await publishDiagnostics(event.document, tree);
   }
 });
 
@@ -229,10 +176,7 @@ documents.onDidOpen(async (event) => {
 documents.onDidChangeContent(async (change) => {
   const tree = parseAndCacheDocument(change.document);
   if (tree) {
-    const { config, configDir, schemaRegistry, schemaLoadErrors, validators } = await resolveConfig(change.document.uri);
-    const customTagNames = collectCustomTagNames(config?.customTags);
-    const customRules = applicableCustomRules(change.document.uri, config, configDir);
-    connection.sendDiagnostics({ uri: change.document.uri, diagnostics: getDiagnostics(tree, config?.rules, customTagNames, customRules, { schemaRegistry, schemaLoadErrors, validators }) });
+    await publishDiagnostics(change.document, tree);
   }
 });
 
@@ -258,6 +202,27 @@ function parseAndCacheDocument(document: TextDocument): Tree | null {
   }
 
   return tree;
+}
+
+async function publishDiagnostics(
+  document: TextDocument,
+  tree: Tree,
+): Promise<void> {
+  const config = await resolveDocumentConfig(document.uri);
+  connection.sendDiagnostics({
+    uri: document.uri,
+    diagnostics: getDiagnostics(
+      tree,
+      config.config?.rules,
+      config.customTagNames,
+      config.customRules,
+      {
+        schemaRegistry: config.schemaRegistry,
+        schemaLoadErrors: config.schemaLoadErrors,
+        validators: config.validators,
+      },
+    ),
+  });
 }
 
 /**
@@ -293,7 +258,7 @@ connection.languages.semanticTokens.on(async (params) => {
   }
 
   // Load config for this document
-  const { customTags } = await resolveConfig(document.uri);
+  const { customTags } = await resolveDocumentConfig(document.uri);
 
   // Tokenize embedded language content in custom code tags
   let embeddedTokens: TokenInfo[] = [];
@@ -387,7 +352,7 @@ connection.onCompletion(async (params) => {
     return [];
   }
 
-  const { schemaRegistry } = await resolveConfig(document.uri);
+  const { schemaRegistry } = await resolveDocumentConfig(document.uri);
   return getCompletions(tree, document, params, schemaRegistry);
 });
 
@@ -457,11 +422,11 @@ connection.onDocumentFormatting(async (params) => {
     return [];
   }
 
-  const { config, customTags, printWidth, mustacheSpaces, noBreakDelimiters } = await resolveConfig(document.uri);
-  const resolvedOptions = mergeOptions(params.options, config, getEditorConfigOptions(document.uri));
+  const config = await resolveDocumentConfig(document.uri);
+  const resolvedOptions = mergeOptions(params.options, config.config, getEditorConfigOptions(document.uri));
   const embeddedFormatted = await formatEmbeddedRegions(tree.rootNode, resolvedOptions);
   return formatDocument(tree, document, resolvedOptions, {
-    customTags, printWidth, embeddedFormatted, mustacheSpaces, noBreakDelimiters,
+    ...config.formatParams, embeddedFormatted,
   });
 });
 
@@ -477,11 +442,11 @@ connection.onDocumentRangeFormatting(async (params) => {
     return [];
   }
 
-  const { config, customTags, printWidth, mustacheSpaces, noBreakDelimiters } = await resolveConfig(document.uri);
-  const resolvedOptions = mergeOptions(params.options, config, getEditorConfigOptions(document.uri));
+  const config = await resolveDocumentConfig(document.uri);
+  const resolvedOptions = mergeOptions(params.options, config.config, getEditorConfigOptions(document.uri));
   const embeddedFormatted = await formatEmbeddedRegions(tree.rootNode, resolvedOptions);
   return formatDocumentRange(tree, document, params.range, resolvedOptions, {
-    customTags, printWidth, embeddedFormatted, mustacheSpaces, noBreakDelimiters,
+    ...config.formatParams, embeddedFormatted,
   });
 });
 

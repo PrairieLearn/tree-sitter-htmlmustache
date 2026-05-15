@@ -11,31 +11,13 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
 import { pathToFileURL } from 'node:url';
-
-const defaultOptions: FormattingOptions = {
-  tabSize: 2,
-  insertSpaces: true,
-};
+import {
+  defaultOptions,
+  format,
+  formatWithPrintWidth,
+} from './formatting/helpers.js';
 
 describe('Document Formatting', () => {
-  function format(content: string, options: FormattingOptions = defaultOptions): string {
-    const tree = parseText(content);
-    const document = createMockDocument(content);
-    const edits = formatDocument(tree, document, options);
-
-    // Apply edits (there should be exactly one edit replacing the whole document)
-    expect(edits.length).toBe(1);
-    return edits[0].newText;
-  }
-
-  function formatWithPrintWidth(content: string, printWidth: number, options: FormattingOptions = defaultOptions): string {
-    const tree = parseText(content);
-    const document = createMockDocument(content);
-    const edits = formatDocument(tree, document, options, { printWidth });
-    expect(edits.length).toBe(1);
-    return edits[0].newText;
-  }
-
   describe('HTML elements', () => {
     it('keeps short block element on one line', () => {
       const result = format('<div>content</div>');

@@ -1,8 +1,14 @@
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { Parser, Language, Query, Tree } from 'web-tree-sitter';
+import {
+  Language,
+  Parser,
+  Query,
+  type Tree,
+} from 'web-tree-sitter';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import { beforeAll } from 'vitest';
+import { createTreeSitterRuntime } from '../../../js/shared/treeSitterRuntime.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -51,15 +57,14 @@ export function createMockDocument(content: string, uri = 'file:///test.mustache
 
 // Initialize tree-sitter before all tests
 beforeAll(async () => {
-  await Parser.init();
-  parser = new Parser();
-
-  // Path to WASM file: from lsp/server/test/ go up to project root
   const wasmPath = path.resolve(__dirname, '..', '..', '..', 'tree-sitter-htmlmustache.wasm');
-
   try {
-    language = await Language.load(wasmPath);
-    parser.setLanguage(language);
+    const runtime = await createTreeSitterRuntime({
+      grammarWasm: wasmPath,
+      treeSitter: { Parser, Language },
+    });
+    parser = runtime.parser;
+    language = runtime.language;
   } catch (error) {
     console.error(`Failed to load tree-sitter-htmlmustache.wasm from ${wasmPath}:`, error);
     throw error;

@@ -9,12 +9,11 @@
  * `{{`, `}}`, `<`, `=` are omitted — their position is implied by parents).
  */
 
+import { type Node as TSNode } from 'web-tree-sitter';
 import {
-  Parser as TSParser,
-  Language,
-  type Node as TSNode,
-} from 'web-tree-sitter';
-import { GRAMMAR_WASM_FILENAME } from '../shared/grammar.js';
+  createTreeSitterRuntime,
+  type LocateWasm,
+} from '../shared/treeSitterRuntime.js';
 import type { SyntaxNode, NodeType, Position } from './nodeTypes.generated.js';
 
 export type { SyntaxNode, NodeType, Position };
@@ -68,8 +67,6 @@ export type Visitor = (
   parents: readonly SyntaxNode[],
 ) => VisitResult;
 
-export type LocateWasm = string | ((filename: string) => string);
-
 export interface CreateParserOptions {
   /**
    * Locates the grammar WASM (`tree-sitter-htmlmustache.wasm`). String form
@@ -83,20 +80,6 @@ export interface CreateParserOptions {
 export interface Parser {
   /** Parse `source` into a plain-JSON AST. Throws on internal parser failure. */
   parse(source: string): ParseResult;
-}
-
-function toLocateFile(
-  locateWasm: LocateWasm,
-): ((name: string) => string) | undefined {
-  return typeof locateWasm === 'function'
-    ? (name) => locateWasm(name)
-    : undefined;
-}
-
-function resolveGrammarUrl(locateWasm: LocateWasm): string {
-  return typeof locateWasm === 'string'
-    ? locateWasm
-    : locateWasm(GRAMMAR_WASM_FILENAME);
 }
 
 function toJSON(node: TSNode): SyntaxNode {
@@ -149,12 +132,9 @@ export function walk(root: SyntaxNode, visit: Visitor): void {
  * reloads the grammar WASM.
  */
 export async function createParser(opts: CreateParserOptions): Promise<Parser> {
-  const { locateWasm } = opts;
-  const locateFile = toLocateFile(locateWasm);
-  await TSParser.init(locateFile ? { locateFile } : undefined);
-  const parser = new TSParser();
-  const language = await Language.load(resolveGrammarUrl(locateWasm));
-  parser.setLanguage(language);
+  const { parser } = await createTreeSitterRuntime({
+    locateWasm: opts.locateWasm,
+  });
 
   return {
     parse(source) {

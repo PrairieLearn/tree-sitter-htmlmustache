@@ -7,13 +7,10 @@
  * config-file loading and glob filtering.
  */
 
-import { Parser, Language } from 'web-tree-sitter';
-
 import { collectErrors } from './collectErrors.js';
 import type { WalkableTree } from './collectErrors.js';
 import { toDiagnostic } from './diagnostic.js';
 import type { Diagnostic } from './diagnostic.js';
-import { GRAMMAR_WASM_FILENAME } from '../shared/grammar.js';
 import { loadSchemaRegistry } from '../shared/customTagSchemaLoader.js';
 import type { SchemaFormat } from '../shared/customTagSchemaLoader.js';
 import { RULE_DEFAULTS } from '../shared/ruleMetadata.js';
@@ -42,6 +39,10 @@ import {
   defineTagValidators,
   isSyntacticRuleId,
 } from '../shared/tagValidators.js';
+import {
+  createTreeSitterRuntime,
+  type LocateWasm,
+} from '../shared/treeSitterRuntime.js';
 
 /**
  * `include`/`exclude` on custom rules are stripped from the in-memory API
@@ -68,8 +69,6 @@ export type {
   ValidatorContext,
 };
 export { defineTagValidators };
-
-export type LocateWasm = string | ((filename: string) => string);
 
 export interface CreateLinterOptions {
   /**
@@ -98,20 +97,6 @@ export interface Linter {
 
 /** Default severities for every built-in rule. */
 export const DEFAULT_CONFIG: Config = { rules: RULE_DEFAULTS as RulesConfig };
-
-function toLocateFile(
-  locateWasm: LocateWasm,
-): ((name: string) => string) | undefined {
-  return typeof locateWasm === 'function'
-    ? (name) => locateWasm(name)
-    : undefined;
-}
-
-function resolveGrammarUrl(locateWasm: LocateWasm): string {
-  return typeof locateWasm === 'string'
-    ? locateWasm
-    : locateWasm(GRAMMAR_WASM_FILENAME);
-}
 
 function normalizeValidators(validators: TagValidator[] | undefined): {
   validators: TagValidator[] | undefined;
@@ -174,13 +159,7 @@ function stripFilesystemSchemas(
 export async function createLinter(opts: CreateLinterOptions): Promise<Linter> {
   const { locateWasm, formats, validators } = opts;
   const validatorResult = normalizeValidators(validators);
-  const locateFile = toLocateFile(locateWasm);
-  // `Parser.init` is idempotent (Emscripten caches the runtime globally), so
-  // repeated calls are safe — the first locateFile wins.
-  await Parser.init(locateFile ? { locateFile } : undefined);
-  const parser = new Parser();
-  const language = await Language.load(resolveGrammarUrl(locateWasm));
-  parser.setLanguage(language);
+  const { parser } = await createTreeSitterRuntime({ locateWasm });
 
   return {
     lint(source, config) {

@@ -5,8 +5,13 @@
  * and layers on top of these results by passing its result as `overrides`.
  */
 
-import type { FormattingOptions } from './document.js';
+import type { FormatDocumentParams, FormattingOptions } from './document.js';
 import type { HtmlMustacheConfig } from '../shared/configSchema.js';
+
+export const DEFAULT_FORMATTING_OPTIONS: FormattingOptions = {
+  tabSize: 2,
+  insertSpaces: true,
+};
 
 /**
  * Merge base options with `configFile` (indentSize only) and optional
@@ -31,4 +36,18 @@ export function mergeOptions(
 
 export function createIndentUnit(options: FormattingOptions): string {
   return options.insertSpaces ? ' '.repeat(options.tabSize) : '\t';
+}
+
+export function formatParamsFromConfig(
+  configFile?: HtmlMustacheConfig | null,
+  defaults: Pick<FormatDocumentParams, 'printWidth' | 'mustacheSpaces'> = {
+    printWidth: 80,
+  },
+): FormatDocumentParams {
+  return {
+    customTags: configFile?.customTags,
+    printWidth: configFile?.printWidth ?? defaults.printWidth,
+    mustacheSpaces: configFile?.mustacheSpaces ?? defaults.mustacheSpaces,
+    noBreakDelimiters: configFile?.noBreakDelimiters,
+  };
 }

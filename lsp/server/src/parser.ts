@@ -1,8 +1,14 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { Parser, Language, Query, Tree } from 'web-tree-sitter';
+import {
+  Language,
+  Parser,
+  Query,
+  type Tree,
+} from 'web-tree-sitter';
 import { GRAMMAR_WASM_FILENAME } from '../../../js/shared/grammar.js';
+import { createTreeSitterRuntime } from '../../../js/shared/treeSitterRuntime.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 
@@ -37,29 +43,6 @@ export async function initializeParser(): Promise<void> {
   }
 
   // Initialize web-tree-sitter with explicit WASM binary
-  try {
-    log(`Reading web-tree-sitter.wasm...`);
-    const wasmBinary = fs.readFileSync(webTsWasmPath);
-    log(`WASM binary size: ${wasmBinary.length} bytes`);
-
-    log(`Calling Parser.init() with wasmBinary...`);
-    // Pass both wasmBinary and locateFile to handle all code paths
-    await Parser.init({
-      wasmBinary: wasmBinary.buffer,
-      locateFile: (scriptName: string, scriptDirectory: string) => {
-        log(`locateFile called: scriptName=${scriptName}, scriptDirectory=${scriptDirectory}`);
-        // Return the path to our copied WASM file
-        return path.resolve(__dirname, scriptName);
-      },
-    });
-    log(`Parser.init() completed successfully`);
-  } catch (error) {
-    log(`Parser.init() failed: ${error}`);
-    throw error;
-  }
-
-  parser = new Parser();
-
   // Load the grammar WASM file - copied to extension root during build
   // server/out -> server -> extension root
   const grammarWasmPath = path.resolve(__dirname, '..', '..', GRAMMAR_WASM_FILENAME);
@@ -71,12 +54,27 @@ export async function initializeParser(): Promise<void> {
   }
 
   try {
-    language = await Language.load(grammarWasmPath);
+    log(`Reading web-tree-sitter.wasm...`);
+    const wasmBinary = fs.readFileSync(webTsWasmPath);
+    log(`WASM binary size: ${wasmBinary.length} bytes`);
+    log(`Initializing parser runtime...`);
+    const runtime = await createTreeSitterRuntime({
+      grammarWasm: grammarWasmPath,
+      parserInitOptions: {
+        wasmBinary: wasmBinary.buffer,
+        locateFile: (scriptName: string, scriptDirectory: string) => {
+          log(`locateFile called: scriptName=${scriptName}, scriptDirectory=${scriptDirectory}`);
+          return path.resolve(__dirname, scriptName);
+        },
+      },
+      treeSitter: { Parser, Language },
+    });
+    parser = runtime.parser;
+    language = runtime.language;
     log(`Language.load() completed successfully`);
-    parser.setLanguage(language);
     log(`Parser language set successfully`);
   } catch (error) {
-    log(`Failed to load ${GRAMMAR_WASM_FILENAME} from ${grammarWasmPath}: ${error}`);
+    log(`Failed to initialize parser runtime from ${grammarWasmPath}: ${error}`);
     throw error;
   }
 }
@@ -109,4 +107,3 @@ export function createQuery(queryString: string): Query | null {
   }
   return new Query(language, queryString);
 }
-

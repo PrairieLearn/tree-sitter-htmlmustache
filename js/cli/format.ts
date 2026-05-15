@@ -11,9 +11,12 @@ import type {
 } from '../formatter/document.js';
 import { formatEmbeddedRegions } from '../formatter/embedded.js';
 import { getEditorConfigOptions } from '../formatter/editorconfig.js';
+import {
+  DEFAULT_FORMATTING_OPTIONS,
+  formatParamsFromConfig,
+  mergeOptions,
+} from '../formatter/mergeOptions.js';
 import { loadConfigFileForPath } from '../shared/configFile.js';
-import type { NoBreakDelimiter } from '../shared/configSchema.js';
-import type { CustomCodeTagConfig } from '../shared/customCodeTags.js';
 import { initializeParser, parseDocument } from './wasm';
 import { resolveFiles } from './check';
 
@@ -114,51 +117,33 @@ async function resolveSettings(
     options: FormattingOptions;
   } & FormatDocumentParams
 > {
-  // 1. Defaults
-  let tabSize = 2;
-  let insertSpaces = true;
-  let printWidth = 80;
-  let mustacheSpaces: boolean | undefined = false;
-  let customTags: CustomCodeTagConfig[] | undefined;
-
-  // 2. Config file overrides defaults
   const configFile = filePath ? await loadConfigFileForPath(filePath) : null;
-  let noBreakDelimiters: NoBreakDelimiter[] | undefined;
-  if (configFile) {
-    if (configFile.indentSize !== undefined) tabSize = configFile.indentSize;
-    if (configFile.printWidth !== undefined) printWidth = configFile.printWidth;
-    if (configFile.mustacheSpaces !== undefined) {
-      mustacheSpaces = configFile.mustacheSpaces;
-    }
-    if (configFile.noBreakDelimiters) {
-      noBreakDelimiters = configFile.noBreakDelimiters;
-    }
-    if (configFile.customTags && configFile.customTags.length > 0) {
-      customTags = configFile.customTags;
-    }
-  }
-
-  // 3. Editorconfig overrides config file (indent only)
+  let editorConfig: Partial<FormattingOptions> | undefined;
   if (filePath) {
     const uri = pathToFileURL(filePath).href;
-    const ecOptions = getEditorConfigOptions(uri);
-    if (ecOptions.tabSize !== undefined) tabSize = ecOptions.tabSize;
-    if (ecOptions.insertSpaces !== undefined) {
-      insertSpaces = ecOptions.insertSpaces;
-    }
+    editorConfig = getEditorConfigOptions(uri);
   }
 
-  // 4. CLI flags override everything
-  if (flags.indentSize !== undefined) tabSize = flags.indentSize;
-  if (flags.printWidth !== undefined) printWidth = flags.printWidth;
-  if (flags.mustacheSpaces !== undefined) mustacheSpaces = flags.mustacheSpaces;
+  const flagOptions: Partial<FormattingOptions> = {};
+  if (flags.indentSize !== undefined) flagOptions.tabSize = flags.indentSize;
+
+  const options = mergeOptions(DEFAULT_FORMATTING_OPTIONS, configFile, {
+    ...editorConfig,
+    ...flagOptions,
+  });
+
+  const params = formatParamsFromConfig(configFile, {
+    printWidth: 80,
+    mustacheSpaces: false,
+  });
+  if (flags.printWidth !== undefined) params.printWidth = flags.printWidth;
+  if (flags.mustacheSpaces !== undefined) {
+    params.mustacheSpaces = flags.mustacheSpaces;
+  }
 
   return {
-    options: { tabSize, insertSpaces },
-    printWidth,
-    mustacheSpaces,
-    noBreakDelimiters,
-    customTags,
+    options,
+    ...params,
   };
 }
 
