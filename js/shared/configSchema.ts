@@ -295,9 +295,7 @@ function parseStringRecord(value: unknown): Record<string, string> | undefined {
   return parsed.success ? parsed.data : undefined;
 }
 
-function parseCustomTagDefaults(
-  value: unknown,
-): CustomTagDefaults | undefined {
+function parseCustomTagDefaults(value: unknown): CustomTagDefaults | undefined {
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     return undefined;
   }

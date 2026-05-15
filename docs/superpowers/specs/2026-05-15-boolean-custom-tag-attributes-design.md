@@ -75,7 +75,7 @@ Example with boolean attributes disabled by default for custom tags, but allowed
 ```jsonc
 {
   "customTagDefaults": { "allowBooleanAttributes": false },
-  "customTags": [{ "name": "pl-answer", "allowBooleanAttributes": true }]
+  "customTags": [{ "name": "pl-answer", "allowBooleanAttributes": true }],
 }
 ```
 
@@ -94,9 +94,9 @@ with:
 ```jsonc
 {
   "customTagDefaults": {
-    "allowBooleanAttributes": false
+    "allowBooleanAttributes": false,
   },
-  "customTags": [{ "name": "pl-answer" }]
+  "customTags": [{ "name": "pl-answer" }],
 }
 ```
 
@@ -125,18 +125,23 @@ Keep the existing default ergonomic API:
 ```ts
 type AttributeValue = string | true;
 
-interface TagElement<
-  TAllowBooleanAttributes extends boolean = true,
-> {
+interface TagElement<TAllowBooleanAttributes extends boolean = true> {
   readonly attributes: Readonly<
-    Record<string, TAllowBooleanAttributes extends false ? string : AttributeValue>
+    Record<
+      string,
+      TAllowBooleanAttributes extends false ? string : AttributeValue
+    >
   >;
   getAttribute(
     name: string,
-  ): TAllowBooleanAttributes extends false ? string | undefined : AttributeValue | undefined;
+  ): TAllowBooleanAttributes extends false
+    ? string | undefined
+    : AttributeValue | undefined;
   getLiteralAttribute(
     name: string,
-  ): TAllowBooleanAttributes extends false ? string | undefined : AttributeValue | undefined;
+  ): TAllowBooleanAttributes extends false
+    ? string | undefined
+    : AttributeValue | undefined;
 }
 ```
 

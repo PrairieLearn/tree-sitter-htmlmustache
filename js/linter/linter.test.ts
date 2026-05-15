@@ -318,9 +318,7 @@ describe('draft-06 flat custom tag schemas', () => {
           customTags: [
             {
               name: 'pl-multiple-choice',
-              children: [
-                { name: 'pl-answer', allowBooleanAttributes: false },
-              ],
+              children: [{ name: 'pl-answer', allowBooleanAttributes: false }],
             },
             {
               name: 'pl-question',

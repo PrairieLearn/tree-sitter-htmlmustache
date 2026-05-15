@@ -29,6 +29,7 @@
 ### Task 1: Config Types And Zod Schema
 
 **Files:**
+
 - Modify: `js/shared/customCodeTags.ts`
 - Modify: `js/shared/configSchema.ts`
 - Modify: `js/shared/configSchemaJson.test.ts`
@@ -173,9 +174,7 @@ Add `allowBooleanAttributes: z.boolean().optional()` to both `childTagSchema` an
 Update lenient parsing:
 
 ```ts
-const allowBooleanAttributes = z
-  .boolean()
-  .safeParse(e.allowBooleanAttributes);
+const allowBooleanAttributes = z.boolean().safeParse(e.allowBooleanAttributes);
 if (allowBooleanAttributes.success) {
   tag.allowBooleanAttributes = allowBooleanAttributes.data;
 }
@@ -228,6 +227,7 @@ git commit -m "feat: add boolean attribute config"
 ### Task 2: Registry Metadata And Callers
 
 **Files:**
+
 - Modify: `js/shared/customTagSchemaLoader.ts`
 - Modify: `js/linter/index.ts`
 - Modify: `js/cli/check.ts`
@@ -426,6 +426,7 @@ git commit -m "feat: propagate custom tag boolean attribute defaults"
 ### Task 3: Boolean Attribute Diagnostics
 
 **Files:**
+
 - Modify: `js/linter/customTagSchemaChecker.ts`
 - Modify: `js/linter/linter.test.ts`
 
@@ -629,12 +630,7 @@ Update top-level schema validation:
 const compiled = tag ? schemas.get(tag) : undefined;
 if (compiled) {
   errors.push(
-    ...validateElement(
-      compiled,
-      node,
-      undefined,
-      booleanCheck.names,
-    ),
+    ...validateElement(compiled, node, undefined, booleanCheck.names),
   );
 }
 ```
@@ -649,12 +645,7 @@ if (childEntry.schema) {
     tag,
   );
   errors.push(
-    ...validateElement(
-      childEntry.schema,
-      child,
-      tag,
-      childBooleanCheck.names,
-    ),
+    ...validateElement(childEntry.schema, child, tag, childBooleanCheck.names),
   );
 }
 ```
@@ -685,6 +676,7 @@ git commit -m "feat: reject custom tag boolean attributes"
 ### Task 4: Validator Type Narrowing
 
 **Files:**
+
 - Modify: `js/shared/tagValidators.ts`
 - Create: `js/shared/tagValidators.type.test.ts`
 
@@ -741,17 +733,14 @@ In `js/shared/tagValidators.ts`, add:
 
 ```ts
 export type AttributeValue = string | true;
-export type AttributeValueFor<
-  TAllowBooleanAttributes extends boolean,
-> = TAllowBooleanAttributes extends false ? string : AttributeValue;
+export type AttributeValueFor<TAllowBooleanAttributes extends boolean> =
+  TAllowBooleanAttributes extends false ? string : AttributeValue;
 ```
 
 Update `TagElement`:
 
 ```ts
-export interface TagElement<
-  TAllowBooleanAttributes extends boolean = true,
-> {
+export interface TagElement<TAllowBooleanAttributes extends boolean = true> {
   readonly tag: string;
   readonly attributes: Readonly<
     Record<string, AttributeValueFor<TAllowBooleanAttributes>>
@@ -798,6 +787,7 @@ git commit -m "feat: narrow tag validator attribute values"
 ### Task 5: Documentation And Full Verification
 
 **Files:**
+
 - Modify: `README.md`
 - Modify: `docs/superpowers/specs/2026-05-15-valueless-custom-tag-attributes-design.md`
 
@@ -817,14 +807,14 @@ For projects whose custom elements require explicit values, disable boolean attr
 ```jsonc
 {
   "customTagDefaults": {
-    "allowBooleanAttributes": false
+    "allowBooleanAttributes": false,
   },
   "customTags": [
     {
       "name": "pl-answer",
-      "allowBooleanAttributes": true
-    }
-  ]
+      "allowBooleanAttributes": true,
+    },
+  ],
 }
 ```
 
