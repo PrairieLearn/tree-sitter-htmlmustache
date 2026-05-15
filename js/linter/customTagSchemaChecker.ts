@@ -3,10 +3,16 @@ import localizeEn from 'ajv-i18n/localize/en/index.js';
 import type { BalanceNode } from './htmlBalanceChecker.js';
 import type { FixableError } from './mustacheChecks.js';
 import type {
+  ChildTagSchemaConfig,
+  CompiledChildTagConfig,
   CompiledTagSchema,
   SchemaRegistry,
 } from '../shared/customTagSchemaLoader.js';
-import { getTagName, isHtmlElementType } from '../shared/nodeHelpers.js';
+import {
+  getTagName,
+  isHtmlElementType,
+  isMustacheSection,
+} from '../shared/nodeHelpers.js';
 
 interface AttributeInfo {
   attrNode: BalanceNode;
@@ -236,23 +242,32 @@ function attributeNameForError(error: ErrorObject): string | null {
   return pathSegments(error.instancePath)[0] ?? null;
 }
 
-function messageForError(error: ErrorObject, tag: string): string {
+function tagContext(tag: string, parentTag?: string): string {
+  return parentTag ? `<${tag}> inside <${parentTag}>` : `<${tag}>`;
+}
+
+function messageForError(
+  error: ErrorObject,
+  tag: string,
+  parentTag?: string,
+): string {
+  const context = tagContext(tag, parentTag);
   if (
     error.keyword === 'required' &&
     typeof error.params.missingProperty === 'string'
   ) {
-    return `<${tag}> is missing required attribute "${error.params.missingProperty}".`;
+    return `${context} is missing required attribute "${error.params.missingProperty}".`;
   }
   if (
     error.keyword === 'additionalProperties' &&
     typeof error.params.additionalProperty === 'string'
   ) {
-    return `Unknown attribute "${error.params.additionalProperty}" on <${tag}>.`;
+    return `Unknown attribute "${error.params.additionalProperty}" on ${context}.`;
   }
   const attrName = attributeNameForError(error);
   const phrase = constraintPhrase(error);
   if (attrName && phrase) {
-    return `Attribute "${attrName}" on <${tag}> must ${phrase}.`;
+    return `Attribute "${attrName}" on ${context} must ${phrase}.`;
   }
   return error.message ?? 'does not satisfy custom tag schema';
 }
@@ -284,7 +299,11 @@ function isBranchOf(child: ErrorObject, wrapper: ErrorObject): boolean {
   );
 }
 
-function mergeErrors(errors: ErrorObject[], tag: string): MergedError[] {
+function mergeErrors(
+  errors: ErrorObject[],
+  tag: string,
+  parentTag?: string,
+): MergedError[] {
   const byPath = new Map<string, ErrorObject[]>();
   for (const error of errors) {
     const list = byPath.get(error.instancePath);
@@ -318,7 +337,7 @@ function mergeErrors(errors: ErrorObject[], tag: string): MergedError[] {
       if (attrName && phrases.length > 0) {
         result.push({
           error: altWrapper,
-          message: `Attribute "${attrName}" on <${tag}> must ${phrases.join(' or ')}.`,
+          message: `Attribute "${attrName}" on ${tagContext(tag, parentTag)} must ${phrases.join(' or ')}.`,
         });
         continue;
       }
@@ -326,7 +345,7 @@ function mergeErrors(errors: ErrorObject[], tag: string): MergedError[] {
     const wrappers = new Set(['if', 'allOf']);
     for (const error of group) {
       if (wrappers.has(error.keyword) && group.length > 1) continue;
-      result.push({ error, message: messageForError(error, tag) });
+      result.push({ error, message: messageForError(error, tag, parentTag) });
     }
   }
   return result;
@@ -335,6 +354,7 @@ function mergeErrors(errors: ErrorObject[], tag: string): MergedError[] {
 function validateElement(
   compiled: CompiledTagSchema,
   element: BalanceNode,
+  parentTag?: string,
 ): FixableError[] {
   const tag = getTagName(element)?.toLowerCase();
   if (!tag) return [];
@@ -346,29 +366,143 @@ function validateElement(
     (error) => !mentionsDynamicAttribute(error, built.context, compiled.schema),
   );
   localizeEn(errors.filter((error) => error.keyword !== 'errorMessage'));
-  return mergeErrors(errors, tag).map(({ error, message }) => ({
+  return mergeErrors(errors, tag, parentTag).map(({ error, message }) => ({
     node: nodeForError(error, built.context),
     message,
   }));
+}
+
+function collectDirectHtmlChildren(
+  node: BalanceNode,
+  out: BalanceNode[] = [],
+): BalanceNode[] {
+  for (const child of node.children) {
+    if (isHtmlElementType(child)) {
+      out.push(child);
+    } else if (isMustacheSection(child)) {
+      collectDirectHtmlChildren(child, out);
+    }
+  }
+  return out;
+}
+
+function strictChildMessage(parentTag: string, allowedTags: string[]): string {
+  const tags = allowedTags.map((tag) => `<${tag}>`).join(', ');
+  return `<${parentTag}> only allows these child elements: ${tags}.`;
+}
+
+function orphanChildMessage(tag: string, parentTags: string[]): string {
+  const tags = parentTags.map((parentTag) => `<${parentTag}>`).join(', ');
+  return `<${tag}> may only appear as a direct child of these parent elements: ${tags}.`;
+}
+
+function childrenForElement(
+  tag: string,
+  scopedConfig: CompiledChildTagConfig | undefined,
+  globalChildren: Map<string, ChildTagSchemaConfig>,
+): ChildTagSchemaConfig | undefined {
+  return scopedConfig?.children ?? globalChildren.get(tag);
 }
 
 export function checkCustomTagSchemas(
   rootNode: BalanceNode,
   registry: SchemaRegistry | undefined,
 ): FixableError[] {
-  if (!registry || registry.schemas.size === 0) return [];
+  if (
+    !registry ||
+    (registry.schemas.size === 0 && registry.children.size === 0)
+  ) {
+    return [];
+  }
   const errors: FixableError[] = [];
   const schemas = registry.schemas;
+  const children = registry.children;
+  const topLevelTags = registry.topLevelTags;
+  const childParents = registry.childParents;
 
-  function visit(node: BalanceNode): void {
-    if (isHtmlElementType(node)) {
-      const tag = getTagName(node)?.toLowerCase();
-      const compiled = tag ? schemas.get(tag) : undefined;
-      if (compiled) errors.push(...validateElement(compiled, node));
-    }
-    for (const child of node.children) visit(child);
+  function shouldSkipOrphanForStrictParent(
+    tag: string,
+    parentChildren: ChildTagSchemaConfig | undefined,
+  ): boolean {
+    return parentChildren?.mode === 'strict' && !parentChildren.tags.has(tag);
   }
 
-  visit(rootNode);
+  function visit(
+    node: BalanceNode,
+    directParentTag: string | undefined,
+    scopedConfig: CompiledChildTagConfig | undefined,
+    parentChildren: ChildTagSchemaConfig | undefined,
+  ): void {
+    if (isHtmlElementType(node)) {
+      const tag = getTagName(node)?.toLowerCase();
+      if (tag && !topLevelTags.has(tag)) {
+        const allowedParents = childParents.get(tag);
+        if (
+          allowedParents &&
+          !allowedParents.has(directParentTag ?? '') &&
+          !shouldSkipOrphanForStrictParent(tag, parentChildren)
+        ) {
+          errors.push({
+            node,
+            message: orphanChildMessage(tag, Array.from(allowedParents)),
+          });
+        }
+      }
+      const compiled = tag ? schemas.get(tag) : undefined;
+      if (compiled) errors.push(...validateElement(compiled, node));
+      const childConfig = tag
+        ? childrenForElement(tag, scopedConfig, children)
+        : undefined;
+      if (tag && childConfig) {
+        const allowedTags = Array.from(childConfig.tags.keys());
+        for (const child of collectDirectHtmlChildren(node)) {
+          const childTag = getTagName(child)?.toLowerCase();
+          if (!childTag) continue;
+          const childEntry = childConfig.tags.get(childTag);
+          if (!childEntry) {
+            if (childConfig.mode === 'strict') {
+              errors.push({
+                node: child,
+                message: strictChildMessage(tag, allowedTags),
+              });
+            }
+            continue;
+          }
+          if (childEntry.schema) {
+            errors.push(...validateElement(childEntry.schema, child, tag));
+          }
+        }
+      }
+      for (const child of node.children) {
+        if (isHtmlElementType(child) || isMustacheSection(child)) {
+          const childTag = isHtmlElementType(child)
+            ? getTagName(child)?.toLowerCase()
+            : undefined;
+          const childEntry =
+            childTag && childConfig
+              ? childConfig.tags.get(childTag)
+              : undefined;
+          visit(child, tag, childEntry, childConfig);
+        } else {
+          visit(child, directParentTag, scopedConfig, parentChildren);
+        }
+      }
+      return;
+    }
+    for (const child of node.children) {
+      if (isHtmlElementType(child)) {
+        const childTag = getTagName(child)?.toLowerCase();
+        const childEntry =
+          childTag && parentChildren
+            ? parentChildren.tags.get(childTag)
+            : undefined;
+        visit(child, directParentTag, childEntry, parentChildren);
+      } else {
+        visit(child, directParentTag, scopedConfig, parentChildren);
+      }
+    }
+  }
+
+  visit(rootNode, undefined, undefined, undefined);
   return errors;
 }

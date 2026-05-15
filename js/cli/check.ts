@@ -23,6 +23,7 @@ import type {
   SchemaRegistry,
 } from '../shared/customTagSchemaLoader.js';
 import type { TagValidator } from '../shared/tagValidators.js';
+import { collectCustomTagNames } from '../shared/customCodeTags.js';
 
 // ── Types ──
 
@@ -387,7 +388,7 @@ export async function run(args: string[]): Promise<number> {
   const errorOutput: string[] = [];
 
   const rules = config?.rules;
-  const customTagNames = config?.customTags?.map((t) => t.name);
+  const customTagNames = collectCustomTagNames(config?.customTags);
   const customRules = config?.customRules;
   const ruleFilterBase = configDir ?? cwd;
 

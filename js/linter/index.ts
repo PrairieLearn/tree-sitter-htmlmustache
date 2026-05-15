@@ -25,7 +25,12 @@ import type {
   RuleSeverity,
   CustomRule as CustomRuleType,
 } from '../shared/configSchema.js';
-import type { CustomCodeTagConfig } from '../shared/customCodeTags.js';
+import {
+  collectCustomTagNames,
+  type ChildTagConfig,
+  type CustomCodeTagConfig,
+  type CustomTagChildrenConfig,
+} from '../shared/customCodeTags.js';
 import type {
   TagElement,
   TagValidatorFn,
@@ -147,6 +152,28 @@ function normalizeValidators(validators: TagValidator[] | undefined): {
   };
 }
 
+function stripFilesystemSchemas(
+  tags: CustomCodeTagConfig[] | undefined,
+): CustomCodeTagConfig[] | undefined {
+  if (!tags) return undefined;
+  const stripChild = (child: ChildTagConfig): ChildTagConfig => ({
+    ...child,
+    ...(typeof child.schema === 'string' ? { schema: undefined } : {}),
+    ...(child.children ? { children: stripChildren(child.children) } : {}),
+  });
+  const stripChildren = (
+    children: CustomTagChildrenConfig,
+  ): CustomTagChildrenConfig => ({
+    ...children,
+    tags: children.tags.map(stripChild),
+  });
+  return tags.map((tag) => ({
+    ...tag,
+    ...(typeof tag.schema === 'string' ? { schema: undefined } : {}),
+    ...(tag.children ? { children: stripChildren(tag.children) } : {}),
+  }));
+}
+
 /**
  * Create a linter handle. Consumers should cache the result — each call
  * reloads the grammar WASM.
@@ -167,13 +194,13 @@ export async function createLinter(opts: CreateLinterOptions): Promise<Linter> {
       const tree = parser.parse(source);
       if (!tree) throw new Error('Failed to parse document');
       try {
-        const customTagNames = config?.customTags?.map((t) => t.name);
-        const inlineSchemaTags = config?.customTags?.filter(
-          (t) => t.schema && typeof t.schema !== 'string',
+        const customTagNames = collectCustomTagNames(config?.customTags);
+        const schemaResult = loadSchemaRegistry(
+          stripFilesystemSchemas(config?.customTags),
+          {
+            formats,
+          },
         );
-        const schemaResult = loadSchemaRegistry(inlineSchemaTags, {
-          formats,
-        });
         const errors = collectErrors(
           tree as unknown as WalkableTree,
           config?.rules,

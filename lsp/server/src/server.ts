@@ -28,7 +28,11 @@ import { getDiagnostics } from './diagnostics.js';
 import { getCodeActions } from './codeActions.js';
 import { getCompletions } from './completion.js';
 import { initializeTextMateRegistry, isTextMateReady, tokenizeEmbeddedContent, setEmbeddedTokenizerLogger } from './embeddedTokenizer.js';
-import { findCustomCodeTagContent, isCodeTag } from '../../../js/shared/customCodeTags.js';
+import {
+  collectCustomTagNames,
+  findCustomCodeTagContent,
+  isCodeTag,
+} from '../../../js/shared/customCodeTags.js';
 import type { CustomCodeTagConfig } from '../../../js/shared/customCodeTags.js';
 import { loadConfigFile } from '../../../js/shared/configFile.js';
 import type { HtmlMustacheConfig, NoBreakDelimiter } from '../../../js/shared/configSchema.js';
@@ -215,7 +219,7 @@ documents.onDidOpen(async (event) => {
   const tree = parseAndCacheDocument(event.document);
   if (tree) {
     const { config, configDir, schemaRegistry, schemaLoadErrors, validators } = await resolveConfig(event.document.uri);
-    const customTagNames = config?.customTags?.map(t => t.name);
+    const customTagNames = collectCustomTagNames(config?.customTags);
     const customRules = applicableCustomRules(event.document.uri, config, configDir);
     connection.sendDiagnostics({ uri: event.document.uri, diagnostics: getDiagnostics(tree, config?.rules, customTagNames, customRules, { schemaRegistry, schemaLoadErrors, validators }) });
   }
@@ -226,7 +230,7 @@ documents.onDidChangeContent(async (change) => {
   const tree = parseAndCacheDocument(change.document);
   if (tree) {
     const { config, configDir, schemaRegistry, schemaLoadErrors, validators } = await resolveConfig(change.document.uri);
-    const customTagNames = config?.customTags?.map(t => t.name);
+    const customTagNames = collectCustomTagNames(config?.customTags);
     const customRules = applicableCustomRules(change.document.uri, config, configDir);
     connection.sendDiagnostics({ uri: change.document.uri, diagnostics: getDiagnostics(tree, config?.rules, customTagNames, customRules, { schemaRegistry, schemaLoadErrors, validators }) });
   }

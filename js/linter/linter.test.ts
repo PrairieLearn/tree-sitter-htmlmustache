@@ -331,6 +331,282 @@ describe('draft-06 flat custom tag schemas', () => {
       'Attribute "correct" on <pl-answer> must be boolean or match format "pl-boolean".',
     );
   });
+
+  it('defaults child validation to strict and treats mustache sections as transparent', () => {
+    const d = linter
+      .lint(
+        '<pl-multiple-choice>{{#cond}}<pl-feedback></pl-feedback>{{/cond}}</pl-multiple-choice>',
+        {
+          rules: {
+            customTagSchema: 'error',
+            unrecognizedHtmlTags: 'off',
+          },
+          customTags: [
+            {
+              name: 'pl-multiple-choice',
+              children: { tags: [{ name: 'pl-answer' }] },
+            },
+            { name: 'pl-answer' },
+            { name: 'pl-feedback' },
+          ],
+        },
+      )
+      .filter((x) => x.ruleName === 'customTagSchema');
+
+    expect(d).toHaveLength(1);
+    expect(d[0].message).toBe(
+      '<pl-multiple-choice> only allows these child elements: <pl-answer>.',
+    );
+  });
+
+  it('allows unlisted children in loose mode while validating listed children', () => {
+    const answerSchema = {
+      $schema: 'http://json-schema.org/draft-06/schema#',
+      type: 'object',
+      properties: { correct: { type: 'boolean' } },
+      additionalProperties: false,
+    };
+
+    const d = linter
+      .lint(
+        '<pl-multiple-choice><pl-answer ranking="1"></pl-answer><pl-feedback></pl-feedback></pl-multiple-choice>',
+        {
+          rules: {
+            customTagSchema: 'error',
+            unrecognizedHtmlTags: 'off',
+          },
+          customTags: [
+            {
+              name: 'pl-multiple-choice',
+              children: {
+                mode: 'loose',
+                tags: [{ name: 'pl-answer', schema: answerSchema }],
+              },
+            },
+            { name: 'pl-answer' },
+            { name: 'pl-feedback' },
+          ],
+        },
+      )
+      .filter((x) => x.ruleName === 'customTagSchema');
+
+    expect(d).toHaveLength(1);
+    expect(d[0].message).toBe(
+      'Unknown attribute "ranking" on <pl-answer> inside <pl-multiple-choice>.',
+    );
+  });
+
+  it('uses a parent-specific child schema without making the child schema global', () => {
+    const answerSchema = {
+      $schema: 'http://json-schema.org/draft-06/schema#',
+      type: 'object',
+      properties: { correct: { type: 'boolean' } },
+      additionalProperties: false,
+    };
+
+    const d = linter
+      .lint(
+        '<pl-answer ranking="1"></pl-answer><pl-multiple-choice><pl-answer ranking="1"></pl-answer></pl-multiple-choice>',
+        {
+          rules: {
+            customTagSchema: 'error',
+            unrecognizedHtmlTags: 'off',
+          },
+          customTags: [
+            {
+              name: 'pl-multiple-choice',
+              children: { tags: [{ name: 'pl-answer', schema: answerSchema }] },
+            },
+            { name: 'pl-answer' },
+          ],
+        },
+      )
+      .filter((x) => x.ruleName === 'customTagSchema');
+
+    expect(d).toHaveLength(1);
+    expect(d[0].message).toBe(
+      'Unknown attribute "ranking" on <pl-answer> inside <pl-multiple-choice>.',
+    );
+  });
+
+  it('restricts child-only tags to the parents that declare them', () => {
+    const inside = linter.lint(
+      '<pl-multiple-choice><pl-answer></pl-answer></pl-multiple-choice>',
+      {
+        rules: {
+          customTagSchema: 'error',
+          unrecognizedHtmlTags: 'error',
+        },
+        customTags: [
+          {
+            name: 'pl-multiple-choice',
+            children: { tags: [{ name: 'pl-answer' }] },
+          },
+        ],
+      },
+    );
+    expect(inside.filter((x) => x.ruleName === 'customTagSchema')).toEqual([]);
+    expect(inside.filter((x) => x.ruleName === 'unrecognizedHtmlTags')).toEqual(
+      [],
+    );
+
+    const outside = linter
+      .lint('<pl-answer></pl-answer>', {
+        rules: {
+          customTagSchema: 'error',
+          unrecognizedHtmlTags: 'error',
+        },
+        customTags: [
+          {
+            name: 'pl-multiple-choice',
+            children: { tags: [{ name: 'pl-answer' }] },
+          },
+        ],
+      })
+      .filter((x) => x.ruleName === 'customTagSchema');
+
+    expect(outside).toHaveLength(1);
+    expect(outside[0].message).toBe(
+      '<pl-answer> may only appear as a direct child of these parent elements: <pl-multiple-choice>.',
+    );
+  });
+
+  it('supports recursive child-only rules without promoting nested children globally', () => {
+    const customTags = [
+      {
+        name: 'pl-multiple-choice',
+        children: {
+          tags: [
+            {
+              name: 'pl-answer',
+              children: {
+                tags: [{ name: 'pl-answer-feedback' }],
+              },
+            },
+          ],
+        },
+      },
+    ];
+
+    const valid = linter.lint(
+      '<pl-multiple-choice><pl-answer>{{#ok}}<pl-answer-feedback></pl-answer-feedback>{{/ok}}</pl-answer></pl-multiple-choice>',
+      {
+        rules: {
+          customTagSchema: 'error',
+          unrecognizedHtmlTags: 'error',
+        },
+        customTags,
+      },
+    );
+    expect(valid.filter((x) => x.ruleName === 'customTagSchema')).toEqual([]);
+    expect(valid.filter((x) => x.ruleName === 'unrecognizedHtmlTags')).toEqual(
+      [],
+    );
+
+    const wrongChild = linter
+      .lint(
+        '<pl-multiple-choice><pl-answer><span></span></pl-answer></pl-multiple-choice>',
+        {
+          rules: {
+            customTagSchema: 'error',
+            unrecognizedHtmlTags: 'error',
+          },
+          customTags,
+        },
+      )
+      .filter((x) => x.ruleName === 'customTagSchema');
+    expect(wrongChild).toHaveLength(1);
+    expect(wrongChild[0].message).toBe(
+      '<pl-answer> only allows these child elements: <pl-answer-feedback>.',
+    );
+
+    const orphanNestedChild = linter
+      .lint('<pl-answer-feedback></pl-answer-feedback>', {
+        rules: {
+          customTagSchema: 'error',
+          unrecognizedHtmlTags: 'error',
+        },
+        customTags,
+      })
+      .filter((x) => x.ruleName === 'customTagSchema');
+    expect(orphanNestedChild).toHaveLength(1);
+    expect(orphanNestedChild[0].message).toBe(
+      '<pl-answer-feedback> may only appear as a direct child of these parent elements: <pl-answer>.',
+    );
+  });
+
+  it('uses top-level child rules when a scoped child tag is also globally allowed', () => {
+    const d = linter
+      .lint('<pl-answer><span></span></pl-answer>', {
+        rules: {
+          customTagSchema: 'error',
+          unrecognizedHtmlTags: 'off',
+        },
+        customTags: [
+          {
+            name: 'pl-multiple-choice',
+            children: { tags: [{ name: 'pl-answer' }] },
+          },
+          {
+            name: 'pl-answer',
+            children: { tags: [{ name: 'pl-answer-feedback' }] },
+          },
+        ],
+      })
+      .filter((x) => x.ruleName === 'customTagSchema');
+
+    expect(d).toHaveLength(1);
+    expect(d[0].message).toBe(
+      '<pl-answer> only allows these child elements: <pl-answer-feedback>.',
+    );
+  });
+
+  it('allows the same child tag to use different schemas under different parents', () => {
+    const choiceAnswerSchema = {
+      $schema: 'http://json-schema.org/draft-06/schema#',
+      type: 'object',
+      properties: { correct: { type: 'boolean' } },
+      additionalProperties: false,
+    };
+    const orderingAnswerSchema = {
+      $schema: 'http://json-schema.org/draft-06/schema#',
+      type: 'object',
+      properties: { ranking: { type: 'integer' } },
+      additionalProperties: false,
+    };
+
+    const d = linter
+      .lint(
+        '<pl-multiple-choice><pl-answer ranking="1"></pl-answer></pl-multiple-choice><pl-order-blocks><pl-answer correct></pl-answer></pl-order-blocks>',
+        {
+          rules: {
+            customTagSchema: 'error',
+            unrecognizedHtmlTags: 'off',
+          },
+          customTags: [
+            {
+              name: 'pl-multiple-choice',
+              children: {
+                tags: [{ name: 'pl-answer', schema: choiceAnswerSchema }],
+              },
+            },
+            {
+              name: 'pl-order-blocks',
+              children: {
+                tags: [{ name: 'pl-answer', schema: orderingAnswerSchema }],
+              },
+            },
+            { name: 'pl-answer' },
+          ],
+        },
+      )
+      .filter((x) => x.ruleName === 'customTagSchema');
+
+    expect(d.map((x) => x.message)).toEqual([
+      'Unknown attribute "ranking" on <pl-answer> inside <pl-multiple-choice>.',
+      'Unknown attribute "correct" on <pl-answer> inside <pl-order-blocks>.',
+    ]);
+  });
 });
 
 describe('createLinter validators hook', () => {

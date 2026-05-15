@@ -1,7 +1,12 @@
 import Ajv from 'ajv';
 import ajvErrors from 'ajv-errors';
 import type { Format, ValidateFunction } from 'ajv';
-import type { CustomTagConfig } from './customCodeTags.js';
+import type {
+  ChildTagConfig,
+  CustomTagChildrenConfig,
+  CustomTagConfig,
+  SchemaRef,
+} from './customCodeTags.js';
 
 export type SchemaFormat = Format;
 
@@ -17,8 +22,22 @@ export interface CompiledTagSchema {
   validate: ValidateFunction;
 }
 
+export interface ChildTagSchemaConfig {
+  mode: 'strict' | 'loose';
+  tags: Map<string, CompiledChildTagConfig>;
+}
+
+export interface CompiledChildTagConfig {
+  tagName: string;
+  schema?: CompiledTagSchema;
+  children?: ChildTagSchemaConfig;
+}
+
 export interface SchemaRegistry {
   schemas: Map<string, CompiledTagSchema>;
+  children: Map<string, ChildTagSchemaConfig>;
+  topLevelTags: Set<string>;
+  childParents: Map<string, Set<string>>;
 }
 
 export interface SchemaLoadOptions {
@@ -65,24 +84,123 @@ function createAjv(): Ajv {
   return ajv;
 }
 
-function resolveSchema(
-  tag: CustomTagConfig,
+function resolveSchemaRef(
+  schema: SchemaRef | undefined,
+  tagName: string,
   options: SchemaLoadOptions,
 ): unknown {
-  if (typeof tag.schema !== 'string') return tag.schema;
+  if (typeof schema !== 'string') return schema;
   if (!options.configDir || !options.loadFile) {
     throw new Error(
-      `Schema path for <${tag.name}> cannot be resolved in this environment`,
+      `Schema path for <${tagName}> cannot be resolved in this environment`,
     );
   }
-  return options.loadFile(tag.schema, options.configDir);
+  return options.loadFile(schema, options.configDir);
+}
+
+function compileSchema(
+  ajv: Ajv,
+  schemaRef: SchemaRef | undefined,
+  tagName: string,
+  options: SchemaLoadOptions,
+): CompiledTagSchema {
+  const rawSchema = resolveSchemaRef(schemaRef, tagName, options);
+  if (!isObject(rawSchema)) {
+    throw new Error('schema must be a JSON object');
+  }
+  if (
+    typeof rawSchema.$schema !== 'string' ||
+    !DRAFT_06_URIS.has(rawSchema.$schema)
+  ) {
+    throw new Error(
+      'schema must declare "$schema": "http://json-schema.org/draft-06/schema#"',
+    );
+  }
+  const schema = cloneSchema(rawSchema);
+  const validate = ajv.compile(schema);
+  return { tagName: tagName.toLowerCase(), schema, validate };
+}
+
+function addChildParent(
+  registry: SchemaRegistry,
+  childTagName: string,
+  parentTagName: string,
+): void {
+  const parents = registry.childParents.get(childTagName) ?? new Set();
+  parents.add(parentTagName);
+  registry.childParents.set(childTagName, parents);
+}
+
+function compileChildTag(
+  child: ChildTagConfig,
+  parentTagName: string,
+  ajv: Ajv,
+  options: SchemaLoadOptions,
+  registry: SchemaRegistry,
+  loadErrors: ConfigLoadError[],
+): CompiledChildTagConfig {
+  const childTagName = child.name.toLowerCase();
+  addChildParent(registry, childTagName, parentTagName);
+  const compiled: CompiledChildTagConfig = { tagName: childTagName };
+  if (child.schema) {
+    try {
+      compiled.schema = compileSchema(ajv, child.schema, child.name, options);
+    } catch (error) {
+      loadErrors.push({
+        tagName: childTagName,
+        message: `Failed to load schema for <${child.name}> inside <${parentTagName}>: ${error instanceof Error ? error.message : String(error)}`,
+      });
+    }
+  }
+  if (child.children) {
+    compiled.children = compileChildrenConfig(
+      childTagName,
+      child.children,
+      ajv,
+      options,
+      registry,
+      loadErrors,
+    );
+  }
+  return compiled;
+}
+
+function compileChildrenConfig(
+  parentTagName: string,
+  children: CustomTagChildrenConfig,
+  ajv: Ajv,
+  options: SchemaLoadOptions,
+  registry: SchemaRegistry,
+  loadErrors: ConfigLoadError[],
+): ChildTagSchemaConfig {
+  const childConfig: ChildTagSchemaConfig = {
+    mode: children.mode ?? 'strict',
+    tags: new Map(),
+  };
+  for (const child of children.tags) {
+    const compiled = compileChildTag(
+      child,
+      parentTagName,
+      ajv,
+      options,
+      registry,
+      loadErrors,
+    );
+    childConfig.tags.set(compiled.tagName, compiled);
+  }
+  return childConfig;
 }
 
 export function loadSchemaRegistry(
   customTags: CustomTagConfig[] | undefined,
   options: SchemaLoadOptions = {},
 ): { registry: SchemaRegistry; loadErrors: ConfigLoadError[] } {
-  const registry: SchemaRegistry = { schemas: new Map() };
+  const registry: SchemaRegistry = {
+    schemas: new Map(),
+    children: new Map(),
+    topLevelTags: new Set(),
+    childParents: new Map(),
+  };
   const loadErrors: ConfigLoadError[] = [];
   const ajv = createAjv();
   if (options.formats) {
@@ -92,29 +210,34 @@ export function loadSchemaRegistry(
   }
 
   for (const tag of customTags ?? []) {
-    if (!tag.schema) continue;
     const tagName = tag.name.toLowerCase();
-    try {
-      const rawSchema = resolveSchema(tag, options);
-      if (!isObject(rawSchema)) {
-        throw new Error('schema must be a JSON object');
-      }
-      if (
-        typeof rawSchema.$schema !== 'string' ||
-        !DRAFT_06_URIS.has(rawSchema.$schema)
-      ) {
-        throw new Error(
-          'schema must declare "$schema": "http://json-schema.org/draft-06/schema#"',
+    registry.topLevelTags.add(tagName);
+    if (tag.schema) {
+      try {
+        registry.schemas.set(
+          tagName,
+          compileSchema(ajv, tag.schema, tag.name, options),
         );
+      } catch (error) {
+        loadErrors.push({
+          tagName,
+          message: `Failed to load schema for <${tag.name}>: ${error instanceof Error ? error.message : String(error)}`,
+        });
       }
-      const schema = cloneSchema(rawSchema);
-      const validate = ajv.compile(schema);
-      registry.schemas.set(tagName, { tagName, schema, validate });
-    } catch (error) {
-      loadErrors.push({
+    }
+
+    if (tag.children) {
+      registry.children.set(
         tagName,
-        message: `Failed to load schema for <${tag.name}>: ${error instanceof Error ? error.message : String(error)}`,
-      });
+        compileChildrenConfig(
+          tagName,
+          tag.children,
+          ajv,
+          options,
+          registry,
+          loadErrors,
+        ),
+      );
     }
   }
 

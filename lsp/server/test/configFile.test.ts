@@ -166,6 +166,59 @@ describe('validateConfig', () => {
     expect(result.customTags![2].display).toBeUndefined();
   });
 
+  it('validates customTags children config', () => {
+    const schema = {
+      $schema: 'http://json-schema.org/draft-06/schema#',
+      type: 'object',
+    };
+    const result = validateConfig({
+      customTags: [
+        {
+          name: 'pl-multiple-choice',
+          children: {
+            mode: 'loose',
+            tags: [
+              { name: 'pl-answer', schema },
+              {
+                name: 'pl-answer-feedback',
+                children: {
+                  tags: [{ name: 'pl-markdown' }],
+                },
+              },
+              { name: '' },
+              { noName: true },
+            ],
+          },
+        },
+        {
+          name: 'pl-order-blocks',
+          children: {
+            mode: 'invalid',
+            tags: [{ name: 'pl-answer' }],
+          },
+        },
+      ],
+    });
+
+    expect(result.customTags).toHaveLength(2);
+    expect(result.customTags![0].children?.mode).toBe('loose');
+    expect(result.customTags![0].children?.tags).toHaveLength(2);
+    expect(result.customTags![0].children?.tags[0]).toEqual({
+      name: 'pl-answer',
+      schema,
+    });
+    expect(result.customTags![0].children?.tags[1]).toEqual({
+      name: 'pl-answer-feedback',
+      children: {
+        tags: [{ name: 'pl-markdown' }],
+      },
+    });
+    expect(result.customTags![1].children?.mode).toBeUndefined();
+    expect(result.customTags![1].children?.tags).toEqual([
+      { name: 'pl-answer' },
+    ]);
+  });
+
   it('merges customCodeTags (legacy) and customTags', () => {
     const result = validateConfig({
       customCodeTags: [
@@ -607,6 +660,62 @@ describe('loadConfigFileForPath', () => {
           live: 'maybe',
         }),
       ).toBe(false);
+    } finally {
+      fs.rmSync(fmTempDir, { recursive: true, force: true });
+    }
+  });
+
+  it('loads child schemas referenced from customTags children', async () => {
+    const fmTempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'lsp-child-schema-'));
+    try {
+      fs.writeFileSync(
+        path.join(fmTempDir, 'pl-answer.schema.json'),
+        JSON.stringify({
+          $schema: 'http://json-schema.org/draft-06/schema#',
+          type: 'object',
+          properties: {
+            correct: { type: 'boolean' },
+          },
+          additionalProperties: false,
+        }),
+      );
+      fs.writeFileSync(
+        path.join(fmTempDir, '.htmlmustache.jsonc'),
+        JSON.stringify({
+          customTags: [
+            {
+              name: 'pl-multiple-choice',
+              children: {
+                tags: [
+                  {
+                    name: 'pl-answer',
+                    schema: './pl-answer.schema.json',
+                    children: {
+                      tags: [{ name: 'pl-answer-feedback' }],
+                    },
+                  },
+                ],
+              },
+            },
+            { name: 'pl-answer' },
+          ],
+        }),
+      );
+
+      const loaded = await loadConfigFileForPath(path.join(fmTempDir, 'test.mustache'));
+      expect(loaded).not.toBeNull();
+      expect(loaded!.schemaLoadErrors).toEqual([]);
+      const childConfig = loaded!.schemaRegistry.children.get('pl-multiple-choice');
+      expect(childConfig?.mode).toBe('strict');
+      const childEntry = childConfig?.tags.get('pl-answer');
+      const compiled = childEntry?.schema;
+      expect(compiled).toBeDefined();
+      expect(compiled!.validate({ correct: true })).toBe(true);
+      expect(compiled!.validate({ ranking: '1' })).toBe(false);
+      expect(childEntry?.children?.tags.has('pl-answer-feedback')).toBe(true);
+      expect(loaded!.schemaRegistry.childParents.get('pl-answer-feedback')).toEqual(
+        new Set(['pl-answer']),
+      );
     } finally {
       fs.rmSync(fmTempDir, { recursive: true, force: true });
     }

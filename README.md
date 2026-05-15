@@ -373,6 +373,57 @@ Schemas validate the tag's flat attribute object. The tag name is implicit from 
 
 Attribute values are coerced by JSON Schema (`"2"` can satisfy an integer, valueless attributes become `true`). Attribute values containing mustache are treated as unknown runtime values, so value-dependent schema errors are waived while presence and unknown-attribute checks still run.
 
+Custom tags can also declare parent-owned child schemas. Child schemas validate a direct child tag's flat attribute object only in the context of that parent:
+
+```jsonc
+{
+  "customTags": [
+    {
+      "name": "pl-multiple-choice",
+      "schema": "elements/pl-multiple-choice/pl-multiple-choice.schema.json",
+      "children": {
+        "tags": [
+          {
+            "name": "pl-answer",
+            "schema": "elements/pl-multiple-choice/pl-answer.schema.json",
+          },
+        ],
+      },
+    },
+    { "name": "pl-answer" },
+  ],
+}
+```
+
+`children.mode` defaults to `"strict"`, so the example above allows only direct `<pl-answer>` HTML elements under `<pl-multiple-choice>`. Set `"mode": "loose"` to keep unlisted direct child elements allowed while still schema-validating listed child tags when they appear. Mustache sections are transparent for this check: `<pl-answer>` inside `{{#cond}}...{{/cond}}` still counts as a direct child of the surrounding parent element.
+
+Parent-owned child schemas do not create a global schema for the child tag. A bare `<pl-answer>` outside `<pl-multiple-choice>` is recognized by `{ "name": "pl-answer" }`, but it does not use the multiple-choice-specific child schema.
+
+If a child tag is declared only inside `children.tags` and is not listed as a top-level `customTags` entry, it is recognized only as a child-owned tag and may appear only as a direct child of the parent tags that declared it. Listing the same tag at the top level means it can also appear in any other context.
+
+`children.tags` can be nested recursively. Each level still validates only direct children, so this keeps `<pl-answer>` scoped to `<pl-multiple-choice>` while giving `<pl-answer>` its own allowed direct child tags:
+
+```jsonc
+{
+  "customTags": [
+    {
+      "name": "pl-multiple-choice",
+      "children": {
+        "tags": [
+          {
+            "name": "pl-answer",
+            "schema": "elements/pl-multiple-choice/pl-answer.schema.json",
+            "children": {
+              "tags": [{ "name": "pl-answer-feedback" }],
+            },
+          },
+        ],
+      },
+    },
+  ],
+}
+```
+
 Example schema:
 
 ```jsonc
@@ -395,13 +446,16 @@ Schemas must declare draft-06 using `http://json-schema.org/draft-06/schema#` (t
 
 Schema diagnostics are phrased in HTML/element terms rather than JSON-Schema vocabulary, so template authors aren't asked to translate `instancePath` and `additionalProperty` back into the markup they wrote. Examples:
 
-| Schema constraint                 | Diagnostic                                                                       |
-| --------------------------------- | -------------------------------------------------------------------------------- |
-| `required: ["answers-name"]`      | `<pl-multiple-choice> is missing required attribute "answers-name".`             |
-| `additionalProperties: false`     | `Unknown attribute "extra" on <pl-multiple-choice>.`                             |
-| `properties.display.enum`         | `Attribute "display" on <pl-multiple-choice> must be one of: "block", "inline".` |
-| `properties.size.type: "integer"` | `Attribute "size" on <pl-multiple-choice> must be integer.`                      |
-| `properties.weight.minimum: 0`    | `Attribute "weight" on <pl-multiple-choice> must be >= 0.`                       |
+| Schema constraint                 | Diagnostic                                                                                      |
+| --------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `required: ["answers-name"]`      | `<pl-multiple-choice> is missing required attribute "answers-name".`                            |
+| `additionalProperties: false`     | `Unknown attribute "extra" on <pl-multiple-choice>.`                                            |
+| strict unlisted child             | `<pl-multiple-choice> only allows these child elements: <pl-answer>.`                           |
+| child-only tag outside its parent | `<pl-answer> may only appear as a direct child of these parent elements: <pl-multiple-choice>.` |
+| child `additionalProperties`      | `Unknown attribute "ranking" on <pl-answer> inside <pl-multiple-choice>.`                       |
+| `properties.display.enum`         | `Attribute "display" on <pl-multiple-choice> must be one of: "block", "inline".`                |
+| `properties.size.type: "integer"` | `Attribute "size" on <pl-multiple-choice> must be integer.`                                     |
+| `properties.weight.minimum: 0`    | `Attribute "weight" on <pl-multiple-choice> must be >= 0.`                                      |
 
 Constraints without a rewriter fall through to ajv's localized text. Every diagnostic carries `ruleName: "customTagSchema"` and points at the element or attribute — see [Disabling Lint Rules](#disabling-lint-rules) to silence them per-region.
 

@@ -2,6 +2,19 @@ import type { Node as SyntaxNode } from 'web-tree-sitter';
 import type { CSSDisplay } from './cssDisplay.js';
 
 export type CustomCodeTagIndentMode = 'never' | 'always' | 'attribute';
+export type CustomTagChildrenMode = 'strict' | 'loose';
+export type SchemaRef = string | Record<string, unknown>;
+
+export interface ChildTagConfig {
+  name: string;
+  schema?: SchemaRef;
+  children?: CustomTagChildrenConfig;
+}
+
+export interface CustomTagChildrenConfig {
+  mode?: CustomTagChildrenMode;
+  tags: ChildTagConfig[];
+}
 
 export interface CustomCodeTagConfig {
   name: string;
@@ -11,11 +24,30 @@ export interface CustomCodeTagConfig {
   languageDefault?: string;
   indent?: CustomCodeTagIndentMode;
   indentAttribute?: string;
-  schema?: string | Record<string, unknown>;
+  schema?: SchemaRef;
+  children?: CustomTagChildrenConfig;
 }
 
 /** Alias for CustomCodeTagConfig (unified name). */
 export type CustomTagConfig = CustomCodeTagConfig;
+
+export function collectCustomTagNames(
+  configs: CustomCodeTagConfig[] | undefined,
+): string[] | undefined {
+  if (!configs) return undefined;
+  const names = new Set<string>();
+  function addChildren(children: CustomTagChildrenConfig | undefined): void {
+    for (const child of children?.tags ?? []) {
+      names.add(child.name);
+      addChildren(child.children);
+    }
+  }
+  for (const config of configs) {
+    names.add(config.name);
+    addChildren(config.children);
+  }
+  return Array.from(names);
+}
 
 /**
  * Check if a custom tag config represents a code tag (has language settings).
