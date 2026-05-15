@@ -246,6 +246,14 @@ function tagContext(tag: string, parentTag?: string): string {
   return parentTag ? `<${tag}> inside <${parentTag}>` : `<${tag}>`;
 }
 
+function booleanAttributeMessage(
+  attrName: string,
+  tag: string,
+  parentTag?: string,
+): string {
+  return `Attribute "${attrName}" on ${tagContext(tag, parentTag)} must have a value.`;
+}
+
 function messageForError(
   error: ErrorObject,
   tag: string,
@@ -285,6 +293,41 @@ function nodeForError(
       : (attr.valueNode ?? attr.attrNode);
   }
   return context.startTag;
+}
+
+function rejectedBooleanAttributes(
+  element: BalanceNode,
+  allowBooleanAttributes: boolean,
+): { context: ElementContext; rejected: Map<string, AttributeInfo> } | null {
+  const built = buildAttributeObject(element);
+  if (!built) return null;
+  const rejected = new Map<string, AttributeInfo>();
+  if (!allowBooleanAttributes) {
+    for (const [name, attr] of built.context.attributesByName) {
+      if (attr.value === true) rejected.set(name, attr);
+    }
+  }
+  return { context: built.context, rejected };
+}
+
+function booleanAttributeDiagnostics(
+  tag: string,
+  rejected: Map<string, AttributeInfo>,
+  parentTag?: string,
+): FixableError[] {
+  return Array.from(rejected, ([name, attr]) => ({
+    node: attr.attrNode,
+    message: booleanAttributeMessage(name, tag, parentTag),
+  }));
+}
+
+function isRejectedBooleanTypeError(
+  error: ErrorObject,
+  rejectedBooleanAttrs: Set<string>,
+): boolean {
+  if (error.keyword !== 'type') return false;
+  const attrName = attributeNameForError(error);
+  return attrName !== null && rejectedBooleanAttrs.has(attrName);
 }
 
 interface MergedError {
@@ -355,6 +398,7 @@ function validateElement(
   compiled: CompiledTagSchema,
   element: BalanceNode,
   parentTag?: string,
+  rejectedBooleanAttrs = new Set<string>(),
 ): FixableError[] {
   const tag = getTagName(element)?.toLowerCase();
   if (!tag) return [];
@@ -363,7 +407,9 @@ function validateElement(
   const valid = compiled.validate(built.data);
   if (valid || !compiled.validate.errors) return [];
   const errors = compiled.validate.errors.filter(
-    (error) => !mentionsDynamicAttribute(error, built.context, compiled.schema),
+    (error) =>
+      !mentionsDynamicAttribute(error, built.context, compiled.schema) &&
+      !isRejectedBooleanTypeError(error, rejectedBooleanAttrs),
   );
   localizeEn(errors.filter((error) => error.keyword !== 'errorMessage'));
   return mergeErrors(errors, tag, parentTag).map(({ error, message }) => ({
@@ -410,7 +456,9 @@ export function checkCustomTagSchemas(
 ): FixableError[] {
   if (
     !registry ||
-    (registry.schemas.size === 0 && registry.children.size === 0)
+    (registry.schemas.size === 0 &&
+      registry.children.size === 0 &&
+      registry.tagOptions.size === 0)
   ) {
     return [];
   }
@@ -419,6 +467,7 @@ export function checkCustomTagSchemas(
   const children = registry.children;
   const topLevelTags = registry.topLevelTags;
   const childParents = registry.childParents;
+  const tagOptions = registry.tagOptions;
 
   function shouldSkipOrphanForStrictParent(
     tag: string,
@@ -453,7 +502,36 @@ export function checkCustomTagSchemas(
         }
       }
       const compiled = tag ? schemas.get(tag) : undefined;
-      if (compiled) errors.push(...validateElement(compiled, node));
+      const allowBooleanAttributes = tag
+        ? (scopedConfig?.allowBooleanAttributes ??
+          tagOptions.get(tag)?.allowBooleanAttributes ??
+          true)
+        : true;
+      const rejectedBooleanInfo =
+        tag && !allowBooleanAttributes
+          ? rejectedBooleanAttributes(node, allowBooleanAttributes)
+          : null;
+      const rejectedBooleanAttrs =
+        rejectedBooleanInfo?.rejected ?? new Map<string, AttributeInfo>();
+      if (tag && rejectedBooleanAttrs.size > 0) {
+        errors.push(
+          ...booleanAttributeDiagnostics(
+            tag,
+            rejectedBooleanAttrs,
+            scopedConfig ? directParentTag : undefined,
+          ),
+        );
+      }
+      if (compiled) {
+        errors.push(
+          ...validateElement(
+            compiled,
+            node,
+            undefined,
+            new Set(rejectedBooleanAttrs.keys()),
+          ),
+        );
+      }
       const childConfig = tag
         ? childrenForElement(tag, scopedConfig, children)
         : undefined;
@@ -473,7 +551,19 @@ export function checkCustomTagSchemas(
             continue;
           }
           if (childEntry.schema) {
-            errors.push(...validateElement(childEntry.schema, child, tag));
+            const childRejected =
+              rejectedBooleanAttributes(
+                child,
+                childEntry.allowBooleanAttributes,
+              )?.rejected ?? new Map<string, AttributeInfo>();
+            errors.push(
+              ...validateElement(
+                childEntry.schema,
+                child,
+                tag,
+                new Set(childRejected.keys()),
+              ),
+            );
           }
         }
       }

@@ -262,6 +262,113 @@ describe('draft-06 flat custom tag schemas', () => {
     expect(extra!.column).toBe(3);
   });
 
+  it('allows boolean custom tag attributes by default and rejects them when defaults opt out', () => {
+    const allowed = linter
+      .lint('<pl-answer correct></pl-answer>', {
+        rules: { customTagSchema: 'error' },
+        customTags: [{ name: 'pl-answer' }],
+      })
+      .filter((x) => x.ruleName === 'customTagSchema');
+    expect(allowed).toEqual([]);
+
+    const rejected = linter
+      .lint('<pl-answer correct></pl-answer>', {
+        rules: { customTagSchema: 'error' },
+        customTagDefaults: { allowBooleanAttributes: false },
+        customTags: [{ name: 'pl-answer' }],
+      })
+      .filter((x) => x.ruleName === 'customTagSchema');
+    expect(rejected).toHaveLength(1);
+    expect(rejected[0].message).toBe(
+      'Attribute "correct" on <pl-answer> must have a value.',
+    );
+  });
+
+  it('lets top-level tag options override boolean attribute defaults', () => {
+    const optedIn = linter
+      .lint('<pl-answer correct></pl-answer>', {
+        rules: { customTagSchema: 'error' },
+        customTagDefaults: { allowBooleanAttributes: false },
+        customTags: [{ name: 'pl-answer', allowBooleanAttributes: true }],
+      })
+      .filter((x) => x.ruleName === 'customTagSchema');
+    expect(optedIn).toEqual([]);
+
+    const optedOut = linter
+      .lint('<pl-answer correct></pl-answer>', {
+        rules: { customTagSchema: 'error' },
+        customTags: [{ name: 'pl-answer', allowBooleanAttributes: false }],
+      })
+      .filter((x) => x.ruleName === 'customTagSchema');
+    expect(optedOut).toHaveLength(1);
+    expect(optedOut[0].message).toBe(
+      'Attribute "correct" on <pl-answer> must have a value.',
+    );
+  });
+
+  it('applies child-specific boolean attribute options in parent-owned contexts', () => {
+    const d = linter
+      .lint(
+        '<pl-multiple-choice><pl-answer correct></pl-answer></pl-multiple-choice><pl-question><pl-answer correct></pl-answer></pl-question>',
+        {
+          rules: {
+            customTagSchema: 'error',
+            unrecognizedHtmlTags: 'off',
+          },
+          customTags: [
+            {
+              name: 'pl-multiple-choice',
+              children: [
+                { name: 'pl-answer', allowBooleanAttributes: false },
+              ],
+            },
+            {
+              name: 'pl-question',
+              children: [{ name: 'pl-answer', allowBooleanAttributes: true }],
+            },
+          ],
+        },
+      )
+      .filter((x) => x.ruleName === 'customTagSchema');
+
+    expect(d).toHaveLength(1);
+    expect(d[0].message).toBe(
+      'Attribute "correct" on <pl-answer> inside <pl-multiple-choice> must have a value.',
+    );
+  });
+
+  it('does not reject valued boolean-like attributes when boolean attributes are disabled', () => {
+    const d = linter
+      .lint(
+        '<pl-answer correct="true"></pl-answer><pl-answer correct="{{value}}"></pl-answer>',
+        {
+          rules: { customTagSchema: 'error' },
+          customTagDefaults: { allowBooleanAttributes: false },
+          customTags: [{ name: 'pl-answer' }],
+        },
+      )
+      .filter((x) => x.ruleName === 'customTagSchema');
+
+    expect(d).toEqual([]);
+  });
+
+  it('anchors boolean attribute diagnostics to the offending attribute', () => {
+    const d = linter
+      .lint('<pl-answer\n  correct></pl-answer>', {
+        rules: { customTagSchema: 'error' },
+        customTagDefaults: { allowBooleanAttributes: false },
+        customTags: [{ name: 'pl-answer' }],
+      })
+      .filter((x) => x.ruleName === 'customTagSchema');
+
+    expect(d).toHaveLength(1);
+    expect(d[0].message).toBe(
+      'Attribute "correct" on <pl-answer> must have a value.',
+    );
+    expect(d[0].line).toBe(2);
+    expect(d[0].column).toBe(3);
+  });
+
   it('waives dynamic mustache attributes but keeps literal sibling failures', () => {
     const schema = {
       $schema: 'http://json-schema.org/draft-06/schema#',
