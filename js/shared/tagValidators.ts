@@ -1,13 +1,24 @@
 import type { RuleSeverity } from './configSchema.js';
 
-export interface TagElement {
+export type AttributeValue = string | true;
+
+export type AttributeValueFor<TAllowBooleanAttributes extends boolean> =
+  TAllowBooleanAttributes extends false ? string : AttributeValue;
+
+export interface TagElement<TAllowBooleanAttributes extends boolean = true> {
   readonly tag: string;
-  readonly attributes: Readonly<Record<string, string | true>>;
+  readonly attributes: Readonly<
+    Record<string, AttributeValueFor<TAllowBooleanAttributes>>
+  >;
   readonly children: readonly TagElement[];
   readonly innerHtml?: string;
   hasAttribute(name: string): boolean;
-  getAttribute(name: string): string | true | undefined;
-  getLiteralAttribute(name: string): string | true | undefined;
+  getAttribute(
+    name: string,
+  ): AttributeValueFor<TAllowBooleanAttributes> | undefined;
+  getLiteralAttribute(
+    name: string,
+  ): AttributeValueFor<TAllowBooleanAttributes> | undefined;
   isAttributeDynamic(name: string): boolean;
   childrenWithTag(tag: string): readonly TagElement[];
   childrenWithoutTag(tag: string): readonly TagElement[];
