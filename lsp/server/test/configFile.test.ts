@@ -175,48 +175,38 @@ describe('validateConfig', () => {
       customTags: [
         {
           name: 'pl-multiple-choice',
-          children: {
-            mode: 'loose',
-            tags: [
-              { name: 'pl-answer', schema },
-              {
-                name: 'pl-answer-feedback',
-                children: {
-                  tags: [{ name: 'pl-markdown' }],
-                },
-              },
-              { name: '' },
-              { noName: true },
-            ],
-          },
+          allowAdditionalChildren: true,
+          children: [
+            { name: 'pl-answer', schema },
+            {
+              name: 'pl-answer-feedback',
+              children: [{ name: 'pl-markdown' }],
+            },
+            { name: '' },
+            { noName: true },
+          ],
         },
         {
           name: 'pl-order-blocks',
-          children: {
-            mode: 'invalid',
-            tags: [{ name: 'pl-answer' }],
-          },
+          allowAdditionalChildren: 'invalid',
+          children: [{ name: 'pl-answer' }],
         },
       ],
     });
 
     expect(result.customTags).toHaveLength(2);
-    expect(result.customTags![0].children?.mode).toBe('loose');
-    expect(result.customTags![0].children?.tags).toHaveLength(2);
-    expect(result.customTags![0].children?.tags[0]).toEqual({
+    expect(result.customTags![0].allowAdditionalChildren).toBe(true);
+    expect(result.customTags![0].children).toHaveLength(2);
+    expect(result.customTags![0].children?.[0]).toEqual({
       name: 'pl-answer',
       schema,
     });
-    expect(result.customTags![0].children?.tags[1]).toEqual({
+    expect(result.customTags![0].children?.[1]).toEqual({
       name: 'pl-answer-feedback',
-      children: {
-        tags: [{ name: 'pl-markdown' }],
-      },
+      children: [{ name: 'pl-markdown' }],
     });
-    expect(result.customTags![1].children?.mode).toBeUndefined();
-    expect(result.customTags![1].children?.tags).toEqual([
-      { name: 'pl-answer' },
-    ]);
+    expect(result.customTags![1].allowAdditionalChildren).toBeUndefined();
+    expect(result.customTags![1].children).toEqual([{ name: 'pl-answer' }]);
   });
 
   it('merges customCodeTags (legacy) and customTags', () => {
@@ -685,17 +675,13 @@ describe('loadConfigFileForPath', () => {
           customTags: [
             {
               name: 'pl-multiple-choice',
-              children: {
-                tags: [
-                  {
-                    name: 'pl-answer',
-                    schema: './pl-answer.schema.json',
-                    children: {
-                      tags: [{ name: 'pl-answer-feedback' }],
-                    },
-                  },
-                ],
-              },
+              children: [
+                {
+                  name: 'pl-answer',
+                  schema: './pl-answer.schema.json',
+                  children: [{ name: 'pl-answer-feedback' }],
+                },
+              ],
             },
             { name: 'pl-answer' },
           ],
@@ -706,7 +692,7 @@ describe('loadConfigFileForPath', () => {
       expect(loaded).not.toBeNull();
       expect(loaded!.schemaLoadErrors).toEqual([]);
       const childConfig = loaded!.schemaRegistry.children.get('pl-multiple-choice');
-      expect(childConfig?.mode).toBe('strict');
+      expect(childConfig?.allowAdditionalChildren).toBe(false);
       const childEntry = childConfig?.tags.get('pl-answer');
       const compiled = childEntry?.schema;
       expect(compiled).toBeDefined();

@@ -424,7 +424,11 @@ export function checkCustomTagSchemas(
     tag: string,
     parentChildren: ChildTagSchemaConfig | undefined,
   ): boolean {
-    return parentChildren?.mode === 'strict' && !parentChildren.tags.has(tag);
+    return (
+      parentChildren !== undefined &&
+      !parentChildren.allowAdditionalChildren &&
+      !parentChildren.tags.has(tag)
+    );
   }
 
   function visit(
@@ -460,7 +464,7 @@ export function checkCustomTagSchemas(
           if (!childTag) continue;
           const childEntry = childConfig.tags.get(childTag);
           if (!childEntry) {
-            if (childConfig.mode === 'strict') {
+            if (!childConfig.allowAdditionalChildren) {
               errors.push({
                 node: child,
                 message: strictChildMessage(tag, allowedTags),

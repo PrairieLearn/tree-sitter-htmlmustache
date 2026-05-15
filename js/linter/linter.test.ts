@@ -344,7 +344,7 @@ describe('draft-06 flat custom tag schemas', () => {
           customTags: [
             {
               name: 'pl-multiple-choice',
-              children: { tags: [{ name: 'pl-answer' }] },
+              children: [{ name: 'pl-answer' }],
             },
             { name: 'pl-answer' },
             { name: 'pl-feedback' },
@@ -378,10 +378,8 @@ describe('draft-06 flat custom tag schemas', () => {
           customTags: [
             {
               name: 'pl-multiple-choice',
-              children: {
-                mode: 'loose',
-                tags: [{ name: 'pl-answer', schema: answerSchema }],
-              },
+              allowAdditionalChildren: true,
+              children: [{ name: 'pl-answer', schema: answerSchema }],
             },
             { name: 'pl-answer' },
             { name: 'pl-feedback' },
@@ -415,7 +413,7 @@ describe('draft-06 flat custom tag schemas', () => {
           customTags: [
             {
               name: 'pl-multiple-choice',
-              children: { tags: [{ name: 'pl-answer', schema: answerSchema }] },
+              children: [{ name: 'pl-answer', schema: answerSchema }],
             },
             { name: 'pl-answer' },
           ],
@@ -440,7 +438,7 @@ describe('draft-06 flat custom tag schemas', () => {
         customTags: [
           {
             name: 'pl-multiple-choice',
-            children: { tags: [{ name: 'pl-answer' }] },
+            children: [{ name: 'pl-answer' }],
           },
         ],
       },
@@ -459,7 +457,7 @@ describe('draft-06 flat custom tag schemas', () => {
         customTags: [
           {
             name: 'pl-multiple-choice',
-            children: { tags: [{ name: 'pl-answer' }] },
+            children: [{ name: 'pl-answer' }],
           },
         ],
       })
@@ -475,16 +473,12 @@ describe('draft-06 flat custom tag schemas', () => {
     const customTags = [
       {
         name: 'pl-multiple-choice',
-        children: {
-          tags: [
-            {
-              name: 'pl-answer',
-              children: {
-                tags: [{ name: 'pl-answer-feedback' }],
-              },
-            },
-          ],
-        },
+        children: [
+          {
+            name: 'pl-answer',
+            children: [{ name: 'pl-answer-feedback' }],
+          },
+        ],
       },
     ];
 
@@ -535,6 +529,51 @@ describe('draft-06 flat custom tag schemas', () => {
     );
   });
 
+  it('supports self-references for child-only recursive tags', () => {
+    const customTags = [
+      {
+        name: 'pl-tree',
+        children: [
+          {
+            name: 'pl-node',
+            children: [{ name: 'pl-node' }],
+          },
+        ],
+      },
+    ];
+
+    const valid = linter
+      .lint(
+        '<pl-tree><pl-node><pl-node><pl-node></pl-node></pl-node></pl-node></pl-tree>',
+        {
+          rules: {
+            customTagSchema: 'error',
+            unrecognizedHtmlTags: 'error',
+          },
+          customTags,
+        },
+      )
+      .filter((x) => x.ruleName === 'customTagSchema');
+    expect(valid).toEqual([]);
+
+    const invalid = linter
+      .lint(
+        '<pl-tree><pl-node><pl-node><span></span></pl-node></pl-node></pl-tree>',
+        {
+          rules: {
+            customTagSchema: 'error',
+            unrecognizedHtmlTags: 'off',
+          },
+          customTags,
+        },
+      )
+      .filter((x) => x.ruleName === 'customTagSchema');
+    expect(invalid).toHaveLength(1);
+    expect(invalid[0].message).toBe(
+      '<pl-node> only allows these child elements: <pl-node>.',
+    );
+  });
+
   it('uses top-level child rules when a scoped child tag is also globally allowed', () => {
     const d = linter
       .lint('<pl-answer><span></span></pl-answer>', {
@@ -545,11 +584,11 @@ describe('draft-06 flat custom tag schemas', () => {
         customTags: [
           {
             name: 'pl-multiple-choice',
-            children: { tags: [{ name: 'pl-answer' }] },
+            children: [{ name: 'pl-answer' }],
           },
           {
             name: 'pl-answer',
-            children: { tags: [{ name: 'pl-answer-feedback' }] },
+            children: [{ name: 'pl-answer-feedback' }],
           },
         ],
       })
@@ -586,15 +625,11 @@ describe('draft-06 flat custom tag schemas', () => {
           customTags: [
             {
               name: 'pl-multiple-choice',
-              children: {
-                tags: [{ name: 'pl-answer', schema: choiceAnswerSchema }],
-              },
+              children: [{ name: 'pl-answer', schema: choiceAnswerSchema }],
             },
             {
               name: 'pl-order-blocks',
-              children: {
-                tags: [{ name: 'pl-answer', schema: orderingAnswerSchema }],
-              },
+              children: [{ name: 'pl-answer', schema: orderingAnswerSchema }],
             },
             { name: 'pl-answer' },
           ],

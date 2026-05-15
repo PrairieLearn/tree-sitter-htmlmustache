@@ -29,7 +29,6 @@ import {
   collectCustomTagNames,
   type ChildTagConfig,
   type CustomCodeTagConfig,
-  type CustomTagChildrenConfig,
 } from '../shared/customCodeTags.js';
 import type {
   TagElement,
@@ -159,18 +158,12 @@ function stripFilesystemSchemas(
   const stripChild = (child: ChildTagConfig): ChildTagConfig => ({
     ...child,
     ...(typeof child.schema === 'string' ? { schema: undefined } : {}),
-    ...(child.children ? { children: stripChildren(child.children) } : {}),
-  });
-  const stripChildren = (
-    children: CustomTagChildrenConfig,
-  ): CustomTagChildrenConfig => ({
-    ...children,
-    tags: children.tags.map(stripChild),
+    ...(child.children ? { children: child.children.map(stripChild) } : {}),
   });
   return tags.map((tag) => ({
     ...tag,
     ...(typeof tag.schema === 'string' ? { schema: undefined } : {}),
-    ...(tag.children ? { children: stripChildren(tag.children) } : {}),
+    ...(tag.children ? { children: tag.children.map(stripChild) } : {}),
   }));
 }
 

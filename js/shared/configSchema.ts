@@ -8,9 +8,7 @@
 import type {
   ChildTagConfig,
   CustomCodeTagConfig,
-  CustomTagChildrenConfig,
   CustomCodeTagIndentMode,
-  CustomTagChildrenMode,
   SchemaRef,
 } from './customCodeTags.js';
 import type { CSSDisplay } from './cssDisplay.js';
@@ -204,7 +202,6 @@ export function parseJsonc(text: string): unknown {
 }
 
 const VALID_INDENT_MODES = new Set<string>(['never', 'always', 'attribute']);
-const VALID_CHILD_MODES = new Set<string>(['strict', 'loose']);
 
 function parseSchemaRef(value: unknown): SchemaRef | undefined {
   if (typeof value === 'string') return value;
@@ -224,23 +221,14 @@ function parseChildTagArray(arr: unknown): ChildTagConfig[] | null {
     const tag: ChildTagConfig = { name: e.name };
     const schema = parseSchemaRef(e.schema);
     if (schema) tag.schema = schema;
-    const children = parseChildrenConfig(e.children);
+    const children = parseChildTagArray(e.children);
     if (children) tag.children = children;
+    if (typeof e.allowAdditionalChildren === 'boolean') {
+      tag.allowAdditionalChildren = e.allowAdditionalChildren;
+    }
     tags.push(tag);
   }
   return tags;
-}
-
-function parseChildrenConfig(value: unknown): CustomTagChildrenConfig | null {
-  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
-  const raw = value as Record<string, unknown>;
-  const tags = parseChildTagArray(raw.tags);
-  if (!tags) return null;
-  const children: CustomTagChildrenConfig = { tags };
-  if (typeof raw.mode === 'string' && VALID_CHILD_MODES.has(raw.mode)) {
-    children.mode = raw.mode as CustomTagChildrenMode;
-  }
-  return children;
 }
 
 /**
@@ -281,8 +269,11 @@ function parseCustomTagArray(arr: unknown): CustomCodeTagConfig[] {
       }
       const schema = parseSchemaRef(e.schema);
       if (schema) tag.schema = schema;
-      const children = parseChildrenConfig(e.children);
+      const children = parseChildTagArray(e.children);
       if (children) tag.children = children;
+      if (typeof e.allowAdditionalChildren === 'boolean') {
+        tag.allowAdditionalChildren = e.allowAdditionalChildren;
+      }
       tags.push(tag);
     }
   }

@@ -3,7 +3,6 @@ import ajvErrors from 'ajv-errors';
 import type { Format, ValidateFunction } from 'ajv';
 import type {
   ChildTagConfig,
-  CustomTagChildrenConfig,
   CustomTagConfig,
   SchemaRef,
 } from './customCodeTags.js';
@@ -23,7 +22,7 @@ export interface CompiledTagSchema {
 }
 
 export interface ChildTagSchemaConfig {
-  mode: 'strict' | 'loose';
+  allowAdditionalChildren: boolean;
   tags: Map<string, CompiledChildTagConfig>;
 }
 
@@ -49,6 +48,13 @@ export interface SchemaLoadOptions {
    * `pl-boolean` accepting the 20-ish truthy strings PrairieLearn coerces.
    */
   formats?: Record<string, SchemaFormat>;
+}
+
+interface CompileContext {
+  ajv: Ajv;
+  options: SchemaLoadOptions;
+  registry: SchemaRegistry;
+  loadErrors: ConfigLoadError[];
 }
 
 const DRAFT_06_URIS = new Set([
@@ -134,11 +140,9 @@ function addChildParent(
 function compileChildTag(
   child: ChildTagConfig,
   parentTagName: string,
-  ajv: Ajv,
-  options: SchemaLoadOptions,
-  registry: SchemaRegistry,
-  loadErrors: ConfigLoadError[],
+  context: CompileContext,
 ): CompiledChildTagConfig {
+  const { ajv, options, registry, loadErrors } = context;
   const childTagName = child.name.toLowerCase();
   addChildParent(registry, childTagName, parentTagName);
   const compiled: CompiledChildTagConfig = { tagName: childTagName };
@@ -156,10 +160,9 @@ function compileChildTag(
     compiled.children = compileChildrenConfig(
       childTagName,
       child.children,
-      ajv,
-      options,
-      registry,
-      loadErrors,
+      child.allowAdditionalChildren ?? false,
+      context,
+      compiled,
     );
   }
   return compiled;
@@ -167,26 +170,26 @@ function compileChildTag(
 
 function compileChildrenConfig(
   parentTagName: string,
-  children: CustomTagChildrenConfig,
-  ajv: Ajv,
-  options: SchemaLoadOptions,
-  registry: SchemaRegistry,
-  loadErrors: ConfigLoadError[],
+  children: ChildTagConfig[],
+  allowAdditionalChildren: boolean,
+  context: CompileContext,
+  selfChild?: CompiledChildTagConfig,
 ): ChildTagSchemaConfig {
+  const { registry } = context;
   const childConfig: ChildTagSchemaConfig = {
-    mode: children.mode ?? 'strict',
+    allowAdditionalChildren,
     tags: new Map(),
   };
-  for (const child of children.tags) {
-    const compiled = compileChildTag(
-      child,
-      parentTagName,
-      ajv,
-      options,
-      registry,
-      loadErrors,
-    );
+  for (const child of children) {
+    const childTagName = child.name.toLowerCase();
+    const compiled =
+      childTagName === parentTagName && selfChild
+        ? selfChild
+        : compileChildTag(child, parentTagName, context);
     childConfig.tags.set(compiled.tagName, compiled);
+    if (compiled === selfChild) {
+      addChildParent(registry, childTagName, parentTagName);
+    }
   }
   return childConfig;
 }
@@ -203,6 +206,7 @@ export function loadSchemaRegistry(
   };
   const loadErrors: ConfigLoadError[] = [];
   const ajv = createAjv();
+  const context: CompileContext = { ajv, options, registry, loadErrors };
   if (options.formats) {
     for (const [name, format] of Object.entries(options.formats)) {
       ajv.addFormat(name, format);
@@ -232,10 +236,8 @@ export function loadSchemaRegistry(
         compileChildrenConfig(
           tagName,
           tag.children,
-          ajv,
-          options,
-          registry,
-          loadErrors,
+          tag.allowAdditionalChildren ?? false,
+          context,
         ),
       );
     }

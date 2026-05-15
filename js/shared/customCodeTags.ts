@@ -2,18 +2,13 @@ import type { Node as SyntaxNode } from 'web-tree-sitter';
 import type { CSSDisplay } from './cssDisplay.js';
 
 export type CustomCodeTagIndentMode = 'never' | 'always' | 'attribute';
-export type CustomTagChildrenMode = 'strict' | 'loose';
 export type SchemaRef = string | Record<string, unknown>;
 
 export interface ChildTagConfig {
   name: string;
   schema?: SchemaRef;
-  children?: CustomTagChildrenConfig;
-}
-
-export interface CustomTagChildrenConfig {
-  mode?: CustomTagChildrenMode;
-  tags: ChildTagConfig[];
+  children?: ChildTagConfig[];
+  allowAdditionalChildren?: boolean;
 }
 
 export interface CustomCodeTagConfig {
@@ -25,7 +20,8 @@ export interface CustomCodeTagConfig {
   indent?: CustomCodeTagIndentMode;
   indentAttribute?: string;
   schema?: SchemaRef;
-  children?: CustomTagChildrenConfig;
+  children?: ChildTagConfig[];
+  allowAdditionalChildren?: boolean;
 }
 
 /** Alias for CustomCodeTagConfig (unified name). */
@@ -36,8 +32,8 @@ export function collectCustomTagNames(
 ): string[] | undefined {
   if (!configs) return undefined;
   const names = new Set<string>();
-  function addChildren(children: CustomTagChildrenConfig | undefined): void {
-    for (const child of children?.tags ?? []) {
+  function addChildren(children: ChildTagConfig[] | undefined): void {
+    for (const child of children ?? []) {
       names.add(child.name);
       addChildren(child.children);
     }

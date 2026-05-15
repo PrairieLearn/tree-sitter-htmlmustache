@@ -381,44 +381,56 @@ Custom tags can also declare parent-owned child schemas. Child schemas validate 
     {
       "name": "pl-multiple-choice",
       "schema": "elements/pl-multiple-choice/pl-multiple-choice.schema.json",
-      "children": {
-        "tags": [
-          {
-            "name": "pl-answer",
-            "schema": "elements/pl-multiple-choice/pl-answer.schema.json",
-          },
-        ],
-      },
+      "children": [
+        {
+          "name": "pl-answer",
+          "schema": "elements/pl-multiple-choice/pl-answer.schema.json",
+        },
+      ],
     },
     { "name": "pl-answer" },
   ],
 }
 ```
 
-`children.mode` defaults to `"strict"`, so the example above allows only direct `<pl-answer>` HTML elements under `<pl-multiple-choice>`. Set `"mode": "loose"` to keep unlisted direct child elements allowed while still schema-validating listed child tags when they appear. Mustache sections are transparent for this check: `<pl-answer>` inside `{{#cond}}...{{/cond}}` still counts as a direct child of the surrounding parent element.
+By default, the example above allows only direct `<pl-answer>` HTML elements under `<pl-multiple-choice>`. Set `"allowAdditionalChildren": true` on the parent tag to keep unlisted direct child elements allowed while still schema-validating listed child tags when they appear. Mustache sections are transparent for this check: `<pl-answer>` inside `{{#cond}}...{{/cond}}` still counts as a direct child of the surrounding parent element.
 
 Parent-owned child schemas do not create a global schema for the child tag. A bare `<pl-answer>` outside `<pl-multiple-choice>` is recognized by `{ "name": "pl-answer" }`, but it does not use the multiple-choice-specific child schema.
 
-If a child tag is declared only inside `children.tags` and is not listed as a top-level `customTags` entry, it is recognized only as a child-owned tag and may appear only as a direct child of the parent tags that declared it. Listing the same tag at the top level means it can also appear in any other context.
+If a child tag is declared only inside `children` and is not listed as a top-level `customTags` entry, it is recognized only as a child-owned tag and may appear only as a direct child of the parent tags that declared it. Listing the same tag at the top level means it can also appear in any other context.
 
-`children.tags` can be nested recursively. Each level still validates only direct children, so this keeps `<pl-answer>` scoped to `<pl-multiple-choice>` while giving `<pl-answer>` its own allowed direct child tags:
+`children` can be nested recursively. Each level still validates only direct children, so this keeps `<pl-answer>` scoped to `<pl-multiple-choice>` while giving `<pl-answer>` its own allowed direct child tags:
 
 ```jsonc
 {
   "customTags": [
     {
       "name": "pl-multiple-choice",
-      "children": {
-        "tags": [
-          {
-            "name": "pl-answer",
-            "schema": "elements/pl-multiple-choice/pl-answer.schema.json",
-            "children": {
-              "tags": [{ "name": "pl-answer-feedback" }],
-            },
-          },
-        ],
-      },
+      "children": [
+        {
+          "name": "pl-answer",
+          "schema": "elements/pl-multiple-choice/pl-answer.schema.json",
+          "children": [{ "name": "pl-answer-feedback" }],
+        },
+      ],
+    },
+  ],
+}
+```
+
+Same-name child entries are self-references. This child-only recursive tag allows `<pl-node>` to nest under itself at any depth while still rejecting other direct children:
+
+```jsonc
+{
+  "customTags": [
+    {
+      "name": "pl-tree",
+      "children": [
+        {
+          "name": "pl-node",
+          "children": [{ "name": "pl-node" }],
+        },
+      ],
     },
   ],
 }
