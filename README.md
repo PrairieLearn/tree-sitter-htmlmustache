@@ -306,7 +306,7 @@ Create a `.htmlmustache.jsonc` file in your project root to configure formatting
 ```
 
 The schema URL above tracks `main`. For release-pinned validation, replace
-`main` with a tag such as `v1.3.2`.
+`main` with a tag such as `v1.3.3`.
 
 ### Lint Rules
 
