@@ -1,4 +1,5 @@
 import { describe, expectTypeOf, it } from 'vitest';
+import { defineTagValidators } from './tagValidators.js';
 import type { TagElement } from './tagValidators.js';
 
 describe('TagElement boolean attribute type narrowing', () => {
@@ -24,5 +25,22 @@ describe('TagElement boolean attribute type narrowing', () => {
     expectTypeOf<
       ReturnType<TagElement<false>['getLiteralAttribute']>
     >().toEqualTypeOf<string | undefined>();
+  });
+
+  it('allows validators to opt into the narrowed tag element shape', () => {
+    defineTagValidators('pl-answer', {
+      direct(element: TagElement<false>) {
+        expectTypeOf(element.getAttribute('correct')).toEqualTypeOf<
+          string | undefined
+        >();
+      },
+      object: {
+        validate(element: TagElement<false>) {
+          expectTypeOf(element.getLiteralAttribute('correct')).toEqualTypeOf<
+            string | undefined
+          >();
+        },
+      },
+    });
   });
 });

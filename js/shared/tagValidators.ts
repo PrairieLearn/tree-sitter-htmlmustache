@@ -48,18 +48,24 @@ export interface TagValidator {
   validate(element: TagElement, context: ValidatorContext): void;
 }
 
-export type TagValidatorFn = (
-  element: TagElement,
+export type TagValidatorFn<TAllowBooleanAttributes extends boolean = true> = (
+  element: TagElement<TAllowBooleanAttributes>,
   context: ValidatorContext,
 ) => void;
 
-export interface TagValidatorRule {
+export interface TagValidatorRule<
+  TAllowBooleanAttributes extends boolean = true,
+> {
   severity?: RuleSeverity;
   options?: TagValidator['options'];
-  validate: TagValidatorFn;
+  validate: TagValidatorFn<TAllowBooleanAttributes>;
 }
 
-export type TagValidatorRuleEntry = TagValidatorFn | TagValidatorRule;
+export type TagValidatorRuleEntry<
+  TAllowBooleanAttributes extends boolean = true,
+> =
+  | TagValidatorFn<TAllowBooleanAttributes>
+  | TagValidatorRule<TAllowBooleanAttributes>;
 
 function normalizeTagInput(tag: string): string {
   if (tag.length === 0) {
@@ -68,9 +74,13 @@ function normalizeTagInput(tag: string): string {
   return tag.toLowerCase();
 }
 
-export function defineTagValidators(
+export function defineTagValidators<
+  TAllowBooleanAttributes extends boolean = true,
+>(
   tagOrTags: string | readonly string[],
-  rules: Readonly<Record<string, TagValidatorRuleEntry>>,
+  rules: Readonly<
+    Record<string, TagValidatorRuleEntry<TAllowBooleanAttributes>>
+  >,
 ): TagValidator[] {
   const tags = (Array.isArray(tagOrTags) ? tagOrTags : [tagOrTags]).map(
     normalizeTagInput,
@@ -81,14 +91,18 @@ export function defineTagValidators(
 
   return Object.entries(rules).map(([id, rule]) => {
     if (typeof rule === 'function') {
-      return { id, tags: [...tags], validate: rule };
+      return {
+        id,
+        tags: [...tags],
+        validate: rule as TagValidator['validate'],
+      };
     }
     return {
       id,
       tags: [...tags],
       ...(rule.severity !== undefined ? { severity: rule.severity } : {}),
       ...(rule.options !== undefined ? { options: rule.options } : {}),
-      validate: rule.validate,
+      validate: rule.validate as TagValidator['validate'],
     };
   });
 }
