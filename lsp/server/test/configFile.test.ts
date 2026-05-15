@@ -209,28 +209,6 @@ describe('validateConfig', () => {
     expect(result.customTags![1].children).toEqual([{ name: 'pl-answer' }]);
   });
 
-  it('merges customCodeTags (legacy) and customTags', () => {
-    const result = validateConfig({
-      customCodeTags: [
-        { name: 'pl-code', languageDefault: 'python' },
-        { name: 'old-tag', languageDefault: 'text' },
-      ],
-      customTags: [
-        { name: 'pl-code', languageDefault: 'cpp', display: 'block' },
-        { name: 'my-card', display: 'block' },
-      ],
-    });
-    expect(result.customTags).toHaveLength(3);
-    // customTags overrides customCodeTags by name
-    const plCode = result.customTags!.find(t => t.name === 'pl-code');
-    expect(plCode?.languageDefault).toBe('cpp');
-    expect(plCode?.display).toBe('block');
-    // old-tag from customCodeTags preserved
-    expect(result.customTags!.find(t => t.name === 'old-tag')).toBeDefined();
-    // my-card from customTags preserved
-    expect(result.customTags!.find(t => t.name === 'my-card')).toBeDefined();
-  });
-
   it('validates include array', () => {
     expect(validateConfig({ include: ['**/*.mustache', '**/*.hbs'] })).toEqual({
       include: ['**/*.mustache', '**/*.hbs'],

@@ -277,6 +277,8 @@ Create a `.htmlmustache.jsonc` file in your project root to configure formatting
 
 ```jsonc
 {
+  "$schema": "https://raw.githubusercontent.com/reteps/tree-sitter-htmlmustache/main/schemas/htmlmustache-config.schema.json",
+
   // File patterns for CLI commands (used when no patterns are passed as arguments)
   "include": ["**/*.mustache", "**/*.hbs"],
 
@@ -302,6 +304,9 @@ Create a `.htmlmustache.jsonc` file in your project root to configure formatting
   ],
 }
 ```
+
+The schema URL above tracks `main`. For release-pinned validation, replace
+`main` with a tag such as `v1.3.2`.
 
 ### Lint Rules
 

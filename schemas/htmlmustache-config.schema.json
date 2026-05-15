@@ -1,0 +1,637 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "$schema": {
+      "type": "string"
+    },
+    "printWidth": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "indentSize": {
+      "type": "number",
+      "exclusiveMinimum": 0
+    },
+    "mustacheSpaces": {
+      "type": "boolean"
+    },
+    "noBreakDelimiters": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "minLength": 1
+          },
+          "end": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "required": [
+          "start",
+          "end"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "customTags": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "display": {
+            "type": "string",
+            "enum": [
+              "block",
+              "inline",
+              "inline-block",
+              "table-row",
+              "table-cell",
+              "table",
+              "table-row-group",
+              "table-header-group",
+              "table-footer-group",
+              "table-column",
+              "table-column-group",
+              "table-caption",
+              "list-item",
+              "ruby",
+              "ruby-base",
+              "ruby-text",
+              "none"
+            ]
+          },
+          "languageAttribute": {
+            "type": "string"
+          },
+          "languageMap": {
+            "type": "object",
+            "propertyNames": {
+              "type": "string"
+            },
+            "additionalProperties": {
+              "type": "string"
+            }
+          },
+          "languageDefault": {
+            "type": "string"
+          },
+          "indent": {
+            "type": "string",
+            "enum": [
+              "never",
+              "always",
+              "attribute"
+            ]
+          },
+          "indentAttribute": {
+            "type": "string"
+          },
+          "schema": {
+            "anyOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "object",
+                "properties": {},
+                "additionalProperties": {}
+              }
+            ]
+          },
+          "children": {
+            "type": "array",
+            "items": {
+              "$ref": "#/definitions/__schema0"
+            }
+          },
+          "allowAdditionalChildren": {
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "include": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "exclude": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "rules": {
+      "type": "object",
+      "properties": {
+        "nestedDuplicateSections": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "off"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning",
+                    "off"
+                  ]
+                }
+              },
+              "required": [
+                "severity"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "unquotedMustacheAttributes": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "off"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning",
+                    "off"
+                  ]
+                }
+              },
+              "required": [
+                "severity"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "consecutiveDuplicateSections": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "off"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning",
+                    "off"
+                  ]
+                }
+              },
+              "required": [
+                "severity"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "selfClosingNonVoidTags": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "off"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning",
+                    "off"
+                  ]
+                }
+              },
+              "required": [
+                "severity"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "duplicateAttributes": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "off"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning",
+                    "off"
+                  ]
+                }
+              },
+              "required": [
+                "severity"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "unescapedEntities": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "off"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning",
+                    "off"
+                  ]
+                }
+              },
+              "required": [
+                "severity"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "preferMustacheComments": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "off"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning",
+                    "off"
+                  ]
+                }
+              },
+              "required": [
+                "severity"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "unrecognizedHtmlTags": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "off"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning",
+                    "off"
+                  ]
+                }
+              },
+              "required": [
+                "severity"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "elementContentTooLong": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "off"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning",
+                    "off"
+                  ]
+                },
+                "elements": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "tag": {
+                        "type": "string",
+                        "minLength": 1
+                      },
+                      "maxBytes": {
+                        "type": "number",
+                        "minimum": 0
+                      }
+                    },
+                    "required": [
+                      "tag",
+                      "maxBytes"
+                    ],
+                    "additionalProperties": false
+                  }
+                }
+              },
+              "required": [
+                "severity"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "customTagSchema": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "off"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning",
+                    "off"
+                  ]
+                }
+              },
+              "required": [
+                "severity"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "customTagDeprecations": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "off"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning",
+                    "off"
+                  ]
+                }
+              },
+              "required": [
+                "severity"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        },
+        "pluginModule": {
+          "anyOf": [
+            {
+              "type": "string",
+              "enum": [
+                "error",
+                "warning",
+                "off"
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
+                "severity": {
+                  "type": "string",
+                  "enum": [
+                    "error",
+                    "warning",
+                    "off"
+                  ]
+                }
+              },
+              "required": [
+                "severity"
+              ],
+              "additionalProperties": false
+            }
+          ]
+        }
+      },
+      "additionalProperties": {
+        "anyOf": [
+          {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "off"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "severity": {
+                "type": "string",
+                "enum": [
+                  "error",
+                  "warning",
+                  "off"
+                ]
+              }
+            },
+            "required": [
+              "severity"
+            ],
+            "additionalProperties": false
+          }
+        ]
+      }
+    },
+    "customRules": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "selector": {
+            "type": "string",
+            "minLength": 1
+          },
+          "message": {
+            "type": "string",
+            "minLength": 1
+          },
+          "severity": {
+            "type": "string",
+            "enum": [
+              "error",
+              "warning",
+              "off"
+            ]
+          },
+          "include": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "exclude": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "required": [
+          "id",
+          "selector",
+          "message"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "pluginModule": {
+      "type": "string",
+      "minLength": 1
+    }
+  },
+  "additionalProperties": false,
+  "definitions": {
+    "__schema0": {
+      "type": "object",
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "schema": {
+          "anyOf": [
+            {
+              "type": "string",
+              "minLength": 1
+            },
+            {
+              "type": "object",
+              "properties": {},
+              "additionalProperties": {}
+            }
+          ]
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/__schema0"
+          }
+        },
+        "allowAdditionalChildren": {
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "additionalProperties": false
+    }
+  },
+  "$id": "https://raw.githubusercontent.com/reteps/tree-sitter-htmlmustache/main/schemas/htmlmustache-config.schema.json",
+  "title": "HTML Mustache configuration",
+  "description": "Configuration for .htmlmustache.jsonc files."
+}
