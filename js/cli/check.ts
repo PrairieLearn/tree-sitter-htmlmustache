@@ -219,6 +219,7 @@ export async function resolveFiles(cliPatterns: string[]): Promise<{
   const schemaResult = config
     ? loadSchemaRegistry(config.customTags, {
         configDir: configDir ?? undefined,
+        customTagDefaults: config.customTagDefaults,
         loadFile: (schemaPath, baseDir) =>
           parseJsonc(
             fs.readFileSync(path.resolve(baseDir, schemaPath), 'utf-8'),

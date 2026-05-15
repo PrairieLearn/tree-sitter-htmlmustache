@@ -6,6 +6,7 @@ import type {
   CustomTagConfig,
   SchemaRef,
 } from './customCodeTags.js';
+import type { CustomTagDefaults } from './configSchema.js';
 
 export type SchemaFormat = Format;
 
@@ -26,8 +27,13 @@ export interface ChildTagSchemaConfig {
   tags: Map<string, CompiledChildTagConfig>;
 }
 
+export interface TagValidationOptions {
+  allowBooleanAttributes: boolean;
+}
+
 export interface CompiledChildTagConfig {
   tagName: string;
+  allowBooleanAttributes: boolean;
   schema?: CompiledTagSchema;
   children?: ChildTagSchemaConfig;
 }
@@ -37,10 +43,12 @@ export interface SchemaRegistry {
   children: Map<string, ChildTagSchemaConfig>;
   topLevelTags: Set<string>;
   childParents: Map<string, Set<string>>;
+  tagOptions: Map<string, TagValidationOptions>;
 }
 
 export interface SchemaLoadOptions {
   configDir?: string;
+  customTagDefaults?: CustomTagDefaults;
   loadFile?: (schemaPath: string, configDir: string) => unknown;
   /**
    * ajv formats registered on the validator before any tag schema compiles.
@@ -88,6 +96,13 @@ function createAjv(): Ajv {
   });
   ajvErrors(ajv);
   return ajv;
+}
+
+function resolveAllowBooleanAttributes(
+  value: boolean | undefined,
+  defaults: CustomTagDefaults | undefined,
+): boolean {
+  return value ?? defaults?.allowBooleanAttributes ?? true;
 }
 
 function resolveSchemaRef(
@@ -145,7 +160,13 @@ function compileChildTag(
   const { ajv, options, registry, loadErrors } = context;
   const childTagName = child.name.toLowerCase();
   addChildParent(registry, childTagName, parentTagName);
-  const compiled: CompiledChildTagConfig = { tagName: childTagName };
+  const compiled: CompiledChildTagConfig = {
+    tagName: childTagName,
+    allowBooleanAttributes: resolveAllowBooleanAttributes(
+      child.allowBooleanAttributes,
+      options.customTagDefaults,
+    ),
+  };
   if (child.schema) {
     try {
       compiled.schema = compileSchema(ajv, child.schema, child.name, options);
@@ -203,6 +224,7 @@ export function loadSchemaRegistry(
     children: new Map(),
     topLevelTags: new Set(),
     childParents: new Map(),
+    tagOptions: new Map(),
   };
   const loadErrors: ConfigLoadError[] = [];
   const ajv = createAjv();
@@ -216,6 +238,12 @@ export function loadSchemaRegistry(
   for (const tag of customTags ?? []) {
     const tagName = tag.name.toLowerCase();
     registry.topLevelTags.add(tagName);
+    registry.tagOptions.set(tagName, {
+      allowBooleanAttributes: resolveAllowBooleanAttributes(
+        tag.allowBooleanAttributes,
+        options.customTagDefaults,
+      ),
+    });
     if (tag.schema) {
       try {
         registry.schemas.set(

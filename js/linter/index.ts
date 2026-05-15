@@ -170,6 +170,7 @@ export async function createLinter(opts: CreateLinterOptions): Promise<Linter> {
         const schemaResult = loadSchemaRegistry(
           stripFilesystemSchemas(config?.customTags),
           {
+            customTagDefaults: config?.customTagDefaults,
             formats,
           },
         );

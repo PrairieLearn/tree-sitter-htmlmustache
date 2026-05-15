@@ -227,12 +227,13 @@ function loadSchemasCached(
   formats: Record<string, SchemaFormat> | undefined,
   pluginModuleCacheKey: string,
 ): { schemaRegistry: SchemaRegistry; schemaLoadErrors: ConfigLoadError[] } {
-  const key = `${configDir}\0${pluginModuleCacheKey}\0${JSON.stringify(config.customTags ?? [])}`;
+  const key = `${configDir}\0${pluginModuleCacheKey}\0${JSON.stringify(config.customTagDefaults ?? null)}\0${JSON.stringify(config.customTags ?? [])}`;
   const cached = schemaCache.get(key);
   if (cached) return cached;
   const { registry: schemaRegistry, loadErrors: schemaLoadErrors } =
     loadSchemaRegistry(config.customTags, {
       configDir,
+      customTagDefaults: config.customTagDefaults,
       loadFile: readSchemaFile,
       formats,
     });
