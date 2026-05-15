@@ -70,6 +70,15 @@ Child tag entries do not inherit the setting from their parent tag entry. They i
 
 If the same child tag is declared under different parents, each child entry may use a different `allowBooleanAttributes` value, matching the existing parent-specific child schema behavior.
 
+Example with boolean attributes disabled by default for custom tags, but allowed for `<pl-answer>`:
+
+```jsonc
+{
+  "customTagDefaults": { "allowBooleanAttributes": false },
+  "customTags": [{ "name": "pl-answer", "allowBooleanAttributes": true }]
+}
+```
+
 ## Validation Behavior
 
 When the resolved setting for a custom tag entry is `false`, every literal HTML boolean attribute on that element is a `customTagSchema` diagnostic.
@@ -106,6 +115,8 @@ Attribute "correct" on <pl-answer> inside <pl-multiple-choice> must have a value
 The diagnostic anchors to the boolean attribute node. The check runs before JSON Schema validation for the same element. The linter may still emit other schema diagnostics for other attributes on the same element, but it should avoid duplicate value-type diagnostics caused only by the `true` sentinel for the same boolean attribute when the no-boolean-attributes diagnostic already explains the issue.
 
 Dynamic or mustache-shaped attributes are unaffected unless they parse as ordinary HTML boolean attributes. For example, `<pl-answer correct="{{value}}">` has a value and is not rejected by this option.
+
+Ordinary HTML boolean attributes such as `<input disabled>` are not affected because the option applies only to configured custom tag entries.
 
 ## TypeScript API
 

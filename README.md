@@ -376,7 +376,18 @@ Schemas validate the tag's flat attribute object. The tag name is implicit from 
 }
 ```
 
-Attribute values are coerced by JSON Schema (`"2"` can satisfy an integer, valueless attributes become `true`). Attribute values containing mustache are treated as unknown runtime values, so value-dependent schema errors are waived while presence and unknown-attribute checks still run.
+Attribute values are coerced by JSON Schema (`"2"` can satisfy an integer, boolean attributes become `true`). Attribute values containing mustache are treated as unknown runtime values, so value-dependent schema errors are waived while presence and unknown-attribute checks still run.
+
+HTML boolean attributes are allowed on custom tags by default, so `<pl-answer correct>` validates as `{ "correct": true }`. To require explicit values for custom tag attributes by default, set `customTagDefaults.allowBooleanAttributes` to `false`; individual custom tag entries can opt back in:
+
+```jsonc
+{
+  "customTagDefaults": { "allowBooleanAttributes": false },
+  "customTags": [{ "name": "pl-answer", "allowBooleanAttributes": true }],
+}
+```
+
+When boolean attributes are disabled for a custom tag, `<pl-answer correct>` reports `Attribute "correct" on <pl-answer> must have a value.` Ordinary HTML boolean attributes such as `<input disabled>` are not affected by this custom tag setting.
 
 Custom tags can also declare parent-owned child schemas. Child schemas validate a direct child tag's flat attribute object only in the context of that parent:
 
@@ -470,6 +481,7 @@ Schema diagnostics are phrased in HTML/element terms rather than JSON-Schema voc
 | strict unlisted child             | `<pl-multiple-choice> only allows these child elements: <pl-answer>.`                           |
 | child-only tag outside its parent | `<pl-answer> may only appear as a direct child of these parent elements: <pl-multiple-choice>.` |
 | child `additionalProperties`      | `Unknown attribute "ranking" on <pl-answer> inside <pl-multiple-choice>.`                       |
+| custom tag boolean attribute      | `Attribute "correct" on <pl-answer> must have a value.`                                         |
 | `properties.display.enum`         | `Attribute "display" on <pl-multiple-choice> must be one of: "block", "inline".`                |
 | `properties.size.type: "integer"` | `Attribute "size" on <pl-multiple-choice> must be integer.`                                     |
 | `properties.weight.minimum: 0`    | `Attribute "weight" on <pl-multiple-choice> must be >= 0.`                                      |
