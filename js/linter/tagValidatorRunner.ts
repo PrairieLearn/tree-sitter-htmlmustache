@@ -116,7 +116,7 @@ function buildFacade(
   for (const [name, info] of attributesByName) attributes[name] = info.value;
   const children = includeChildren
     ? collectDirectHtmlChildren(node)
-        .map((child) => buildFacade(child, includeInnerHtml, false))
+        .map((child) => buildFacade(child, includeInnerHtml, true))
         .filter((child): child is Facade => child !== null)
     : [];
   return {

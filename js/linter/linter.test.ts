@@ -946,7 +946,7 @@ describe('createLinter validators hook', () => {
     expect(disabled.some((x) => x.ruleName === 'no-pl-card')).toBe(false);
   });
 
-  it('exposes one-level child facades with mustache-section flattening', async () => {
+  it('exposes direct child facades with mustache-section flattening', async () => {
     const handle = await createLinter({
       locateWasm: GRAMMAR_WASM_PATH,
       validators: [
@@ -958,10 +958,13 @@ describe('createLinter validators hook', () => {
             if (tags !== 'pl-item,pl-extra') {
               context.report({ element, message: `children:${tags}` });
             }
-            if (element.children[0]?.children.length !== 0) {
+            if (
+              element.children[0]?.childrenWithTag('span').length !== 1 ||
+              element.children[0]?.childrenWithTag('pl-extra').length !== 0
+            ) {
               context.report({
                 element,
-                message: 'children should be one-level',
+                message: 'child facade children mismatch',
               });
             }
           },
@@ -979,6 +982,35 @@ describe('createLinter validators hook', () => {
       },
     );
     expect(d.filter((x) => x.ruleName === 'child-tags')).toEqual([]);
+  });
+
+  it('populates nested custom-tag child facades recursively', async () => {
+    const handle = await createLinter({
+      locateWasm: GRAMMAR_WASM_PATH,
+      validators: defineTagValidators('pl-order-blocks', {
+        'requires-group-answer'(element, context) {
+          for (const group of element.childrenWithTag('pl-block-group')) {
+            const answers = group.childrenWithTag('pl-answer');
+            if (answers.length === 0) {
+              context.reportElement(group, 'Group has no answers');
+            }
+          }
+        },
+      }),
+    });
+    const d = handle.lint(
+      '<pl-order-blocks><pl-block-group><pl-answer>One</pl-answer></pl-block-group></pl-order-blocks>',
+      {
+        customTags: [
+          { name: 'pl-order-blocks' },
+          { name: 'pl-block-group' },
+          { name: 'pl-answer' },
+        ],
+      },
+    );
+    expect(d.filter((x) => x.ruleName === 'requires-group-answer')).toEqual(
+      [],
+    );
   });
 
   it('exposes innerHtml only when includeInnerHtml is set', async () => {

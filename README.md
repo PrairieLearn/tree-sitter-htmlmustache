@@ -306,7 +306,7 @@ Create a `.htmlmustache.jsonc` file in your project root to configure formatting
 ```
 
 The schema URL above tracks `main`. For release-pinned validation, replace
-`main` with a tag such as `v1.3.3`.
+`main` with a tag such as `v1.3.4`.
 
 ### Lint Rules
 
@@ -538,7 +538,7 @@ export const validators = defineTagValidators('pl-order-blocks', {
 });
 ```
 
-`element.children` contains one level of direct child HTML elements. Mustache sections are transparent, so children inside `{{#section}}...{{/section}}` are included. Child facades expose their tag and attributes, but their own `children` arrays are empty. `element.innerHtml` is present only when the validator opts into `options.includeInnerHtml`.
+`element.children` contains direct child HTML elements. Mustache sections are transparent, so children inside `{{#section}}...{{/section}}` are included. Child facades are populated recursively, so validators can inspect nested direct children from each child facade. `element.innerHtml` is present only when the validator opts into `options.includeInnerHtml`.
 
 `defineTagValidators(tagOrTags, rules)` is optional sugar for plugin authors. It lowercases the target tag or tags and expands each rule-map entry into an independent validator; rule-map keys are the exact rule ids used by `rules` config and inline disable comments. A rule can be a bare validation function or an object with `validate`, `severity`, and `options`.
 
