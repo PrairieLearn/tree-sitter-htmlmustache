@@ -306,7 +306,7 @@ Create a `.htmlmustache.jsonc` file in your project root to configure formatting
 ```
 
 The schema URL above tracks `main`. For release-pinned validation, replace
-`main` with a tag such as `v1.3.4`.
+`main` with a tag such as `v1.4.0`.
 
 ### Lint Rules
 
@@ -524,7 +524,12 @@ Use synchronous JavaScript validators for checks that need children, content, or
 
 ```js
 // scripts/htmlmustache-plugin.mjs
-import { defineTagValidators } from '@reteps/tree-sitter-htmlmustache/linter';
+import {
+  attr,
+  defineTagValidators,
+  validateAttributes,
+  validateElement,
+} from '@reteps/tree-sitter-htmlmustache/linter';
 
 export const validators = defineTagValidators('pl-order-blocks', {
   'pl/order-blocks-children'(element, context) {
@@ -535,6 +540,48 @@ export const validators = defineTagValidators('pl-order-blocks', {
       );
     }
   },
+  'pl/order-blocks-attributes'(element, context) {
+    const gradingMethod =
+      attr(element, 'grading-method').literalMap((value) =>
+        typeof value === 'string' ? value : undefined,
+      ) ?? 'ordered';
+    if (!['ordered', 'unordered'].includes(gradingMethod)) {
+      context.reportAttribute(
+        element,
+        'grading-method',
+        'grading-method must be ordered or unordered.',
+      );
+    }
+
+    validateElement(context, element, {
+      reportAttribute: 'code-language',
+      invalid(target) {
+        return (
+          attr(target, 'code-language').present() &&
+          attr(target, 'format').literal() !== 'code'
+        );
+      },
+      message: 'code-language is only valid when format is code.',
+    });
+
+    validateAttributes(context, element, ['min-incorrect'], {
+      invalid(_target, attribute) {
+        return (
+          attribute.present() &&
+          attribute.literal() !== undefined &&
+          attribute.literalMap((value) => {
+            if (typeof value !== 'string') return undefined;
+            const trimmed = value.trim();
+            if (!/^[+-]?\d+$/.test(trimmed)) return undefined;
+            return Number(trimmed);
+          }) === undefined
+        );
+      },
+      message(_target, attribute) {
+        return `${attribute.name} must be an integer.`;
+      },
+    });
+  },
 });
 ```
 
@@ -542,7 +589,11 @@ export const validators = defineTagValidators('pl-order-blocks', {
 
 `defineTagValidators(tagOrTags, rules)` is optional sugar for plugin authors. It lowercases the target tag or tags and expands each rule-map entry into an independent validator; rule-map keys are the exact rule ids used by `rules` config and inline disable comments. A rule can be a bare validation function or an object with `validate`, `severity`, and `options`.
 
-`TagElement` helpers are case-insensitive where they accept names. Use `hasAttribute(name)` for presence, `getAttribute(name)` for the raw value, and `getLiteralAttribute(name)` when dynamic Mustache values should be treated as unknown. Use `childrenWithTag(tag)` and `childrenWithoutTag(tag)` for direct child tag checks. `ValidatorContext` also exposes `reportElement(element, message)` and `reportAttribute(element, name, message)` as shorthand for `report(...)`.
+Attribute helper names are case-insensitive. Use `attr(element, name).present()` for presence and `attr(element, name).literal()` when dynamic Mustache values should be treated as unknown. Use `attr(element, name).literalMap(mapper)` to convert literal values into project-specific enums, booleans, numbers, or other validated values. `literalMap(mapper)` runs only for literal values and returns `undefined` when the attribute is missing, dynamic, or rejected by the mapper.
+
+Use `validateElement(context, element, options)` and `validateAttributes(context, element, names, options)` for common report-if-invalid checks. `validateElement` reports on the element unless `options.reportAttribute` is set. `validateAttributes` passes an attribute helper to `invalid(element, attribute)` and reports against the matching attribute name.
+
+Use `childrenWithTag(tag)` and `childrenWithoutTag(tag)` for direct child tag checks. `ValidatorContext` also exposes `reportElement(element, message)` and `reportAttribute(element, name, message)` as shorthand for `report(...)`.
 
 Validator ids are rule ids. Configure severity and inline disables the same way as built-in rules:
 

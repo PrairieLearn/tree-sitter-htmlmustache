@@ -2,6 +2,7 @@ import type { BalanceNode } from './htmlBalanceChecker.js';
 import type { CheckError } from './collectErrors.js';
 import type { RuleSeverity, RulesConfig } from '../shared/configSchema.js';
 import type { TagElement, TagValidator } from '../shared/tagValidators.js';
+import { registerTagElementAttributes } from '../shared/tagValidatorHelpers.js';
 import {
   getTagName,
   isHtmlElementType,
@@ -119,7 +120,7 @@ function buildFacade(
         .map((child) => buildFacade(child, includeInnerHtml, true))
         .filter((child): child is Facade => child !== null)
     : [];
-  return {
+  const facade: Facade = {
     tag,
     attributes,
     children,
@@ -127,19 +128,6 @@ function buildFacade(
     node,
     startTag,
     attributesByName,
-    hasAttribute(name: string): boolean {
-      return attributesByName.has(name.toLowerCase());
-    },
-    getAttribute(name: string): string | true | undefined {
-      return attributesByName.get(name.toLowerCase())?.value;
-    },
-    getLiteralAttribute(name: string): string | true | undefined {
-      const attribute = attributesByName.get(name.toLowerCase());
-      return attribute && !attribute.dynamic ? attribute.value : undefined;
-    },
-    isAttributeDynamic(name: string): boolean {
-      return attributesByName.get(name.toLowerCase())?.dynamic ?? false;
-    },
     childrenWithTag(tagName: string): readonly TagElement[] {
       const normalized = tagName.toLowerCase();
       return children.filter((child) => child.tag === normalized);
@@ -149,6 +137,16 @@ function buildFacade(
       return children.filter((child) => child.tag !== normalized);
     },
   };
+  registerTagElementAttributes(facade, {
+    hasAttribute(name: string): boolean {
+      return attributesByName.has(name.toLowerCase());
+    },
+    getLiteralAttribute(name: string): string | true | undefined {
+      const attribute = attributesByName.get(name.toLowerCase());
+      return attribute && !attribute.dynamic ? attribute.value : undefined;
+    },
+  });
+  return facade;
 }
 
 function resolveSeverity(

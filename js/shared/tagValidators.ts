@@ -12,14 +12,6 @@ export interface TagElement<TAllowBooleanAttributes extends boolean = true> {
   >;
   readonly children: readonly TagElement<TAllowBooleanAttributes>[];
   readonly innerHtml?: string;
-  hasAttribute(name: string): boolean;
-  getAttribute(
-    name: string,
-  ): AttributeValueFor<TAllowBooleanAttributes> | undefined;
-  getLiteralAttribute(
-    name: string,
-  ): AttributeValueFor<TAllowBooleanAttributes> | undefined;
-  isAttributeDynamic(name: string): boolean;
   childrenWithTag(tag: string): readonly TagElement<TAllowBooleanAttributes>[];
   childrenWithoutTag(
     tag: string,
@@ -28,13 +20,13 @@ export interface TagElement<TAllowBooleanAttributes extends boolean = true> {
 
 export interface ValidatorContext {
   report(diagnostic: {
-    element: TagElement;
+    element: TagElement<boolean>;
     attribute?: string;
     message: string;
   }): void;
-  reportElement(element: TagElement, message: string): void;
+  reportElement(element: TagElement<boolean>, message: string): void;
   reportAttribute(
-    element: TagElement,
+    element: TagElement<boolean>,
     attribute: string,
     message: string,
   ): void;

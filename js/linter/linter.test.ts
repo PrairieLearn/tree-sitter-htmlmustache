@@ -8,9 +8,12 @@ import { describe, it, expect, beforeAll } from 'vitest';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
+  attr,
   createLinter,
   DEFAULT_CONFIG,
   defineTagValidators,
+  validateAttributes,
+  validateElement,
   type Linter,
 } from './index.js';
 import { GRAMMAR_WASM_FILENAME } from '../shared/grammar.js';
@@ -766,7 +769,7 @@ describe('createLinter validators hook', () => {
           severity: 'warning',
           validate(element, context) {
             if (
-              !element.hasAttribute('external-json') &&
+              !attr(element, 'external-json').present() &&
               element.childrenWithTag('pl-answer').length === 0
             ) {
               context.reportElement(element, 'Missing answer choice');
@@ -793,16 +796,13 @@ describe('createLinter validators hook', () => {
       locateWasm: GRAMMAR_WASM_PATH,
       validators: defineTagValidators('pl-card', {
         'attribute-helpers'(element, context) {
-          if (!element.hasAttribute('SIZE')) {
+          if (!attr(element, 'SIZE').present()) {
             context.reportElement(element, 'Missing size');
           }
-          if (element.getAttribute('size') !== '{{n}}') {
-            context.reportElement(element, 'Raw size mismatch');
-          }
-          if (element.getLiteralAttribute('size') !== undefined) {
+          if (attr(element, 'size').literal() !== undefined) {
             context.reportElement(element, 'Dynamic size looked literal');
           }
-          if (element.getLiteralAttribute('kind') !== 'allowed') {
+          if (attr(element, 'kind').literal() !== 'allowed') {
             context.reportAttribute(element, 'kind', 'Invalid kind');
           }
         },
@@ -828,6 +828,104 @@ describe('createLinter validators hook', () => {
     expect(diag!.message).toBe('Invalid kind');
     expect(diag!.line).toBe(3);
     expect(diag!.column).toBe(3);
+  });
+
+  it('exposes typed attribute and validation helper functions', async () => {
+    const handle = await createLinter({
+      locateWasm: GRAMMAR_WASM_PATH,
+      validators: defineTagValidators('pl-card', {
+        'validator-helpers'(element, context) {
+          const gradingMethod =
+            attr(element, 'grading-method').literalMap((value) =>
+              typeof value === 'string' ? value : undefined,
+            ) ?? 'ordered';
+          if (!['ordered', 'unordered'].includes(gradingMethod)) {
+            context.reportAttribute(
+              element,
+              'grading-method',
+              'Invalid grading method',
+            );
+          }
+
+          if (
+            attr(element, 'weight').literalMap((value) => {
+              if (typeof value !== 'string') return undefined;
+              const parsed = Number(value);
+              return Number.isFinite(parsed) ? parsed : undefined;
+            }) !== 1.5
+          ) {
+            context.reportAttribute(element, 'weight', 'Invalid weight');
+          }
+
+          if (
+            attr(element, 'enabled').literalMap((value) =>
+              value === true ? true : undefined,
+            ) !== true
+          ) {
+            context.reportAttribute(element, 'enabled', 'Missing enabled');
+          }
+
+          validateElement(context, element, {
+            reportAttribute: 'code-language',
+            invalid(target) {
+              return (
+                attr(target, 'code-language').present() &&
+                attr(target, 'format').literal() !== 'code'
+              );
+            },
+            message: 'code-language requires format="code"',
+          });
+
+          validateAttributes(
+            context,
+            element,
+            ['min-incorrect', 'max-incorrect'],
+            {
+              invalid(_target, attribute) {
+                return (
+                  attribute.present() &&
+                  attribute.literal() !== undefined &&
+                  attribute.literalMap((value) => {
+                    if (typeof value !== 'string') return undefined;
+                    const trimmed = value.trim();
+                    if (!/^[+-]?\d+$/.test(trimmed)) return undefined;
+                    const parsed = Number(trimmed);
+                    return Number.isSafeInteger(parsed) ? parsed : undefined;
+                  }) === undefined
+                );
+              },
+              message(_target, attribute) {
+                return `${attribute.name} must be an integer`;
+              },
+            },
+          );
+        },
+      }),
+    });
+
+    const clean = handle.lint(
+      '<pl-card min-incorrect="2" max-incorrect="{{n}}" weight="1.5" enabled format="code" code-language="python"></pl-card>',
+      {
+        customTags: [{ name: 'pl-card' }],
+      },
+    );
+    expect(clean.filter((x) => x.ruleName === 'validator-helpers')).toEqual([]);
+
+    const invalid = handle.lint(
+      '<pl-card grading-method="random" min-incorrect="two" max-incorrect="{{n}}" weight="1.5" enabled format="text" code-language="python"></pl-card>',
+      {
+        customTags: [{ name: 'pl-card' }],
+      },
+    );
+    expect(
+      invalid
+        .filter((x) => x.ruleName === 'validator-helpers')
+        .map((x) => x.message),
+    ).toEqual([
+      'Invalid grading method',
+      'code-language requires format="code"',
+      'min-incorrect must be an integer',
+    ]);
   });
 
   it('runs validators for matching declared custom tags only', async () => {
@@ -1008,9 +1106,7 @@ describe('createLinter validators hook', () => {
         ],
       },
     );
-    expect(d.filter((x) => x.ruleName === 'requires-group-answer')).toEqual(
-      [],
-    );
+    expect(d.filter((x) => x.ruleName === 'requires-group-answer')).toEqual([]);
   });
 
   it('exposes innerHtml only when includeInnerHtml is set', async () => {
@@ -1046,7 +1142,7 @@ describe('createLinter validators hook', () => {
           id: 'literal-size',
           tags: ['pl-card'],
           validate(element, context) {
-            if (element.isAttributeDynamic('size')) return;
+            if (attr(element, 'size').literal() === undefined) return;
             context.report({
               element,
               attribute: 'size',

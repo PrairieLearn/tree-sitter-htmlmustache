@@ -42,6 +42,14 @@ import {
   isSyntacticRuleId,
 } from '../shared/tagValidators.js';
 import {
+  attr,
+  validateAttributes,
+  validateElement,
+  type AttributeHelper,
+  type AttributeValidationOptions,
+  type ElementValidationOptions,
+} from '../shared/tagValidatorHelpers.js';
+import {
   createTreeSitterRuntime,
   type LocateWasm,
 } from '../shared/treeSitterRuntime.js';
@@ -71,8 +79,11 @@ export type {
   TagValidatorRuleEntry,
   TagValidator,
   ValidatorContext,
+  AttributeHelper,
+  AttributeValidationOptions,
+  ElementValidationOptions,
 };
-export { defineTagValidators };
+export { attr, defineTagValidators, validateAttributes, validateElement };
 
 export interface CreateLinterOptions {
   /**
