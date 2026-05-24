@@ -12,6 +12,8 @@
   <a href="https://github.com/reteps/tree-sitter-htmlmustache/actions/workflows/lint.yml"><img src="https://img.shields.io/github/actions/workflow/status/reteps/tree-sitter-htmlmustache/lint.yml?logo=github&label=Lint" alt="Lint"></a>
   <a href="https://github.com/reteps/tree-sitter-htmlmustache/actions/workflows/lsp.yml"><img src="https://img.shields.io/github/actions/workflow/status/reteps/tree-sitter-htmlmustache/lsp.yml?logo=github&label=LSP" alt="LSP"></a>
   <a href="https://open-vsx.org/extension/reteps/htmlmustache-lsp"><img src="https://img.shields.io/open-vsx/v/reteps/htmlmustache-lsp?logo=visualstudiocode&label=VS%20Code" alt="Open VSX"></a>
+  <a href="https://www.npmjs.com/package/@reteps/tree-sitter-htmlmustache"><img src="https://img.shields.io/npm/v/@reteps/tree-sitter-htmlmustache?logo=npm&label=npm" alt="npm"></a>
+  <a href="https://pypi.org/project/tree-sitter-htmlmustache/"><img src="https://img.shields.io/pypi/v/tree-sitter-htmlmustache?logo=pypi&logoColor=white&label=PyPI" alt="PyPI"></a>
 </p>
 
 ---
