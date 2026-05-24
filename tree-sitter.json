@@ -30,7 +30,7 @@
     "go": true,
     "node": true,
     "python": true,
-    "rust": true,
+    "rust": false,
     "swift": true
   }
 }

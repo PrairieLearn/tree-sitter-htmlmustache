@@ -135,6 +135,23 @@ echo '<div><p>hi</p></div>' | htmlmustache format --stdin
 | `--print-width N`   | Max line width (default: 80)                     |
 | `--mustache-spaces` | Add spaces inside mustache delimiters            |
 
+## Python API
+
+The grammar is also published to PyPI as [`tree-sitter-htmlmustache`](https://pypi.org/project/tree-sitter-htmlmustache/) for use with [`py-tree-sitter`](https://github.com/tree-sitter/py-tree-sitter).
+
+```bash
+pip install tree-sitter tree-sitter-htmlmustache
+```
+
+```python
+from tree_sitter import Language, Parser
+import tree_sitter_htmlmustache
+
+parser = Parser(Language(tree_sitter_htmlmustache.language()))
+tree = parser.parse(b"<div>{{#items}}<li>{{name}}</li>{{/items}}</div>")
+print(tree.root_node)
+```
+
 ## JavaScript API
 
 The package ships three independent subpath exports. Pick the one you need; each pulls in only its own deps.

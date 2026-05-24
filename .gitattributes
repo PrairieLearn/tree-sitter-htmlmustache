@@ -10,11 +10,6 @@ bindings/c/** linguist-generated
 CMakeLists.txt linguist-generated
 Makefile linguist-generated
 
-# Rust bindings
-bindings/rust/* linguist-generated
-Cargo.toml linguist-generated
-Cargo.lock linguist-generated
-
 # Node.js bindings
 bindings/node/* linguist-generated
 binding.gyp linguist-generated

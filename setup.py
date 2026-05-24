@@ -8,7 +8,7 @@ from setuptools.command.egg_info import egg_info
 from wheel.bdist_wheel import bdist_wheel
 
 sources = [
-    "bindings/python/tree_sitter_html/binding.c",
+    "bindings/python/tree_sitter_htmlmustache/binding.c",
     "src/parser.c",
 ]
 if path.exists("src/scanner.c"):
@@ -30,7 +30,7 @@ else:
 class Build(build):
     def run(self):
         if path.isdir("queries"):
-            dest = path.join(self.build_lib, "tree_sitter_html", "queries")
+            dest = path.join(self.build_lib, "tree_sitter_htmlmustache", "queries")
             self.copy_tree("queries", dest)
         super().run()
 
@@ -48,16 +48,17 @@ class EggInfo(egg_info):
         super().find_sources()
         self.filelist.recursive_include("queries", "*.scm")
         self.filelist.include("src/tree_sitter/*.h")
+        self.filelist.include("src/*.h")
 
 
 setup(
     packages=find_packages("bindings/python"),
     package_dir={"": "bindings/python"},
     package_data={
-        "tree_sitter_html": ["*.pyi", "py.typed"],
-        "tree_sitter_html.queries": ["*.scm"],
+        "tree_sitter_htmlmustache": ["*.pyi", "py.typed"],
+        "tree_sitter_htmlmustache.queries": ["*.scm"],
     },
-    ext_package="tree_sitter_html",
+    ext_package="tree_sitter_htmlmustache",
     ext_modules=[
         Extension(
             name="_binding",
@@ -73,5 +74,5 @@ setup(
         "bdist_wheel": BdistWheel,
         "egg_info": EggInfo,
     },
-    zip_safe=False
+    zip_safe=False,
 )
