@@ -17,13 +17,13 @@ jobs:
     if: github.event_name == 'workflow_dispatch' || startsWith(github.ref_name, 'v')
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.11"
       - run: pip install --upgrade build
       - run: python -m build --sdist
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist-sdist
           path: dist/*.tar.gz
@@ -40,14 +40,13 @@ jobs:
           - ubuntu-latest
           - ubuntu-24.04-arm
           - windows-latest
-          - macos-13       # x86_64
           - macos-14       # arm64
     steps:
-      - uses: actions/checkout@v4
-      - uses: pypa/cibuildwheel@v2.21
+      - uses: actions/checkout@v6
+      - uses: pypa/cibuildwheel@v3.4
         env:
           CIBW_ARCHS: native
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist-wheels-${{matrix.os}}
           path: wheelhouse/*.whl
@@ -63,7 +62,7 @@ jobs:
     permissions:
       id-token: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           path: dist
           pattern: dist-*
