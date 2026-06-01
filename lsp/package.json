@@ -1,5 +1,5 @@
 {
-  "name": "htmlmustache-lsp",
+  "name": "tree-sitter-htmlmustache",
   "displayName": "HTML Mustache Language Support",
   "description": "Language server for HTML with Mustache template syntax",
   "version": "1.4.2",

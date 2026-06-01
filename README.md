@@ -11,7 +11,7 @@
 <p align="center">
   <a href="https://github.com/prairielearn/tree-sitter-htmlmustache/actions/workflows/lint.yml"><img src="https://img.shields.io/github/actions/workflow/status/prairielearn/tree-sitter-htmlmustache/lint.yml?logo=github&label=Lint" alt="Lint"></a>
   <a href="https://github.com/prairielearn/tree-sitter-htmlmustache/actions/workflows/lsp.yml"><img src="https://img.shields.io/github/actions/workflow/status/prairielearn/tree-sitter-htmlmustache/lsp.yml?logo=github&label=LSP" alt="LSP"></a>
-  <a href="https://open-vsx.org/extension/prairielearn/htmlmustache-lsp"><img src="https://img.shields.io/open-vsx/v/prairielearn/htmlmustache-lsp?logo=visualstudiocode&label=VS%20Code" alt="Open VSX"></a>
+  <a href="https://open-vsx.org/extension/prairielearn/tree-sitter-htmlmustache"><img src="https://img.shields.io/open-vsx/v/prairielearn/tree-sitter-htmlmustache?logo=visualstudiocode&label=VS%20Code" alt="Open VSX"></a>
   <a href="https://www.npmjs.com/package/@prairielearn/tree-sitter-htmlmustache"><img src="https://img.shields.io/npm/v/@prairielearn/tree-sitter-htmlmustache?logo=npm&label=npm" alt="npm"></a>
   <a href="https://pypi.org/project/tree-sitter-htmlmustache/"><img src="https://img.shields.io/pypi/v/tree-sitter-htmlmustache?logo=pypi&logoColor=white&label=PyPI" alt="PyPI"></a>
 </p>
@@ -40,7 +40,7 @@
 
 ## VS Code Extension
 
-Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=prairielearn.htmlmustache-lsp) or search for "HTML Mustache" in the Extensions view.
+Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=prairielearn.tree-sitter-htmlmustache) or search for "HTML Mustache" in the Extensions view.
 
 What you get out of the box:
 
