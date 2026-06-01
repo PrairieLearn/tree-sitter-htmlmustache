@@ -65,13 +65,31 @@ interface CompileContext {
   loadErrors: ConfigLoadError[];
 }
 
-const DRAFT_06_URIS = new Set([
-  'http://json-schema.org/draft-06/schema',
-  'http://json-schema.org/draft-06/schema#',
-  'https://json-schema.org/draft-06/schema',
-  'https://json-schema.org/draft-06/schema#',
-]);
-const CANONICAL_DRAFT_06_URI = 'http://json-schema.org/draft-06/schema#';
+// draft-06 is the newest JSON Schema dialect we accept; anything at draft-06 or
+// below is allowed. We don't validate user schemas against the real
+// meta-schemas (ajv runs with `validateSchema: false`), so ajv compiles any
+// declared `$schema` with its draft-07 keyword implementations regardless of
+// the dialect URI — meaning no meta-schema needs to be registered.
+const MAX_ACCEPTED_DRAFT = 6;
+
+// Recognize a `$schema` declaration as an accepted JSON Schema dialect:
+//   - numbered drafts (`.../draft-NN/schema#`, incl. hyper-schema) up to draft-06
+//   - the legacy version-less identifiers (`.../schema#`, `.../hyper-schema#`)
+//     that predate numbered drafts
+// and reject anything newer (draft-07 and the date-based 2019-09 / 2020-12
+// dialects, which ajv@8 compiles with semantics we don't intend to support here).
+function isAcceptedSchemaDialect(rawUri: unknown): boolean {
+  if (typeof rawUri !== 'string') return false;
+  const uri = rawUri.trim().toLowerCase();
+  if (!/^https?:\/\/json-schema\.org\//.test(uri)) return false;
+  // Date-based dialects (e.g. /draft/2019-09/, /draft/2020-12/) are all newer
+  // than draft-07.
+  if (/\/draft\/\d{4}-\d\d\//.test(uri)) return false;
+  const numbered = uri.match(/\/draft-0*(\d+)\//);
+  if (numbered) return Number(numbered[1]) <= MAX_ACCEPTED_DRAFT;
+  // No draft number present — a legacy version-less identifier; accept it.
+  return true;
+}
 
 function isObject(value: unknown): value is Record<string, unknown> {
   return !!value && typeof value === 'object' && !Array.isArray(value);
@@ -88,11 +106,6 @@ function createAjv(): Ajv {
     useDefaults: false,
     strict: false,
     validateSchema: false,
-  });
-  ajv.addMetaSchema({
-    $id: CANONICAL_DRAFT_06_URI,
-    id: CANONICAL_DRAFT_06_URI,
-    $schema: CANONICAL_DRAFT_06_URI,
   });
   ajvErrors(ajv);
   return ajv;
@@ -129,12 +142,9 @@ function compileSchema(
   if (!isObject(rawSchema)) {
     throw new Error('schema must be a JSON object');
   }
-  if (
-    typeof rawSchema.$schema !== 'string' ||
-    !DRAFT_06_URIS.has(rawSchema.$schema)
-  ) {
+  if (!isAcceptedSchemaDialect(rawSchema.$schema)) {
     throw new Error(
-      'schema must declare "$schema": "http://json-schema.org/draft-06/schema#"',
+      'schema must declare a "$schema" of draft-06 or lower (e.g. "http://json-schema.org/draft-06/schema#")',
     );
   }
   const schema = cloneSchema(rawSchema);

@@ -241,6 +241,86 @@ describe('draft-06 flat custom tag schemas', () => {
     );
   });
 
+  it('accepts schemas declaring a draft lower than draft-06', () => {
+    const schema = {
+      $schema: 'http://json-schema.org/draft-04/schema#',
+      type: 'object',
+      properties: { kind: { enum: ['primary', 'secondary'] } },
+      required: ['kind'],
+      additionalProperties: false,
+    };
+
+    const ok = linter.lint('<pl-card kind="primary"></pl-card>', {
+      rules: { customTagSchema: 'error' },
+      customTags: [{ name: 'pl-card', schema }],
+    });
+    expect(ok.filter((d) => d.ruleName === 'customTagSchema')).toEqual([]);
+
+    const missing = linter.lint('<pl-card></pl-card>', {
+      rules: { customTagSchema: 'error' },
+      customTags: [{ name: 'pl-card', schema }],
+    });
+    expect(missing.find((d) => d.ruleName === 'customTagSchema')!.message).toBe(
+      '<pl-card> is missing required attribute "kind".',
+    );
+  });
+
+  it.each([
+    'http://json-schema.org/draft-06/schema#',
+    'http://json-schema.org/draft-04/schema#',
+    'http://json-schema.org/draft-03/schema',
+    'https://json-schema.org/draft-04/schema#',
+    'http://json-schema.org/draft-04/hyper-schema#',
+    'http://json-schema.org/schema#',
+    'http://json-schema.org/hyper-schema#',
+  ])('accepts and enforces a schema declaring %s', ($schema) => {
+    const schema = {
+      $schema,
+      type: 'object',
+      properties: { kind: { type: 'string' } },
+      required: ['kind'],
+      additionalProperties: false,
+    };
+
+    const ok = linter
+      .lint('<pl-card kind="primary"></pl-card>', {
+        rules: { customTagSchema: 'error' },
+        customTags: [{ name: 'pl-card', schema }],
+      })
+      .filter((d) => d.ruleName === 'customTagSchema');
+    expect(ok).toEqual([]);
+
+    const missing = linter
+      .lint('<pl-card></pl-card>', {
+        rules: { customTagSchema: 'error' },
+        customTags: [{ name: 'pl-card', schema }],
+      })
+      .filter((d) => d.ruleName === 'customTagSchema');
+    expect(missing).toHaveLength(1);
+    expect(missing[0].message).toContain('kind');
+  });
+
+  it.each([
+    'http://json-schema.org/draft-07/schema#',
+    'https://json-schema.org/draft/2019-09/schema',
+    'https://json-schema.org/draft/2020-12/schema',
+  ])('rejects a schema declaring %s (newer than draft-06)', ($schema) => {
+    const schema = {
+      $schema,
+      type: 'object',
+      properties: { kind: { type: 'string' } },
+      additionalProperties: false,
+    };
+
+    const loadError = linter
+      .lint('<pl-card kind="primary"></pl-card>', {
+        rules: { customTagSchema: 'error' },
+        customTags: [{ name: 'pl-card', schema }],
+      })
+      .find((d) => d.ruleName === 'customTagSchema')!;
+    expect(loadError.message).toContain('draft-06 or lower');
+  });
+
   it('anchors attribute diagnostics to the offending attribute value or name', () => {
     const schema = {
       $schema: 'http://json-schema.org/draft-06/schema#',
