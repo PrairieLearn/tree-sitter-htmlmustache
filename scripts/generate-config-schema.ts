@@ -16,7 +16,7 @@ const schema = z.toJSONSchema(htmlMustacheConfigSchema, {
 });
 
 schema.$id =
-  'https://raw.githubusercontent.com/reteps/tree-sitter-htmlmustache/main/schemas/htmlmustache-config.schema.json';
+  'https://raw.githubusercontent.com/prairielearn/tree-sitter-htmlmustache/main/schemas/htmlmustache-config.schema.json';
 schema.title = 'HTML Mustache configuration';
 schema.description = 'Configuration for .htmlmustache.jsonc files.';
 

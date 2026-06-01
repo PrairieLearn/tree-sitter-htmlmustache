@@ -494,7 +494,7 @@
       "additionalProperties": false
     }
   },
-  "$id": "https://raw.githubusercontent.com/reteps/tree-sitter-htmlmustache/main/schemas/htmlmustache-config.schema.json",
+  "$id": "https://raw.githubusercontent.com/prairielearn/tree-sitter-htmlmustache/main/schemas/htmlmustache-config.schema.json",
   "title": "HTML Mustache configuration",
   "description": "Configuration for .htmlmustache.jsonc files."
 }

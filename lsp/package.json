@@ -3,17 +3,17 @@
   "displayName": "HTML Mustache Language Support",
   "description": "Language server for HTML with Mustache template syntax",
   "version": "1.4.1",
-  "publisher": "reteps",
+  "publisher": "prairielearn",
   "private": true,
   "license": "MIT",
   "icon": "icon.png",
   "repository": {
     "type": "git",
-    "url": "https://github.com/reteps/tree-sitter-htmlmustache"
+    "url": "https://github.com/prairielearn/tree-sitter-htmlmustache"
   },
-  "homepage": "https://github.com/reteps/tree-sitter-htmlmustache#readme",
+  "homepage": "https://github.com/prairielearn/tree-sitter-htmlmustache#readme",
   "bugs": {
-    "url": "https://github.com/reteps/tree-sitter-htmlmustache/issues"
+    "url": "https://github.com/prairielearn/tree-sitter-htmlmustache/issues"
   },
   "engines": {
     "vscode": "^1.75.0"

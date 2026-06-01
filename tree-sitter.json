@@ -22,7 +22,7 @@
       }
     ],
     "links": {
-      "repository": "https://github.com/reteps/tree-sitter-htmlmustache"
+      "repository": "https://github.com/prairielearn/tree-sitter-htmlmustache"
     }
   },
   "bindings": {

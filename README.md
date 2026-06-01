@@ -9,10 +9,10 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/reteps/tree-sitter-htmlmustache/actions/workflows/lint.yml"><img src="https://img.shields.io/github/actions/workflow/status/reteps/tree-sitter-htmlmustache/lint.yml?logo=github&label=Lint" alt="Lint"></a>
-  <a href="https://github.com/reteps/tree-sitter-htmlmustache/actions/workflows/lsp.yml"><img src="https://img.shields.io/github/actions/workflow/status/reteps/tree-sitter-htmlmustache/lsp.yml?logo=github&label=LSP" alt="LSP"></a>
-  <a href="https://open-vsx.org/extension/reteps/htmlmustache-lsp"><img src="https://img.shields.io/open-vsx/v/reteps/htmlmustache-lsp?logo=visualstudiocode&label=VS%20Code" alt="Open VSX"></a>
-  <a href="https://www.npmjs.com/package/@reteps/tree-sitter-htmlmustache"><img src="https://img.shields.io/npm/v/@reteps/tree-sitter-htmlmustache?logo=npm&label=npm" alt="npm"></a>
+  <a href="https://github.com/prairielearn/tree-sitter-htmlmustache/actions/workflows/lint.yml"><img src="https://img.shields.io/github/actions/workflow/status/prairielearn/tree-sitter-htmlmustache/lint.yml?logo=github&label=Lint" alt="Lint"></a>
+  <a href="https://github.com/prairielearn/tree-sitter-htmlmustache/actions/workflows/lsp.yml"><img src="https://img.shields.io/github/actions/workflow/status/prairielearn/tree-sitter-htmlmustache/lsp.yml?logo=github&label=LSP" alt="LSP"></a>
+  <a href="https://open-vsx.org/extension/prairielearn/htmlmustache-lsp"><img src="https://img.shields.io/open-vsx/v/prairielearn/htmlmustache-lsp?logo=visualstudiocode&label=VS%20Code" alt="Open VSX"></a>
+  <a href="https://www.npmjs.com/package/@prairielearn/tree-sitter-htmlmustache"><img src="https://img.shields.io/npm/v/@prairielearn/tree-sitter-htmlmustache?logo=npm&label=npm" alt="npm"></a>
   <a href="https://pypi.org/project/tree-sitter-htmlmustache/"><img src="https://img.shields.io/pypi/v/tree-sitter-htmlmustache?logo=pypi&logoColor=white&label=PyPI" alt="PyPI"></a>
 </p>
 
@@ -40,7 +40,7 @@
 
 ## VS Code Extension
 
-Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=reteps.htmlmustache-lsp) or search for "HTML Mustache" in the Extensions view.
+Install from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=prairielearn.htmlmustache-lsp) or search for "HTML Mustache" in the Extensions view.
 
 What you get out of the box:
 
@@ -70,7 +70,7 @@ You can also change the language mode for a single file by clicking the language
 Install globally or run via `npx`:
 
 ```
-npm install -g @reteps/tree-sitter-htmlmustache
+npm install -g @prairielearn/tree-sitter-htmlmustache
 ```
 
 ### `htmlmustache check`
@@ -168,7 +168,7 @@ The package ships three independent subpath exports. Pick the one you need; each
 ### Parser — typed JSON AST
 
 ```ts
-import { createParser, walk } from '@reteps/tree-sitter-htmlmustache/parser';
+import { createParser, walk } from '@prairielearn/tree-sitter-htmlmustache/parser';
 
 const parser = await createParser({
   locateWasm: '/static/tree-sitter-htmlmustache.wasm',
@@ -201,7 +201,7 @@ full autocomplete and exhaustiveness checking.
 import {
   createLinter,
   DEFAULT_CONFIG,
-} from '@reteps/tree-sitter-htmlmustache/linter';
+} from '@prairielearn/tree-sitter-htmlmustache/linter';
 
 const linter = await createLinter({
   locateWasm: '/static/tree-sitter-htmlmustache.wasm',
@@ -217,7 +217,7 @@ shape.
 ### Formatter
 
 ```ts
-import { createFormatter } from '@reteps/tree-sitter-htmlmustache/formatter';
+import { createFormatter } from '@prairielearn/tree-sitter-htmlmustache/formatter';
 import prettier from 'prettier';
 
 const formatter = await createFormatter({
@@ -296,7 +296,7 @@ Create a `.htmlmustache.jsonc` file in your project root to configure formatting
 
 ```jsonc
 {
-  "$schema": "https://raw.githubusercontent.com/reteps/tree-sitter-htmlmustache/main/schemas/htmlmustache-config.schema.json",
+  "$schema": "https://raw.githubusercontent.com/prairielearn/tree-sitter-htmlmustache/main/schemas/htmlmustache-config.schema.json",
 
   // File patterns for CLI commands (used when no patterns are passed as arguments)
   "include": ["**/*.mustache", "**/*.hbs"],
@@ -548,7 +548,7 @@ import {
   defineTagValidators,
   validateAttributes,
   validateElement,
-} from '@reteps/tree-sitter-htmlmustache/linter';
+} from '@prairielearn/tree-sitter-htmlmustache/linter';
 
 export const validators = defineTagValidators('pl-order-blocks', {
   'pl/order-blocks-children'(element, context) {
@@ -632,7 +632,7 @@ Schemas can use the `format` keyword for value rules that don't fit into `enum`/
 import {
   createLinter,
   type SchemaFormat,
-} from '@reteps/tree-sitter-htmlmustache/linter';
+} from '@prairielearn/tree-sitter-htmlmustache/linter';
 
 const BOOLEAN_STRINGS = new Set([
   'true',

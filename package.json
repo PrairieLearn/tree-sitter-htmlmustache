@@ -1,10 +1,10 @@
 {
-  "name": "@reteps/tree-sitter-htmlmustache",
+  "name": "@prairielearn/tree-sitter-htmlmustache",
   "version": "1.4.1",
   "description": "HTML with Mustache/Handlebars template syntax grammar for tree-sitter",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/reteps/tree-sitter-htmlmustache.git"
+    "url": "git+https://github.com/prairielearn/tree-sitter-htmlmustache.git"
   },
   "license": "MIT",
   "author": {

@@ -22,8 +22,8 @@ license.text = "MIT"
 readme = "README.md"
 
 [project.urls]
-Homepage = "https://github.com/reteps/tree-sitter-htmlmustache"
-Issues = "https://github.com/reteps/tree-sitter-htmlmustache/issues"
+Homepage = "https://github.com/prairielearn/tree-sitter-htmlmustache"
+Issues = "https://github.com/prairielearn/tree-sitter-htmlmustache/issues"
 
 [project.optional-dependencies]
 core = ["tree-sitter~=0.24"]

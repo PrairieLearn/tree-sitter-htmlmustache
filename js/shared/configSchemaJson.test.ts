@@ -26,7 +26,7 @@ function generatedConfigSchema(): unknown {
     target: 'draft-7',
   });
   schema.$id =
-    'https://raw.githubusercontent.com/reteps/tree-sitter-htmlmustache/main/schemas/htmlmustache-config.schema.json';
+    'https://raw.githubusercontent.com/prairielearn/tree-sitter-htmlmustache/main/schemas/htmlmustache-config.schema.json';
   schema.title = 'HTML Mustache configuration';
   schema.description = 'Configuration for .htmlmustache.jsonc files.';
   return schema;
@@ -45,7 +45,7 @@ describe('htmlmustache config JSON Schema', () => {
     expect(
       validate({
         $schema:
-          'https://raw.githubusercontent.com/reteps/tree-sitter-htmlmustache/main/schemas/htmlmustache-config.schema.json',
+          'https://raw.githubusercontent.com/prairielearn/tree-sitter-htmlmustache/main/schemas/htmlmustache-config.schema.json',
         include: ['**/*.mustache', '**/*.hbs'],
         exclude: ['**/vendor/**'],
         printWidth: 100,
