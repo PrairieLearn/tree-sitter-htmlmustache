@@ -4,7 +4,7 @@
   "description": "HTML with Mustache/Handlebars template syntax grammar for tree-sitter",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/prairielearn/tree-sitter-htmlmustache.git"
+    "url": "git+https://github.com/PrairieLearn/tree-sitter-htmlmustache.git"
   },
   "license": "MIT",
   "author": {
