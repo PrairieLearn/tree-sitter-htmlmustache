@@ -1,8 +1,8 @@
 {
   "name": "tree-sitter-htmlmustache",
-  "displayName": "HTML Mustache Language Support",
+  "displayName": "HTML Mustache Templates",
   "description": "Language server for HTML with Mustache template syntax",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "publisher": "prairielearn",
   "private": true,
   "license": "MIT",
