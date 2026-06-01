@@ -168,7 +168,10 @@ The package ships three independent subpath exports. Pick the one you need; each
 ### Parser — typed JSON AST
 
 ```ts
-import { createParser, walk } from '@prairielearn/tree-sitter-htmlmustache/parser';
+import {
+  createParser,
+  walk,
+} from '@prairielearn/tree-sitter-htmlmustache/parser';
 
 const parser = await createParser({
   locateWasm: '/static/tree-sitter-htmlmustache.wasm',
