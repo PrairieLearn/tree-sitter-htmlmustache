@@ -1,6 +1,6 @@
 {
   "name": "@prairielearn/tree-sitter-htmlmustache",
-  "version": "1.4.2",
+  "version": "1.4.3",
   "description": "HTML with Mustache/Handlebars template syntax grammar for tree-sitter",
   "repository": {
     "type": "git",
