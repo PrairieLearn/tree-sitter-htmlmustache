@@ -4,7 +4,7 @@
  * accepts in Node contexts).
  */
 
-import { describe, it, expect, beforeAll } from 'vitest';
+import { describe, it, expect, beforeAll, vi } from 'vitest';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
@@ -202,6 +202,63 @@ describe('createLinter formats hook', () => {
       customTags: [{ name: 'pl-card', schema }],
     });
     expect(bad.some((d) => d.ruleName === 'customTagSchema')).toBe(true);
+  });
+
+  it('reports an unregistered format as one schema-load diagnostic without logging a warning', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => undefined);
+    try {
+      const diagnostics = linter
+        .lint('<x-input size="wide"></x-input>', {
+          customTags: [
+            {
+              name: 'x-input',
+              schema: {
+                $schema: 'http://json-schema.org/draft-06/schema#',
+                type: 'object',
+                properties: {
+                  size: { type: 'string', format: 'integer' },
+                },
+              },
+            },
+          ],
+        })
+        .filter((diagnostic) => diagnostic.ruleName === 'customTagSchema');
+
+      expect(diagnostics).toHaveLength(1);
+      expect(diagnostics[0]).toMatchObject({
+        severity: 'error',
+        ruleName: 'customTagSchema',
+      });
+      expect(diagnostics[0].message).toContain(
+        'Failed to load schema for <x-input>: unknown format "integer"',
+      );
+      expect(warn).not.toHaveBeenCalled();
+    } finally {
+      warn.mockRestore();
+    }
+  });
+
+  it('reports unrelated unknown schema keywords as load errors', () => {
+    const diagnostics = linter
+      .lint('<x-input size="wide"></x-input>', {
+        customTags: [
+          {
+            name: 'x-input',
+            schema: {
+              $schema: 'http://json-schema.org/draft-06/schema#',
+              type: 'object',
+              'x-htmlmustache-note': 'custom annotation',
+              properties: { size: { type: 'string' } },
+            },
+          },
+        ],
+      })
+      .filter((diagnostic) => diagnostic.ruleName === 'customTagSchema');
+
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0].message).toContain(
+      'unknown keyword: "x-htmlmustache-note"',
+    );
   });
 });
 

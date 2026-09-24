@@ -713,7 +713,7 @@ export const formats = {
 
 The CLI and the language server dynamically import this file once per process (cached by absolute path) and register the exports before linting. Note the trust implication: pointing `pluginModule` at a path means running that code in-process when the CLI lints or the VS Code extension opens a document — treat it like a build script in your repo.
 
-If the file can't be loaded, or its export shape is wrong, you'll see a `pluginModule`-rule diagnostic naming the path in the failure message; tag schemas that reference an unregistered format will then fail at compile time with the standard ajv "unknown format" error.
+If the file can't be loaded, or its export shape is wrong, you'll see a `pluginModule`-rule diagnostic naming the path in the failure message. Tag schemas compile with ajv's strict-schema checks: an unregistered format or unknown keyword prevents compilation and produces a `customTagSchema` diagnostic. Supported annotations such as `deprecated` remain valid. At the default `error` severity, `htmlmustache check` then exits with a nonzero status.
 
 ### Custom Rules
 
