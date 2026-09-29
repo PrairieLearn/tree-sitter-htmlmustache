@@ -1,149 +1,75 @@
 # HTML Mustache Language Server
 
-A VS Code language server for HTML with Mustache template syntax, powered by tree-sitter.
+A VS Code language server for HTML with Mustache template syntax, powered by tree-sitter. It provides semantic highlighting, document symbols, hover information, and folding ranges for `.mustache`, `.hbs`, and `.handlebars` files.
 
-## Features
+## Build and Run
 
-- **Semantic Highlighting** - Context-aware syntax highlighting using tree-sitter
-- **Document Symbols** - Outline view showing HTML elements and Mustache sections
-- **Hover Information** - Documentation for HTML tags, attributes, and Mustache constructs
-- **Folding Ranges** - Collapse HTML elements, Mustache sections, and comments
-
-## Quick Start
+Run these commands from the repository root:
 
 ```bash
-# 1. From the repository root, install all workspace dependencies
 pnpm install
+pnpm build                    # Compile the grammar to WebAssembly
+pnpm --dir lsp run build       # Bundle the extension and copy its WASM assets
+```
 
-# 2. Build the WASM parser
+Then launch the extension in VS Code:
+
+1. Open the `lsp/` folder in VS Code.
+2. In Run and Debug, select **Launch LSP Extension** and press F5.
+3. In the Extension Development Host window, open [test-files/test.mustache](test-files/test.mustache) or another template file.
+4. Check syntax highlighting, the document outline, hover information, and folding.
+
+## Development
+
+Run the following commands from the repository root:
+
+| Task                        | Command                               |
+| --------------------------- | ------------------------------------- |
+| Rebuild the extension       | `pnpm --dir lsp run build`            |
+| Run server tests            | `pnpm --dir lsp test`                 |
+| Watch server tests          | `pnpm --dir lsp run test:watch`       |
+| Check TypeScript types      | `pnpm --dir lsp run typecheck`        |
+| Lint client and server code | `pnpm --dir lsp run lint`             |
+| Create a production build   | `pnpm --dir lsp run build:production` |
+
+After changing extension code, rebuild and restart the debugging session. The launch configuration also runs the extension build before starting.
+
+After changing `grammar.js`, regenerate the parser before rebuilding the WASM and extension:
+
+```bash
+pnpm exec tree-sitter generate
 pnpm build
-
-# 3. Build the LSP
 pnpm --dir lsp run build
-
-# 4. Test in VS Code (see below)
 ```
-
-## Building the WASM Parser
-
-The LSP requires the tree-sitter grammar compiled to WebAssembly. From the **project root**:
-
-```bash
-# Install the workspace dependencies, including the tree-sitter CLI
-pnpm install
-
-# Build the WASM file (creates tree-sitter-htmlmustache.wasm)
-pnpm build
-```
-
-This creates `tree-sitter-htmlmustache.wasm` in the project root, which the LSP server loads at runtime.
-
-## Installing & Building the LSP
-
-```bash
-# From the repository root, install all dependencies
-pnpm install
-
-# Build both client and server
-cd lsp
-pnpm run build
-```
-
-The root `pnpm-workspace.yaml` includes the parser, extension, client, and server packages. They share the root `pnpm-lock.yaml`; there is no separate LSP dependency installation.
-
-### Development Mode
-
-For active development, use watch mode to auto-rebuild on changes:
-
-```bash
-pnpm run watch
-```
-
-## Testing in VS Code
-
-### Option 1: Launch Configuration (Recommended)
-
-1. Open the **project root** (`tree-sitter-htmlmustache/`) in VS Code
-2. Go to Run and Debug (Cmd+Shift+D)
-3. Select "Launch LSP Extension" from the dropdown
-4. Press F5
-
-This opens a new VS Code window with the extension loaded. Open any `.mustache`, `.hbs`, or `.handlebars` file to test.
-
-### Option 2: Manual
-
-1. Open the `lsp/` folder in VS Code
-2. Press F5 to launch Extension Development Host
-3. In the new window, open a `.mustache` file
-
-### Verifying It Works
-
-Once running, you should see:
-
-- Syntax highlighting for HTML and Mustache constructs
-- Outline view (Cmd+Shift+O) showing HTML elements and Mustache sections
-- Hover tooltips when hovering over tags, attributes, or Mustache expressions
-- Folding arrows for collapsible regions
 
 ## Troubleshooting
 
-### "Failed to load tree-sitter-htmlmustache.wasm"
+### Missing WASM files
 
-The WASM file wasn't found. Make sure you built it:
+Repeat both build commands in [Build and Run](#build-and-run). The root build creates `tree-sitter-htmlmustache.wasm`; the extension build copies it into `lsp/` and copies dependency WASM files into `lsp/server/out/`.
 
-```bash
-cd /path/to/tree-sitter-htmlmustache
-pnpm build
-ls *.wasm  # Should show tree-sitter-htmlmustache.wasm
-```
+### No highlighting or language features
 
-### No syntax highlighting
+- Check the **HTML Mustache** channel in VS Code's Output panel for startup errors.
+- Confirm the file uses a supported extension and the **HTML Mustache** language mode.
+- For semantic highlighting, make sure it is enabled in VS Code settings.
 
-1. Check the Output panel (View > Output) and select "HTML Mustache Language Server"
-2. Verify the file has a supported extension (`.mustache`, `.hbs`, `.handlebars`)
-3. Make sure semantic highlighting is enabled in VS Code settings
+## Code Layout
 
-### Type errors during build
+| Location                                           | Purpose                                                             |
+| -------------------------------------------------- | ------------------------------------------------------------------- |
+| [client/src/extension.ts](client/src/extension.ts) | Activates the extension and starts the language server              |
+| [server/src/server.ts](server/src/server.ts)       | Advertises capabilities and registers request handlers              |
+| [server/src/parser.ts](server/src/parser.ts)       | Loads the WASM grammar and exposes parsing helpers                  |
+| [server/src/](server/src/)                         | Language features such as highlighting, symbols, hover, and folding |
+| [server/test/](server/test/)                       | Server tests                                                        |
+| [esbuild.mjs](esbuild.mjs)                         | Bundles the client and server and copies runtime assets             |
+| [package.json](package.json)                       | Extension manifest and development scripts                          |
 
-Run `pnpm install` from the project root to install dependencies.
-
-## Architecture
-
-```
-lsp/
-├── client/                 # VS Code extension client
-│   └── src/
-│       └── extension.ts    # Extension entry point
-├── server/                 # Language server
-│   └── src/
-│       ├── server.ts       # Main LSP server
-│       ├── parser.ts       # Tree-sitter integration
-│       ├── semanticTokens.ts # Syntax highlighting
-│       ├── documentSymbols.ts # Outline view
-│       ├── hover.ts        # Hover information
-│       └── folding.ts      # Folding ranges
-└── package.json            # Extension manifest
-```
-
-## How It Works
-
-1. **Parsing**: Documents are parsed with tree-sitter on open and on every change
-2. **Caching**: Parse trees are cached per-document for efficiency
-3. **Feature Extraction**: Each LSP feature walks the syntax tree to extract information
-
-The server loads `tree-sitter-htmlmustache.wasm` from the parent directory and uses it to parse documents into syntax trees.
-
-## Adding Features
-
-To add a new LSP feature:
-
-1. Create a new file in `server/src/` (e.g., `completion.ts`)
-2. Implement the feature using the cached parse tree
-3. Register the handler in `server.ts`
-4. Add the capability to the `InitializeResult`
+The server parses documents when they open or change, caches their syntax trees, and uses those trees to implement language features. To add a feature, implement it in `server/src/`, register its handler and capability in `server.ts`, and add a test in `server/test/`.
 
 ## Related
 
-- [tree-sitter-htmlmustache](../) - The tree-sitter grammar
+- [tree-sitter-htmlmustache](../) — Grammar and shared tooling
 - [VS Code LSP Guide](https://code.visualstudio.com/api/language-extensions/language-server-extension-guide)
 - [web-tree-sitter](https://github.com/tree-sitter/tree-sitter/tree/master/lib/binding_web)
