@@ -16,14 +16,22 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
 
-      - name: Set up tree-sitter
-        uses: tree-sitter/setup-action/cli@v2
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 12
 
-      - name: Generate parser
-        run: tree-sitter generate
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Build WASM
-        run: tree-sitter build --wasm
+        run: pnpm build
 
       - name: Upload WASM to release
         if: github.event_name == 'release'
@@ -41,30 +49,18 @@ jobs:
       - name: Install pnpm
         uses: pnpm/action-setup@v6
         with:
-          version: 10
+          version: 12
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: '20'
+          node-version: '24'
 
-      - name: Set up tree-sitter
-        uses: tree-sitter/setup-action/cli@v2
-
-      - name: Generate parser
-        run: tree-sitter generate
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Build WASM (needed by extension)
-        run: tree-sitter build --wasm
-
-      # Install root deps so shared modules under `src/core/` can resolve
-      # their dependencies (e.g. parsel-js) from root node_modules at bundle time.
-      - name: Install root dependencies
-        run: pnpm install
-
-      - name: Install extension dependencies
-        working-directory: lsp
-        run: pnpm install
+        run: pnpm build
 
       - name: Build extension
         working-directory: lsp

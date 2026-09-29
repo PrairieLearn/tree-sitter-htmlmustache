@@ -78,6 +78,45 @@
     }
   },
   {
+    "type": "_mustache_section_content",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "mustache_comment",
+          "named": true
+        },
+        {
+          "type": "mustache_interpolation",
+          "named": true
+        },
+        {
+          "type": "mustache_inverted_section",
+          "named": true
+        },
+        {
+          "type": "mustache_partial",
+          "named": true
+        },
+        {
+          "type": "mustache_section",
+          "named": true
+        },
+        {
+          "type": "mustache_triple",
+          "named": true
+        },
+        {
+          "type": "text",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "document",
     "named": true,
     "root": true,

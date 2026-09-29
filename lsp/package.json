@@ -370,10 +370,9 @@
   },
   "scripts": {
     "vscode:prepublish": "pnpm run build:production",
-    "copy-wasm": "cp ../tree-sitter-htmlmustache.wasm ./tree-sitter-htmlmustache.wasm && cp server/node_modules/web-tree-sitter/web-tree-sitter.wasm ./server/out/ && cp node_modules/.pnpm/@one-ini+wasm@0.2.0/node_modules/@one-ini/wasm/one_ini_bg.wasm ./server/out/ && cp server/node_modules/vscode-oniguruma/release/onig.wasm ./server/out/",
     "clean": "rm -rf server/out client/out && mkdir -p server/out client/out",
-    "build": "pnpm run clean && node esbuild.mjs && pnpm run copy-wasm",
-    "build:production": "pnpm run clean && node esbuild.mjs --production && pnpm run copy-wasm",
+    "build": "pnpm run clean && node esbuild.mjs",
+    "build:production": "pnpm run clean && node esbuild.mjs --production",
     "typecheck": "pnpm --filter htmlmustache-lsp-client exec tsc --noEmit && pnpm --filter htmlmustache-lsp-server exec tsc --noEmit",
     "watch": "pnpm run prebuild && node esbuild.mjs --watch",
     "lint": "eslint ./client/src ./server/src",
