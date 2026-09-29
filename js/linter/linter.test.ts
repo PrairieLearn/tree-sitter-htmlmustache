@@ -250,9 +250,13 @@ describe('createLinter formats hook', () => {
       .filter((diagnostic) => diagnostic.ruleName === 'customTagSchema');
 
     expect(diagnostics).toHaveLength(1);
-    expect(diagnostics[0].message).toContain(
-      'unknown keyword: "x-htmlmustache-note"',
-    );
+    expect(diagnostics[0]).toMatchObject({
+      severity: 'error',
+      ruleName: 'customTagSchema',
+      message: expect.stringContaining(
+        'unknown keyword: "x-htmlmustache-note"',
+      ),
+    });
   });
 });
 
