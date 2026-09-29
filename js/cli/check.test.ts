@@ -8,6 +8,7 @@ import {
   formatSummary,
   resolveFiles,
   applyFixes,
+  run,
 } from './check';
 import { initializeParser, parseDocument } from './wasm';
 import { loadSchemaRegistry } from '../shared/customTagSchemaLoader.js';
@@ -725,6 +726,31 @@ describe('resolveFiles', () => {
     expect(schemaLoadErrors?.length ?? 0).toBeGreaterThan(0);
     expect(schemaLoadErrors![0].ruleName).toBe('pluginModule');
     expect(schemaLoadErrors![0].message).toContain('missing-plugin.mjs');
+  });
+
+  it('returns a failing status for an unregistered schema format', async () => {
+    const templatePath = path.join(tempDir, 'unknown-format.mustache');
+    fs.writeFileSync(templatePath, '<x-input size="wide"></x-input>');
+    fs.writeFileSync(
+      path.join(tempDir, '.htmlmustache.jsonc'),
+      JSON.stringify({
+        include: ['unknown-format.mustache'],
+        customTags: [
+          {
+            name: 'x-input',
+            schema: {
+              $schema: DRAFT_06,
+              type: 'object',
+              properties: {
+                size: { type: 'string', format: 'integer' },
+              },
+            },
+          },
+        ],
+      }),
+    );
+
+    expect(await run(['check'])).toBe(1);
   });
 });
 

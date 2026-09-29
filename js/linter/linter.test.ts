@@ -203,6 +203,61 @@ describe('createLinter formats hook', () => {
     });
     expect(bad.some((d) => d.ruleName === 'customTagSchema')).toBe(true);
   });
+
+  it('reports an unregistered format as one schema-load diagnostic', () => {
+    const diagnostics = linter
+      .lint('<x-input size="wide"></x-input>', {
+        customTags: [
+          {
+            name: 'x-input',
+            schema: {
+              $schema: 'http://json-schema.org/draft-06/schema#',
+              type: 'object',
+              properties: {
+                size: { type: 'string', format: 'undefined-format' },
+              },
+            },
+          },
+        ],
+      })
+      .filter((diagnostic) => diagnostic.ruleName === 'customTagSchema');
+
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      severity: 'error',
+      ruleName: 'customTagSchema',
+      message: expect.stringContaining(
+        'Failed to load schema for <x-input>: unknown format "undefined-format"',
+      ),
+    });
+  });
+
+  it('reports unrelated unknown schema keywords as load errors', () => {
+    const diagnostics = linter
+      .lint('<x-input size="wide"></x-input>', {
+        customTags: [
+          {
+            name: 'x-input',
+            schema: {
+              $schema: 'http://json-schema.org/draft-06/schema#',
+              type: 'object',
+              'x-htmlmustache-note': 'custom annotation',
+              properties: { size: { type: 'string' } },
+            },
+          },
+        ],
+      })
+      .filter((diagnostic) => diagnostic.ruleName === 'customTagSchema');
+
+    expect(diagnostics).toHaveLength(1);
+    expect(diagnostics[0]).toMatchObject({
+      severity: 'error',
+      ruleName: 'customTagSchema',
+      message: expect.stringContaining(
+        'unknown keyword: "x-htmlmustache-note"',
+      ),
+    });
+  });
 });
 
 describe('draft-06 flat custom tag schemas', () => {

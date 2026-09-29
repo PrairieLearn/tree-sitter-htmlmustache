@@ -105,6 +105,9 @@ function createAjv(): Ajv {
     coerceTypes: true,
     useDefaults: false,
     strict: false,
+    // Reject schema constructs Ajv would otherwise ignore, including unknown
+    // formats and keywords, without enabling unrelated strict-mode checks.
+    strictSchema: true,
     validateSchema: false,
   });
   ajvErrors(ajv);
