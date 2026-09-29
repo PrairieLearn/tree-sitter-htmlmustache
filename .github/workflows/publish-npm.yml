@@ -17,15 +17,18 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      - uses: pnpm/action-setup@v6
+        with:
+          version: 12
+
       - uses: actions/setup-node@v6
         with:
-          node-version: 22
+          node-version: 24
+          cache: pnpm
 
-      # Pin npm to a known-good version: 11.5.2+ adds Trusted Publishing (OIDC)
-      # support; 11.12.1 ships broken (missing `promise-retry`), so don't
-      # blindly install latest.
-      - run: npm install -g npm@11.11.1
+      # Use npm 12 for trusted publishing.
+      - run: npm install -g npm@12
 
-      - run: npm install
+      - run: pnpm install --frozen-lockfile
 
       - run: npm publish --provenance --access public

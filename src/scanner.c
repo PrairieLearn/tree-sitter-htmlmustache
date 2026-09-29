@@ -61,6 +61,8 @@ static unsigned serialize(Scanner *scanner, char *buffer) {
     memcpy(&buffer[size], &tag_count, sizeof(tag_count));
     size += sizeof(tag_count);
 
+    // Leave room for both Mustache counts even when the HTML stack fills the buffer.
+    const unsigned html_buffer_limit = TREE_SITTER_SERIALIZATION_BUFFER_SIZE - 2 * sizeof(uint16_t);
     for (; serialized_tag_count < tag_count; serialized_tag_count++) {
         Tag tag = scanner->tags.contents[serialized_tag_count];
         if (tag.type == CUSTOM) {
@@ -68,7 +70,7 @@ static unsigned serialize(Scanner *scanner, char *buffer) {
             if (name_length > UINT8_MAX) {
                 name_length = UINT8_MAX;
             }
-            if (size + 1 + name_length >= TREE_SITTER_SERIALIZATION_BUFFER_SIZE) {
+            if (size + 2 + name_length > html_buffer_limit) {
                 break;
             }
             buffer[size++] = (char)tag.type;
@@ -76,7 +78,7 @@ static unsigned serialize(Scanner *scanner, char *buffer) {
             strncpy(&buffer[size], tag.custom_tag_name.contents, name_length);
             size += name_length;
         } else {
-            if (size + 1 >= TREE_SITTER_SERIALIZATION_BUFFER_SIZE) {
+            if (size + 1 > html_buffer_limit) {
                 break;
             }
             buffer[size++] = (char)tag.type;

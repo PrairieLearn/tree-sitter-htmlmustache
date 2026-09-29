@@ -9,8 +9,7 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/prairielearn/tree-sitter-htmlmustache/actions/workflows/lint.yml"><img src="https://img.shields.io/github/actions/workflow/status/prairielearn/tree-sitter-htmlmustache/lint.yml?logo=github&label=Lint" alt="Lint"></a>
-  <a href="https://github.com/prairielearn/tree-sitter-htmlmustache/actions/workflows/lsp.yml"><img src="https://img.shields.io/github/actions/workflow/status/prairielearn/tree-sitter-htmlmustache/lsp.yml?logo=github&label=LSP" alt="LSP"></a>
+  <a href="https://github.com/prairielearn/tree-sitter-htmlmustache/actions/workflows/ci.yml"><img src="https://img.shields.io/github/actions/workflow/status/prairielearn/tree-sitter-htmlmustache/ci.yml?logo=github&label=CI" alt="CI"></a>
   <a href="https://open-vsx.org/extension/prairielearn/tree-sitter-htmlmustache"><img src="https://img.shields.io/open-vsx/v/prairielearn/tree-sitter-htmlmustache?logo=visualstudiocode&label=VS%20Code" alt="Open VSX"></a>
   <a href="https://www.npmjs.com/package/@prairielearn/tree-sitter-htmlmustache"><img src="https://img.shields.io/npm/v/@prairielearn/tree-sitter-htmlmustache?logo=npm&label=npm" alt="npm"></a>
   <a href="https://pypi.org/project/tree-sitter-htmlmustache/"><img src="https://img.shields.io/pypi/v/tree-sitter-htmlmustache?logo=pypi&logoColor=white&label=PyPI" alt="PyPI"></a>
@@ -828,6 +827,14 @@ The comment can appear anywhere in the file. Both built-in and custom rules can 
 Both the CLI and VS Code extension respect your `.editorconfig` file for indentation settings (`indent_style`, `indent_size`). EditorConfig values override `.htmlmustache.jsonc` for indentation, and CLI flags override everything.
 
 **Priority order:** defaults < `.htmlmustache.jsonc` < `.editorconfig` (indent only) < CLI flags
+
+## Publishing new versions
+
+1. Bump `package.json` and `pyproject.toml` for npm/Python releases, or `lsp/package.json` for extension releases. Update all three when releasing everything together.
+2. Merge the version changes and wait for CI to pass.
+3. Publish a GitHub release targeting that commit: `vX.Y.Z` for npm/Python or combined releases, or `lsp-vX.Y.Z` for extension-only releases. Match the tag to the manifest versions; pushing a tag alone does not publish packages.
+
+The [publishing workflows](.github/workflows) publish npm and Python packages for `v*` releases. Both tag conventions build WASM/VSIX release attachments and publish the extension to VS Code Marketplace and Open VSX, skipping extension versions already published. Check the workflow results after publishing.
 
 ## Acknowledgments
 
