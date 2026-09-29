@@ -104,13 +104,6 @@
     "typescript-eslint": "^8.56.0",
     "vitest": "^5.0.2"
   },
-  "pnpm": {
-    "onlyBuiltDependencies": [
-      "esbuild",
-      "tree-sitter",
-      "tree-sitter-cli"
-    ]
-  },
   "scripts": {
     "install": "node-gyp-build || exit 0",
     "build": "tree-sitter build --wasm",
