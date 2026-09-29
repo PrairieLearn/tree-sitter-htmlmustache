@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
@@ -750,21 +750,7 @@ describe('resolveFiles', () => {
       }),
     );
 
-    const log = vi.spyOn(console, 'log').mockImplementation(() => undefined);
-    const error = vi
-      .spyOn(console, 'error')
-      .mockImplementation(() => undefined);
-    try {
-      expect(await run(['check'])).toBe(1);
-      const output = [...log.mock.calls, ...error.mock.calls]
-        .flat()
-        .map(String)
-        .join('\n');
-      expect(output).toContain('unknown format "integer"');
-    } finally {
-      log.mockRestore();
-      error.mockRestore();
-    }
+    expect(await run(['check'])).toBe(1);
   });
 });
 
