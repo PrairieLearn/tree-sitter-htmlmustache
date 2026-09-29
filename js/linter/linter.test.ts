@@ -214,7 +214,7 @@ describe('createLinter formats hook', () => {
               $schema: 'http://json-schema.org/draft-06/schema#',
               type: 'object',
               properties: {
-                size: { type: 'string', format: 'integer' },
+                size: { type: 'string', format: 'undefined-format' },
               },
             },
           },
@@ -226,10 +226,10 @@ describe('createLinter formats hook', () => {
     expect(diagnostics[0]).toMatchObject({
       severity: 'error',
       ruleName: 'customTagSchema',
+      message: expect.stringContaining(
+        'Failed to load schema for <x-input>: unknown format "undefined-format"',
+      ),
     });
-    expect(diagnostics[0].message).toContain(
-      'Failed to load schema for <x-input>: unknown format "integer"',
-    );
   });
 
   it('reports unrelated unknown schema keywords as load errors', () => {
