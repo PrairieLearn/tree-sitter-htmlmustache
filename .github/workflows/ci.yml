@@ -1,28 +1,10 @@
-# NOTE: This workflow is disabled due to upstream issues with tree-sitter/parser-test-action:
-# - ubuntu-latest: Segmentation fault in tree-sitter test binary
-# - macos-14 & windows: node-gyp build failures compiling native modules
-# Local tests pass fine (166 tree-sitter tests + node binding tests).
-# Re-enable once tree-sitter CI infrastructure is fixed.
-
 name: CI
 
 on:
   workflow_dispatch:
-  # push:
-  #   branches: [master]
-  #   paths:
-  #     - grammar.js
-  #     - src/**
-  #     - test/**
-  #     - bindings/**
-  #     - binding.gyp
-  # pull_request:
-  #   paths:
-  #     - grammar.js
-  #     - src/**
-  #     - test/**
-  #     - bindings/**
-  #     - binding.gyp
+  push:
+    branches: [master]
+  pull_request:
 
 concurrency:
   group: ${{github.workflow}}-${{github.ref}}
@@ -39,17 +21,85 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-      - name: Set up tree-sitter
-        uses: tree-sitter/setup-action/cli@v2
-      - name: Run tests
-        uses: tree-sitter/parser-test-action@v2
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
         with:
-          test-rust: false
-          test-node: true
-          test-python: true
-          test-go: false
-          test-swift: false
+          version: 12
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install Node dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Verify generated parser
+        run: |
+          pnpm exec tree-sitter generate
+          git diff --exit-code -- src
+      - name: Test parser and Node binding
+        run: pnpm test
       - name: Parse examples
-        uses: tree-sitter/parse-action@v4
+        run: pnpm exec tree-sitter parse --quiet "examples/*"
+      - name: Install Python binding
+        run: python -m pip install -e ".[core]"
+      - name: Test Python binding
+        run: python -m unittest discover -v -s bindings/python/tests
+
+  javascript:
+    name: JavaScript and LSP
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
         with:
-          files: examples/*
+          version: 12
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Build WASM
+        run: pnpm build
+      - name: Run JavaScript tests
+        run: pnpm run test:js
+      - name: Check JavaScript package types
+        run: pnpm run typecheck
+      - name: Check LSP types
+        run: pnpm run typecheck
+        working-directory: lsp
+      - name: Build LSP
+        run: pnpm run build
+        working-directory: lsp
+      - name: Run server tests
+        run: pnpm run test
+        working-directory: lsp
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 12
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          cache: pnpm
+          node-version: 24
+      - name: Install modules
+        run: pnpm install
+      - name: Run ESLint
+        run: pnpm run lint
+      - name: Check formatting
+        if: ${{ !cancelled() }}
+        run: pnpm run format:check

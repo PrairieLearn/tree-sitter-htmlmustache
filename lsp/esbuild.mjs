@@ -1,4 +1,6 @@
 import * as esbuild from 'esbuild';
+import { copyFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
 
 const production = process.argv.includes('--production');
 
@@ -37,5 +39,30 @@ const __dirname = dirname(__filename);
 `,
   },
 });
+
+// Resolve runtime assets through their owning packages, independent of pnpm's store layout.
+const serverRequire = createRequire(
+  new URL('./server/package.json', import.meta.url),
+);
+const editorconfigRequire = createRequire(
+  serverRequire.resolve('editorconfig'),
+);
+for (const [source, destination] of [
+  ['../tree-sitter-htmlmustache.wasm', 'tree-sitter-htmlmustache.wasm'],
+  [
+    serverRequire.resolve('web-tree-sitter/web-tree-sitter.wasm'),
+    'server/out/web-tree-sitter.wasm',
+  ],
+  [
+    editorconfigRequire.resolve('@one-ini/wasm/one_ini_bg.wasm'),
+    'server/out/one_ini_bg.wasm',
+  ],
+  [
+    serverRequire.resolve('vscode-oniguruma/release/onig.wasm'),
+    'server/out/onig.wasm',
+  ],
+]) {
+  copyFileSync(source, destination);
+}
 
 console.log('Build complete');

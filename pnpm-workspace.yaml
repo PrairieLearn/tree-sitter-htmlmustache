@@ -1,2 +1,9 @@
 packages:
   - 'lsp'
+  - 'lsp/client'
+  - 'lsp/server'
+
+allowBuilds:
+  esbuild: true
+  tree-sitter: true
+  tree-sitter-cli: true

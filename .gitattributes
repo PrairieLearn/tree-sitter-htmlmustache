@@ -7,6 +7,8 @@ src/tree_sitter/* linguist-generated
 
 # Node.js bindings
 bindings/node/* linguist-generated
+# Hand-authored tests should remain visible in GitHub diffs.
+bindings/node/*_test.js linguist-generated=false
 binding.gyp linguist-generated
 
 # Python bindings
