@@ -1,28 +1,10 @@
-# NOTE: This workflow is disabled due to upstream issues with tree-sitter/parser-test-action:
-# - ubuntu-latest: Segmentation fault in tree-sitter test binary
-# - macos-14 & windows: node-gyp build failures compiling native modules
-# Local tests pass fine (166 tree-sitter tests + node binding tests).
-# Re-enable once tree-sitter CI infrastructure is fixed.
-
 name: CI
 
 on:
   workflow_dispatch:
-  # push:
-  #   branches: [master]
-  #   paths:
-  #     - grammar.js
-  #     - src/**
-  #     - test/**
-  #     - bindings/**
-  #     - binding.gyp
-  # pull_request:
-  #   paths:
-  #     - grammar.js
-  #     - src/**
-  #     - test/**
-  #     - bindings/**
-  #     - binding.gyp
+  push:
+    branches: [master]
+  pull_request:
 
 concurrency:
   group: ${{github.workflow}}-${{github.ref}}
@@ -39,17 +21,24 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v6
-      - name: Set up tree-sitter
-        uses: tree-sitter/setup-action/cli@v2
-      - name: Run tests
-        uses: tree-sitter/parser-test-action@v2
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
         with:
-          test-rust: false
-          test-node: true
-          test-python: true
-          test-go: false
-          test-swift: false
-      - name: Parse examples
-        uses: tree-sitter/parse-action@v4
+          node-version: 22
+          cache: npm
+      - name: Set up Python
+        uses: actions/setup-python@v6
         with:
-          files: examples/*
+          python-version: '3.12'
+      - name: Install Node dependencies
+        run: npm ci
+      - name: Verify generated parser
+        run: |
+          npx --no-install tree-sitter generate
+          git diff --exit-code -- src
+      - name: Test parser and Node binding
+        run: npm test
+      - name: Install Python binding
+        run: python -m pip install -e ".[core]"
+      - name: Test Python binding
+        run: python -m unittest discover -v -s bindings/python/tests
