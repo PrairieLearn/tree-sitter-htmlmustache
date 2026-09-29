@@ -1,5 +1,7 @@
 packages:
   - 'lsp'
+  - 'lsp/client'
+  - 'lsp/server'
 
 allowBuilds:
   esbuild: true

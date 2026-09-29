@@ -12,15 +12,14 @@ A VS Code language server for HTML with Mustache template syntax, powered by tre
 ## Quick Start
 
 ```bash
-# 1. From the project root, build the WASM parser
-tree-sitter build --wasm
-
-# 2. Install LSP dependencies
-cd lsp
+# 1. From the repository root, install all workspace dependencies
 pnpm install
 
+# 2. Build the WASM parser
+pnpm build
+
 # 3. Build the LSP
-pnpm run build
+pnpm --dir lsp run build
 
 # 4. Test in VS Code (see below)
 ```
@@ -30,11 +29,11 @@ pnpm run build
 The LSP requires the tree-sitter grammar compiled to WebAssembly. From the **project root**:
 
 ```bash
-# Make sure tree-sitter CLI is installed
-pnpm add -g tree-sitter-cli  # or use the one in this repo's devDependencies
+# Install the workspace dependencies, including the tree-sitter CLI
+pnpm install
 
 # Build the WASM file (creates tree-sitter-htmlmustache.wasm)
-tree-sitter build --wasm
+pnpm build
 ```
 
 This creates `tree-sitter-htmlmustache.wasm` in the project root, which the LSP server loads at runtime.
@@ -42,14 +41,15 @@ This creates `tree-sitter-htmlmustache.wasm` in the project root, which the LSP 
 ## Installing & Building the LSP
 
 ```bash
-cd lsp
-
-# Install all dependencies (client + server)
+# From the repository root, install all dependencies
 pnpm install
 
 # Build both client and server
+cd lsp
 pnpm run build
 ```
+
+The root `pnpm-workspace.yaml` includes the parser, extension, client, and server packages. They share the root `pnpm-lock.yaml`; there is no separate LSP dependency installation.
 
 ### Development Mode
 
@@ -93,7 +93,7 @@ The WASM file wasn't found. Make sure you built it:
 
 ```bash
 cd /path/to/tree-sitter-htmlmustache
-tree-sitter build --wasm
+pnpm build
 ls *.wasm  # Should show tree-sitter-htmlmustache.wasm
 ```
 

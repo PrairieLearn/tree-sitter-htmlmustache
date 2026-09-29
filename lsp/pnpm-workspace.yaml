@@ -1,6 +1,0 @@
-packages:
-  - 'client'
-  - 'server'
-
-allowBuilds:
-  esbuild: true

@@ -4,19 +4,7 @@ on:
   workflow_dispatch:
   push:
     branches: [master]
-    paths:
-      - lsp/**
-      - tree-sitter-htmlmustache.wasm
-      - grammar.js
-      - src/**
-      - eslint.config.mjs
   pull_request:
-    paths:
-      - lsp/**
-      - tree-sitter-htmlmustache.wasm
-      - grammar.js
-      - src/**
-      - eslint.config.mjs
 
 jobs:
   build:
@@ -33,15 +21,10 @@ jobs:
         with:
           cache: pnpm
           node-version: 24
-      - name: Set up tree-sitter
-        uses: tree-sitter/setup-action/cli@v2
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
       - name: Build WASM
-        run: tree-sitter build --wasm
-      - name: Install root dependencies
-        run: pnpm install --ignore-scripts
-      - name: Install LSP dependencies
-        run: pnpm install
-        working-directory: lsp
+        run: pnpm build
       - name: Build LSP
         run: pnpm run build
         working-directory: lsp

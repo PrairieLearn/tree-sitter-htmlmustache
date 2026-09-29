@@ -48,23 +48,14 @@ jobs:
         with:
           node-version: '24'
 
-      - name: Set up tree-sitter
-        uses: tree-sitter/setup-action/cli@v2
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Generate parser
-        run: tree-sitter generate
+        run: pnpm exec tree-sitter generate
 
       - name: Build WASM (needed by extension)
-        run: tree-sitter build --wasm
-
-      # Install root deps so shared modules under `src/core/` can resolve
-      # their dependencies (e.g. parsel-js) from root node_modules at bundle time.
-      - name: Install root dependencies
-        run: pnpm install
-
-      - name: Install extension dependencies
-        working-directory: lsp
-        run: pnpm install
+        run: pnpm build
 
       - name: Build extension
         working-directory: lsp
