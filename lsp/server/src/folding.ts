@@ -1,6 +1,6 @@
 import { Node as SyntaxNode } from 'web-tree-sitter';
 import type { Tree } from './parser.js';
-import { FoldingRange, FoldingRangeKind } from 'vscode-languageserver/node.js';
+import { FoldingRange, FoldingRangeKind } from 'vscode-languageserver/node';
 import { isHtmlElementType, isMustacheSection } from '../../../js/shared/nodeHelpers.js';
 
 /**

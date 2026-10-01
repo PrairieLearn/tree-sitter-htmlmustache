@@ -43,8 +43,8 @@ export function attr<TAllowBooleanAttributes extends boolean = true>(
   const normalized = name.toLowerCase();
   const lookup =
     (attributeLookups.get(element) as
-      | AttributeLookup<TAllowBooleanAttributes>
-      | undefined) ?? fallbackLookup(element);
+      AttributeLookup<TAllowBooleanAttributes> | undefined) ??
+    fallbackLookup(element);
 
   const literal = (): AttributeValueFor<TAllowBooleanAttributes> | undefined =>
     lookup.getLiteralAttribute(normalized);

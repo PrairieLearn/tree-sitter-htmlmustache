@@ -1,7 +1,7 @@
 import { Node as SyntaxNode } from 'web-tree-sitter';
 import type { Tree } from './parser.js';
 import { TextDocument } from 'vscode-languageserver-textdocument';
-import { DocumentSymbol, SymbolKind, Range } from 'vscode-languageserver/node.js';
+import { DocumentSymbol, SymbolKind, Range } from 'vscode-languageserver/node';
 import { getTagName, getSectionName, isMustacheSection, isRawContentElement } from '../../../js/shared/nodeHelpers.js';
 
 /**

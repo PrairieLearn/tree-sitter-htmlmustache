@@ -3,7 +3,20 @@ packages:
   - 'lsp/client'
   - 'lsp/server'
 
+overrides:
+  # The Tree-sitter preset still requests JSDoc 50, which does not support ESLint 10.
+  eslint-config-treesitter>eslint-plugin-jsdoc: ^65.0.1
+
+packageExtensions:
+  # The preset imports globals without declaring it as a dependency.
+  eslint-config-treesitter@1.0.2:
+    dependencies:
+      globals: ^17.13.0
+
 allowBuilds:
   esbuild: true
   tree-sitter: true
   tree-sitter-cli: true
+
+minimumReleaseAgeExclude:
+  - globals@17.13.0

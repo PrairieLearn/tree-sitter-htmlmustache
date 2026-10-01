@@ -9,11 +9,10 @@ import {
 } from 'vscode-languageclient/node';
 
 let client: LanguageClient;
-const outputChannel = window.createOutputChannel('HTML Mustache');
+const outputChannel = window.createOutputChannel('HTML Mustache', { log: true });
 
 function log(message: string) {
-  const timestamp = new Date().toISOString();
-  outputChannel.appendLine(`[${timestamp}] ${message}`);
+  outputChannel.info(message);
 }
 
 /**

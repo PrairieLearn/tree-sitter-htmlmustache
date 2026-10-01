@@ -1,4 +1,4 @@
-import { SemanticTokensBuilder } from 'vscode-languageserver/node.js';
+import { SemanticTokensBuilder } from 'vscode-languageserver/node';
 import type { Tree, Query } from './parser.js';
 import { tokenTypeIndex } from './tokenLegend.js';
 

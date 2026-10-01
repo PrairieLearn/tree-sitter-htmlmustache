@@ -1,5 +1,5 @@
 [build-system]
-requires = ["setuptools>=62.4", "wheel"]
+requires = ["setuptools>=84.0.0", "wheel>=0.48.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
@@ -26,7 +26,7 @@ Homepage = "https://github.com/prairielearn/tree-sitter-htmlmustache"
 Issues = "https://github.com/prairielearn/tree-sitter-htmlmustache/issues"
 
 [project.optional-dependencies]
-core = ["tree-sitter~=0.24"]
+core = ["tree-sitter~=0.26"]
 
 [tool.cibuildwheel]
 build = "cp310-*"

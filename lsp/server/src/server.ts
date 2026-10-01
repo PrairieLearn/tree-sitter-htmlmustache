@@ -6,7 +6,7 @@ import {
   InitializeResult,
   TextDocumentSyncKind,
   CodeActionKind,
-} from 'vscode-languageserver/node.js';
+} from 'vscode-languageserver/node';
 import { TextDocument } from 'vscode-languageserver-textdocument';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';

@@ -75,13 +75,7 @@ import {
 export type AttributeOperator = '=' | '^=' | '*=' | '$=' | '~=';
 
 export type SegmentKind =
-  | 'html'
-  | 'section'
-  | 'inverted'
-  | 'variable'
-  | 'raw'
-  | 'comment'
-  | 'partial';
+  'html' | 'section' | 'inverted' | 'variable' | 'raw' | 'comment' | 'partial';
 
 export interface AttributeConstraint {
   name: string; // lowercased
@@ -96,10 +90,7 @@ export interface DescendantCheck {
 }
 
 export type Combinator =
-  | 'descendant'
-  | 'child'
-  | 'adjacent-sibling'
-  | 'general-sibling';
+  'descendant' | 'child' | 'adjacent-sibling' | 'general-sibling';
 
 export interface Segment {
   kind: SegmentKind;

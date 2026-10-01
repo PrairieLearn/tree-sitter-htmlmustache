@@ -62,17 +62,17 @@
     "ajv": "^8.20.0",
     "ajv-errors": "^3.0.0",
     "ajv-i18n": "^4.2.0",
-    "chalk": "^5.6.2",
-    "editorconfig": "^3.0.1",
-    "vscode-languageserver-textdocument": "^1.0.12",
-    "web-tree-sitter": "^0.26.5",
-    "zod": "^4.4.3"
+    "chalk": "^6.0.1",
+    "editorconfig": "^3.0.2",
+    "vscode-languageserver-textdocument": "^1.0.15",
+    "web-tree-sitter": "^0.27.0",
+    "zod": "^4.6.5"
   },
   "peerDependencies": {
-    "node-addon-api": "^8.2.2",
-    "node-gyp-build": "^4.8.2",
-    "prettier": "^3.0.0",
-    "tree-sitter": "^0.25.0"
+    "node-addon-api": "^8.9.2",
+    "node-gyp-build": "^4.8.4",
+    "prettier": "^3.9.9",
+    "tree-sitter": "^0.25.1"
   },
   "peerDependenciesMeta": {
     "node-addon-api": {
@@ -89,20 +89,22 @@
     }
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.2",
-    "@types/node": "^25.3.0",
-    "esbuild": "^0.27.3",
-    "eslint": "^9.14.0",
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.3",
+    "@typescript/native": "npm:typescript@^7.0.2",
+    "esbuild": "^0.28.2",
+    "eslint": "^10.11.0",
     "eslint-config-treesitter": "^1.0.2",
-    "parsel-js": "^1.2.2",
+    "node-gyp": "^13.0.2",
+    "parsel-js": "^1.2.3",
     "prebuildify": "^6.0.1",
-    "prettier": "^3.8.1",
+    "prettier": "^3.9.9",
     "tree-sitter": "^0.25.1",
     "tree-sitter-cli": "^0.27.0",
-    "tsx": "^4.20.2",
-    "typescript": "^5.9.3",
-    "typescript-eslint": "^8.56.0",
-    "vitest": "^5.0.2"
+    "tsx": "^4.23.15",
+    "typescript": "npm:@typescript/typescript6@^6.0.2",
+    "typescript-eslint": "^8.71.0",
+    "vitest": "^5.0.3"
   },
   "scripts": {
     "install": "node-gyp-build || exit 0",

@@ -46,8 +46,7 @@ export interface ElementContentTooLongOptions {
 
 export type RuleEntry = RuleSeverity | { severity: RuleSeverity };
 export type RuleEntryWithOptions<TOptions> =
-  | RuleSeverity
-  | ({ severity: RuleSeverity } & Partial<TOptions>);
+  RuleSeverity | ({ severity: RuleSeverity } & Partial<TOptions>);
 
 export interface RulesConfig {
   [ruleName: string]: RuleEntry | RuleEntryWithOptions<unknown> | undefined;
