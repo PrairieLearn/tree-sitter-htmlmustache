@@ -20,11 +20,29 @@ interface PrintState {
   groupModes: Map<symbol, 'flat' | 'break'>;
 }
 
+interface PrintOutput {
+  chunks: string[];
+  pendingIndent: string;
+}
+
+function appendText(output: PrintOutput, text: string): void {
+  if (text.length === 0) return;
+  // Only defer generated indentation; literal whitespace is significant.
+  if (!text.startsWith('\n')) output.chunks.push(output.pendingIndent);
+  output.pendingIndent = '';
+  output.chunks.push(text);
+}
+
+function appendLine(output: PrintOutput, indentation: string): void {
+  output.chunks.push('\n');
+  output.pendingIndent = indentation;
+}
+
 /**
  * Print a Doc to a string with the given options.
  */
 export function print(doc: Doc, options: PrinterOptions): string {
-  const output: string[] = [];
+  const output: PrintOutput = { chunks: [], pendingIndent: '' };
   const state: PrintState = {
     indentLevel: 0,
     mode: 'break',
@@ -33,17 +51,17 @@ export function print(doc: Doc, options: PrinterOptions): string {
 
   printDoc(doc, state, output, options);
 
-  return output.join('');
+  return output.chunks.join('');
 }
 
 /**
  * Walk the output buffer backward to find the current column position
  * (characters since the last newline).
  */
-function currentColumn(output: string[]): number {
-  let col = 0;
-  for (let i = output.length - 1; i >= 0; i--) {
-    const chunk = output[i];
+function currentColumn(output: PrintOutput): number {
+  let col = output.pendingIndent.length;
+  for (let i = output.chunks.length - 1; i >= 0; i--) {
+    const chunk = output.chunks[i];
     const nlIndex = chunk.lastIndexOf('\n');
     if (nlIndex !== -1) {
       col += chunk.length - nlIndex - 1;
@@ -83,11 +101,11 @@ function containsBreakParent(doc: Doc): boolean {
 function printDoc(
   doc: Doc,
   state: PrintState,
-  output: string[],
+  output: PrintOutput,
   options: PrinterOptions,
 ): void {
   if (typeof doc === 'string') {
-    output.push(doc);
+    appendText(output, doc);
     return;
   }
 
@@ -105,25 +123,22 @@ function printDoc(
       break;
 
     case 'hardline':
-      output.push('\n');
-      output.push(makeIndent(state.indentLevel, options));
+      appendLine(output, makeIndent(state.indentLevel, options));
       break;
 
     case 'softline':
       if (state.mode === 'break') {
-        output.push('\n');
-        output.push(makeIndent(state.indentLevel, options));
+        appendLine(output, makeIndent(state.indentLevel, options));
       }
       // In flat mode, softline produces nothing
       break;
 
     case 'line':
       if (state.mode === 'break') {
-        output.push('\n');
-        output.push(makeIndent(state.indentLevel, options));
+        appendLine(output, makeIndent(state.indentLevel, options));
       } else {
         // In flat mode, line produces a space
-        output.push(' ');
+        appendText(output, ' ');
       }
       break;
 
@@ -137,7 +152,7 @@ function printDoc(
         state.mode = prevMode;
       } else {
         // Try to fit on one line
-        const flatOutput: string[] = [];
+        const flatOutput: PrintOutput = { chunks: [], pendingIndent: '' };
         const flatState: PrintState = {
           ...state,
           mode: 'flat',
@@ -145,7 +160,7 @@ function printDoc(
         };
         printDoc(doc.contents, flatState, flatOutput, options);
 
-        const flatContent = flatOutput.join('');
+        const flatContent = flatOutput.chunks.join('');
         const printWidth = options.printWidth ?? 80;
         const col = currentColumn(output);
 
@@ -155,7 +170,7 @@ function printDoc(
           col + flatContent.length <= printWidth
         ) {
           if (doc.id) state.groupModes.set(doc.id, 'flat');
-          output.push(flatContent);
+          appendText(output, flatContent);
         } else {
           // Break mode
           const prevMode = state.mode;
@@ -200,7 +215,7 @@ function printDoc(
 function printFill(
   parts: Doc[],
   state: PrintState,
-  output: string[],
+  output: PrintOutput,
   options: PrinterOptions,
 ): void {
   if (parts.length === 0) return;
@@ -219,18 +234,18 @@ function printFill(
     // Try printing separator + next content flat
     const nextContent = i + 2 < parts.length ? parts[i + 2] : null;
     if (nextContent !== null) {
-      const testOutput: string[] = [];
+      const testOutput: PrintOutput = { chunks: [], pendingIndent: '' };
       const flatState: PrintState = { ...state, mode: 'flat' };
       printDoc(separator, flatState, testOutput, options);
       printDoc(nextContent, flatState, testOutput, options);
-      const testStr = testOutput.join('');
+      const testStr = testOutput.chunks.join('');
       const col = currentColumn(output);
 
       if (!testStr.includes('\n') && col + testStr.length <= printWidth) {
         // Fits: print separator flat
-        const sepOutput: string[] = [];
+        const sepOutput: PrintOutput = { chunks: [], pendingIndent: '' };
         printDoc(separator, flatState, sepOutput, options);
-        output.push(sepOutput.join(''));
+        appendText(output, sepOutput.chunks.join(''));
       } else {
         // Doesn't fit: print separator in break mode
         printDoc(separator, { ...state, mode: 'break' }, output, options);

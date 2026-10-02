@@ -5,6 +5,7 @@
 
 import { describe, it, expect, beforeAll } from 'vitest';
 import * as path from 'node:path';
+import * as prettier from 'prettier';
 import { fileURLToPath } from 'node:url';
 import { createFormatter, type Formatter, type PrettierLike } from './index.js';
 import { GRAMMAR_WASM_FILENAME } from '../shared/grammar.js';
@@ -68,6 +69,40 @@ describe('format', () => {
       prettier,
     });
     expect(out).toContain('/* PRETTIER-var a=1; */');
+  });
+
+  it.each([
+    ['script', 'const a = 1;\n\nconst b = 2;'],
+    ['style', 'a {\n  color: red;\n}\n\nb {\n  color: blue;\n}'],
+  ])('leaves blank lines empty in embedded <%s>', async (tag, body) => {
+    for (const indentSize of [2, 4]) {
+      const config = { indentSize };
+      const unit = ' '.repeat(indentSize);
+      const src = `<div><${tag}>${body}</${tag}></div>`;
+      const out = await formatter.format(src, config, { prettier });
+      expect(out).toContain('\n\n');
+      expect(out).not.toMatch(/[\t ]+$/m);
+      expect(out).toContain(`\n${unit}${unit}${body.split('\n')[0]}`);
+      expect(await formatter.format(out, config, { prettier })).toBe(out);
+    }
+  });
+
+  it.each(['pre', 'textarea', 'markdown'])(
+    'preserves significant whitespace inside <%s>',
+    async (tag) => {
+      const body = 'first  \n \t\nlast';
+      const src = `<div><${tag}>${body}</${tag}></div>`;
+      const out = await formatter.format(src, undefined, { prettier });
+      expect(out).toContain(`<${tag}>${body}</${tag}>`);
+    },
+  );
+
+  it('preserves whitespace in ignored content', async () => {
+    const content = '<span>first  \n \t\nlast</span>';
+    const out = await formatter.format(
+      `<div><!-- htmlmustache-ignore -->\n${content}</div>`,
+    );
+    expect(out).toContain(content);
   });
 
   it('uses factory-level prettier by default', async () => {
